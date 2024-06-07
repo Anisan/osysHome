@@ -4,10 +4,11 @@ Object system smarthome
 
 ## Install
 
-* git clone
-* python -m venv venv
+* git clone https://github.com/Anisan/osysHome.git
+* cd osysHome
+* python3 -m venv venv
 * source venv\bin\activate
-* pip install -r requirement/requirement.txt
+* pip install -r requirements.txt
 
 ## Settings
 
