@@ -1,0 +1,4 @@
+[submodule "plugins"]
+	path = plugins
+	url = ../osys_plugin.git
+	branch = master

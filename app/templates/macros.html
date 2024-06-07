@@ -1,0 +1,9 @@
+<!-- macros.html -->
+
+{% macro display_items(items) %}
+    <ul>
+    {% for item in items %}
+        <li>{{ item.name }}</li>
+    {% endfor %}
+    </ul>
+{% endmacro %}

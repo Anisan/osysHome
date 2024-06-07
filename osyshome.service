@@ -1,0 +1,14 @@
+[Unit]
+Description="osysHome"
+
+[Service]
+User=www-data
+Group=www-data
+WorkingDirectory=/opt/osyshome/
+VIRTUAL_ENV=/opt/osyshome/venv
+Environment=PATH=$VIRTUAL_ENV/bin:$PATH
+ExecStart=/opt/osyshome/venv/bin/python3 main.py
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

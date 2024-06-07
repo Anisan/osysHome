@@ -1,0 +1,21 @@
+{% extends "layouts/admin.html" %}
+
+{% block title %} Control panel {% endblock %}
+
+<!-- Specific CSS goes HERE -->
+{% block stylesheets %}{% endblock stylesheets %}
+
+<!-- [ Main Content ] start -->
+{% block content %}
+<!-- [ breadcrumb ] start -->
+<div class="row align-items-center card ms-0 mb-2 p-2">
+    <ul class="breadcrumb mb-0">
+        <li class="breadcrumb-item"><a href="/admin"><i class="feather icon-home"></i></a></li>
+    </ul>
+</div>
+<!-- [ breadcrumb ] end -->
+<h1>{{ _('Welcome!')}}</h1>
+{% endblock %}
+
+<!-- Specific Page JS goes HERE  -->
+{% block javascripts %}{% endblock javascripts %}

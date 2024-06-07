@@ -1,0 +1,13 @@
+*.pyc
+.idea/*
+instance/*
+venv/
+cache/*
+migrations/*
+*.db
+*.prof
+logs/*
+settings.py
+build/*
+docs/*
+plugins/*

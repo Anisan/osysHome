@@ -1,0 +1,71 @@
+    
+<script src="{{ config.ASSETS_ROOT }}/plugins/socket.io/socket.io.js"></script>
+<script>
+  var socket = io.connect('http://' + document.domain + ':' + location.port);
+
+  socket.on('connect', function() {
+      console.log('Connected to server');
+      subscribe();
+  });
+
+  socket.on('disconnect', function() {
+      console.log('Disconnected from server');
+  });
+
+  socket.on('message', function(msg) {
+      var messages = document.getElementById('messages');
+      var message = document.createElement('div');
+      message.textContent = msg;
+      messages.appendChild(message);
+  });
+
+  socket.on('changeProperty', function(msg) {
+      var element = document.getElementById("prop:"+msg.property);
+      if (element) {
+        element.textContent = msg.value;
+      }
+  });
+  socket.on('changeObject', function(msg) {
+      console.log("change objects", msg)
+      var element = document.getElementById("obj:"+msg.object);
+      if (element) {
+        element.innerHTML = msg.value;
+      }
+      else
+        console.log("not found object")
+  });
+
+  function setProperty(name, value){
+    socket.emit('setProperty', name, value);
+  }
+
+  function callMethod(name){
+    socket.emit('callMethod', name);
+  }
+
+  function subscribe(){
+      var elements = document.querySelectorAll('[id^="prop:"]');
+      var propList = [];
+      elements.forEach(function(element) {
+            var idWithoutProp = element.id.slice(5); // cut "prop:"
+            propList.push(idWithoutProp);
+      });
+      console.log(propList);
+      elements = document.querySelectorAll('[id^="obj:"]');
+      var objectList = [];
+      elements.forEach(function(element) {
+            var idWithoutProp = element.id.slice(4); // cut "prop:"
+            objectList.push(idWithoutProp);
+      });
+      console.log(objectList);
+      // subscribe
+      if (propList.length > 0)
+        socket.emit('subscribeProperties', propList);
+      if (objectList.length > 0)
+        socket.emit('subscribeObjects', objectList);
+  }
+
+  document.addEventListener('DOMContentLoaded', function() {
+      //subscribe()
+  });
+</script>

@@ -1,0 +1,29 @@
+.btn-smaller {
+    padding: 0.1rem 0.4rem;
+    font-size: 1rem;
+}
+
+.tab-button {
+    height: 49px;
+}
+
+[data-bs-theme="dark"] {
+    --bs-primary: #a8d8ea;
+    --bs-secondary: #aa96da;
+    --bs-success: #bbfcba;
+    --bs-danger: #fcbad3;
+    --bs-warning: #ffffd2;
+    --bs-info: #96a9da;
+    --bs-primary-rgb: 168, 216, 234;
+    --bs-secondary-rgb: 170, 150, 218;
+    --bs-success-rgb: 187, 252, 186;
+    --bs-danger-rgb: 252, 186, 211;
+    --bs-warning-rgb: 255, 255, 210;
+    --bs-info-rgb: 150, 169, 218;
+}
+
+.tabs-and-button {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}

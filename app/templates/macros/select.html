@@ -1,0 +1,84 @@
+{% macro render_linked_select(field_object, field_property, field_method) %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" />
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" />
+
+<div>
+    <label for="{{ field_object.name }}">{{ field_object.label }}</label><br>
+    <select id="{{ field_object.name }}" name="{{ field_object.name }}" class="select2" aria-label="{{label}}">
+    </select>
+</div>
+<div>
+    <label for="{{ field_property.name }}">{{ field_property.label }}</label><br>
+    <select id="{{ field_property.name }}" name="{{ field_property.name }}" class="select2" aria-label="{{label}}">
+    </select>
+</div>
+{% if field_method %}
+<div>
+    <label for="{{ field_method.name }}">{{ field_method.label }}</label><br>
+    <select id="{{ field_method.name }}" name="{{ field_method.name }}" class="select2" aria-label="{{label}}">
+    </select>
+</div>
+{% endif %}
+<script>
+$(document).ready(function() {
+    $('.select2').select2({
+        theme: "bootstrap-5",
+        width: $( this ).data( 'width' ) ? $( this ).data( 'width' ) : $( this ).hasClass( 'w-100' ) ? '100%' : 'style',
+        placeholder: $( this ).data( 'placeholder' ),
+    });
+    function updateProps(object_name, select){
+        $.ajax({
+            url: '/api/properties/' + object_name,
+            method: 'GET',
+            success: function(data) {
+                var property_select = $('#{{field_property.name}}');
+                property_select.empty();
+                Object.keys(data).forEach(function(key) {
+                    property_select.append(new Option(key +" - "+ data[key], key));
+                })
+                property_select.val(select);
+            }
+        });
+    }
+    function updateMethods(object_name, select){
+        $.ajax({
+            url: '/api/methods/' + object_name,
+            method: 'GET',
+            success: function(data) {
+                var method_select = $('#{{field_method.name}}');
+                method_select.empty();
+                Object.keys(data).forEach(function(key) {
+                    method_select.append(new Option(key +" - "+ data[key], key));
+                })
+                method_select.val(select);
+            }
+        });
+    }
+    // Load countries via API
+    $.ajax({
+        url: '/api/objects',
+        method: 'GET',
+        success: function(data) {
+            var object_select = $('#{{field_object.name}}');
+            object_select.empty();
+            console.log(data, object_select, '{{field_object.data}}')
+            Object.keys(data).forEach(function(key) {
+                object_select.append(new Option(key +" - "+ data[key], key));
+            })
+            object_select.val('{{field_object.data}}');
+            updateProps('{{field_object.data}}','{{field_property.data}}')
+            updateMethods('{{field_object.data}}','{{field_method.data}}')
+        }
+    });
+    // Load cities based on selected country
+    $('#{{field_object.name}}').change(function() {
+        var object_name = $(this).val();
+        updateProps(object_name,"")
+        updateMethods(object_name,"")
+    });
+
+    // Preselect city if form was pre-filled
+    $('#{{field_property.name}}').val('{{field_property.data}}');
+});
+</script>
+{% endmacro %}

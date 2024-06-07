@@ -1,0 +1,8 @@
+{%for item in result %}
+    <a class="list-group-item  list-group-item-action" href="{{item.url}}">
+        {%for tag in item.tags %}
+            <span class="badge bg-{{tag.color}}">{{tag.name}}</span>
+        {%endfor%}
+        {{item.title}}
+    </a>
+{%endfor%}

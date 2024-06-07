@@ -1,0 +1,37 @@
+{% macro render_notify(notify) %}
+{% if notify %}
+<div class="card mb-2">
+    <div class="card-header text-dark bg-warning">
+      <h5 class="mb-0 d-flex justify-content-start align-items-center w-100" data-bs-toggle="collapse" data-bs-target="#collapse_notify" aria-expanded="true" aria-controls="collapse_notify">
+        <i class="fas fa-info"></i>
+        <div class="px-3">
+            Notifications - {{notify.__len__()}}
+        </div>
+      </h5>
+    </div>
+    <div class="collapse" id="collapse_notify">
+      <div class="card-body px-2 py-0">
+        {% for item in notify %}
+        <div class="alert alert-{{item.color}}  alert-dismissible fade show p-2 my-1">
+            <i class="fas fa-exclamation-circle me-3"></i><b>{{item.name}}</b>
+            {{item.description}}
+            <i>({{item.created}})</i>
+            <button type="button" class="btn-close p-2 my-1" onclick="readNotify({{item.id}})" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+</div>
+<script>
+    function readNotify(id){
+        $.ajax({
+            url: '/api/readnotify/' + id,
+            method: 'GET',
+            success: function(data) {
+                console.log(data)
+            }
+        });
+    }
+</script>
+{%endif%}
+{% endmacro %}

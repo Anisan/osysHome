@@ -1,0 +1,39 @@
+{% extends "layouts/admin.html" %}
+{% from "macros/notify.html" import render_notify %}
+
+{% block title %} Admin {% endblock %} 
+
+<!-- Specific CSS goes HERE -->
+{% block stylesheets %}{% endblock stylesheets %}
+
+<!-- [ Main Content ] start -->
+{% block content %}
+
+<!-- [ Main Content ] start -->
+<div class="pcoded-main-container">
+    <div class="pcoded-wrapper">
+        <div class="pcoded-content">
+        {{ render_notify(list_notify(request.path.split("/")[-1])) }}
+        <!-- [ breadcrumb ] start -->
+        <div class="card ms-0 mb-2 p-2">
+            <div class="row ms-0">
+            <ul class="col breadcrumb mb-0">
+                <li class="breadcrumb-item"><a href="/admin"><i class="feather icon-home"></i></a></li>
+                {% block breadcrumb %}{% endblock breadcrumb %}
+            </ul>
+            <div class="col text-end">
+                <a href="/docs/plugins/{{ request.path.split("/")[-1]}}.html" target="_blank"><i class="fas fa-info-circle"></i> Help</a>
+            </div>
+            </div>
+        </div>
+        <!-- [ breadcrumb ] end -->
+        {% block module %}
+
+        {% endblock %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+<!-- Specific Page JS goes HERE  -->
+{% block javascripts %}{% endblock javascripts %}

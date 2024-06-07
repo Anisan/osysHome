@@ -1,0 +1,78 @@
+<!-- [ navigation menu ] start -->
+<nav class="sidebar col-md-3 col-lg-2 p-0">
+    {% for key,group in sidebar().items() %}
+    <div class="card mb-1 ml-2">
+        <div class="card-header d-flex justify-content-between align-items-center py-1" data-bs-toggle="collapse" data-bs-target="#collapse{{ key }}" aria-expanded="true" aria-controls="collapse{{ key }}">
+            
+            <i class="fas fa-cogs"></i>
+            <div class="px-3">
+                {{ key }}
+            </div>
+        </div>
+        <div class="collapse" id="collapse{{ key }}">
+            <div class="card-body px-0 py-0">
+                <div class="list-group list-group-flush">
+                    {% for item in group %}
+                    <a  href="{{ item.route }}" class="list-group-item list-group-item-action{% if item.route in request.path %} list-group-item-primary {% endif %} d-flex justify-content-between align-items-start">
+                            <i class="fas fa-cog mt-1"></i>
+                            <div class="ms-2 me-auto">
+                                {{ item.title }}
+                            </div>
+                            {%if item.notify%}
+                            <span class="badge bg-warning text-black rounded-pill mt-1">{{item.notify}}</span>
+                            {%endif%}
+                    </a>
+                    {%endfor%}
+                </div>
+            </div>
+        </div>
+    </div>
+    {%endfor%}
+</nav>
+<script>
+    function loadConfSidebar() {
+      // Check if local storage is available
+      if (typeof(Storage) !== "undefined") {
+        // Check if the collapse state is stored
+        if (localStorage.getItem('collapseSidebar')) {
+          // Get the collapse state from local storage
+          var collapseState = JSON.parse(localStorage.getItem('collapseSidebar'));
+          // Loop through each collapse element
+          collapseState.forEach(function(item) {
+            // Set the collapse state
+            var element = $('#' + item.id);
+            if (!item.collapsed) {
+              element.addClass('show');
+            } else {
+              element.removeClass('show');
+            }
+          });
+        } else {
+          // Initialize collapseState if it's not stored
+          var collapseState = [];
+          $('[id^="collapse"]').each(function() {
+            collapseState.push({id: $(this).attr('id'), collapsed: !$(this).hasClass('show')});
+          });
+          localStorage.setItem('collapseSidebar', JSON.stringify(collapseState));
+        }
+      
+        // Store the collapse state when a collapse element is toggled
+        $('[data-bs-toggle="collapse"]').on('click', function () {
+          setTimeout(function() {
+            var collapseState = [];
+            $('[id^="collapse"]').each(function() {
+              collapseState.push({id: $(this).attr('id'), collapsed: !$(this).hasClass('show')});
+            });
+            localStorage.setItem('collapseSidebar', JSON.stringify(collapseState));
+          }, 500);
+        });
+      }
+    }
+   
+    // Call the function to load configuration after document is loaded
+$(document).ready(function() {
+    loadConfSidebar();
+});
+    
+</script>
+<!-- [ navigation menu ] end -->

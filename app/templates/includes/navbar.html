@@ -1,0 +1,105 @@
+<nav class="navbar navbar-expand-lg">
+    <a class="navbar-brand ms-2" href="/">osysHome</a>
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse" id="navbarSupportedContent">
+      <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+        <li class="nav-item">
+          <a class="nav-link active" aria-current="page" href="/"><i class="fas fa-home me-2"></i>Home</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="/admin"><i class="fas fa-wrench me-2"></i>Control panel</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="/docs/index.html"><i class="fas fa-info me-2"></i>Docs</a>
+        </li>
+      </ul>
+      {% if 'admin' in request.path %}
+      <button class="btn btn-outline-success me-3" data-bs-toggle="modal" data-bs-target="#searchModal">Search</button>
+      {%endif%}
+
+      <ul class="nav navbar-nav navbar-right">
+        <li class="nav-item">
+          <div class="form-check form-switch form-check-reverse display-7 mt-2">
+            <input class="form-check-input" type="checkbox" role="switch" id="darkModeSwitch">
+            <label class="form-check-label" for="darkModeSwitch">Dark</label>
+          </div>
+        </li>
+        <li class="nav-item dropdown mx-3">
+          <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+            <i class="fas fa-user me-2"></i>{{current_user.username}}
+          </a>
+          <ul class="dropdown-menu  dropdown-menu-lg-end" aria-labelledby="navbarDropdown">
+            <li><a class="dropdown-item" href="/admin"><i class="fas fa-cogs me-2"></i>Control panel</a></li>
+            <li><a class="dropdown-item" href="/admin/Modules"><i class="fas fa-wrench me-2"></i>Modules</a></li>
+            <li><hr class="dropdown-divider"></li>
+            <li><a class="dropdown-item" href="/logout"><i class="fas fa-sign-out-alt me-2"></i>Logout</a></li>
+          </ul>
+        </li>
+      </ul>
+    </div>
+</nav>
+<!-- Vertically centered scrollable modal -->
+<div class="modal fade" id="searchModal" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+      <div class="modal-content">
+          <form  method="POST">
+          <div class="modal-header">
+              <h5 class="modal-title" id="exampleModalLabel">Search</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+              <!-- Поля формы -->
+              <input class="form-control me-2" type="search" placeholder="Search" aria-label="Search" id="filter_search" name="filter_search">
+              <div id="filter_add" class="list-group" style="display:none;overflow-x: hidden;white-space: nowrap;border: 1px solid #ddd;padding: 5px;max-height: 300px;overflow-y: auto;border-radius: 5px;margin-top: 5px;">
+              </div>
+          </div>
+          <div class="modal-footer">
+              <button type="button" onclick="$('#filter_search').val('');filterSearch();" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+          </div>
+          </form>
+      </div>
+  </div>
+</div>
+<script>
+  function filterSearch() {
+        $('#filter_add').show().html('<center><div class="spinner-border" role="status"><span class="visually-hidden">Loading...</span></div></center>');
+        
+        var title = $('#filter_search').val();
+        var urlFilter="/api/search?";
+
+        if(title.length <= 2) {
+            $('#filter_add').show().html('<div style="padding: 15px;text-align: center;"><i class="glyphicon glyphicon-info-sign"></i> Введите более 2-х символов для поиска...</div>');
+            return;
+        }
+
+        urlFilter+='query='+encodeURIComponent(title);
+
+        $.ajax({
+            url: urlFilter,
+            success: function(data){
+                $('#filter_add').show();
+
+                if(data) {
+                    $('#filter_add').html(data);
+                } else {
+                    $('#filter_add').html('<div style="padding: 15px;text-align: center;"><i class="glyphicon glyphicon-info-sign"></i> Ничего не найдено :(</div>');
+                }
+            },
+            error: function(data){
+                $('#filter_add').show();
+                $('#filter_add').html('<div style="min-width: 200px;padding: 10px;background: #ffafaf;border-radius: 10px;text-align: center;">Error sending request - filterSearch()</div>');
+            },
+        });
+        return false;
+    }
+
+  $('#searchModal').on('shown.bs.modal', function() {
+    $('input#filter_search').focus();
+  })
+  $('input[name=filter_search]').on('input', function() {
+    //todo debouncer
+    filterSearch();
+  });
+</script>

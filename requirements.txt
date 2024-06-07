@@ -1,0 +1,34 @@
+Flask
+SQLAlchemy
+Flask_SQLAlchemy
+PyJWT
+Flask-JWT-Extended
+Flask-Migrate
+Flask-Cors
+flask_apispec
+
+Flask-Bcrypt
+flask-login
+flask_socketio
+flask_babel
+flask_wtf
+Flask-Caching
+
+psycopg2-binary
+
+pdoc
+
+croniter #cron
+
+requests
+
+# profiling
+flask-debugtoolbar
+Flask-MonitoringDashboard
+
+#plugins
+paho-mqtt
+
+python-vlc
+
+pyTelegramBotAPI

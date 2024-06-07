@@ -1,0 +1,26 @@
+{
+    "pylint.args": [
+        "--variable-naming-style=camelCase",
+        "--function-naming-style=camelCase",
+        "--disable=W0718",
+        "--disable=C0116", // docstring
+        "--max-line-length=120"
+    ],
+    "python.linting.pylintArgs": [
+        "--init-hook",
+        "import sys, os; sys.path.insert(0, os.path.join('app'))"
+    ],
+    "cSpell.words": [
+        "SQLALCHEMY"
+    ],
+    "files.exclude": {
+        "**/.git": true,
+        "**/.svn": true,
+        "**/.hg": true,
+        "**/CVS": true,
+        "**/.DS_Store": true,
+        "**/Thumbs.db": true,
+        "**/*.pyc": {"when": "$(basename).py"}, 
+        "**/__pycache__": true,
+    }
+}
