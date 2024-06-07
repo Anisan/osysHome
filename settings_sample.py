@@ -13,16 +13,16 @@ class Config(object):
 
     # Settings app
     SECRET_KEY = 'secret-key'  # TODO: Change me
-    DEBUG = True
+    DEBUG = False
     APP_PORT = 5000
-    LOGGER_LEVEL = logging.DEBUG
+    LOGGER_LEVEL = logging.INFO
     ENV = 'dev'
 
     #DB settings
     SQLALCHEMY_ECHO = False  # SQL log
     DB_NAME = 'app.db'
     # Put the db file in project root
-    DB_PATH = os.path.join(APP_DIR,'instance', DB_NAME)
+    DB_PATH = os.path.join(APP_DIR, DB_NAME)
     SQLALCHEMY_DATABASE_URI = 'sqlite:///{0}'.format(DB_PATH)
     #SQLALCHEMY_DATABASE_URI = 'postgresql://user:password@127.0.0.1/app'
     #SQLALCHEMY_DATABASE_URI = 'mysql://user:password@127.0.0.1/app'

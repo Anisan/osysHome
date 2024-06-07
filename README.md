@@ -9,6 +9,7 @@ Object system smarthome
 * python3 -m venv venv
 * source venv\bin\activate
 * pip install -r requirements.txt
+* mkdir plugins
 
 ## Settings
 
@@ -27,7 +28,7 @@ python3 main.py
 
 ## Update
 
-* git pull
+* git pull https://github.com/Anisan/osysHome.git
 * flask --app main.py db migrate
 * flask --app main.py db upgrade
 * Restart osysHome
@@ -47,6 +48,16 @@ python3 main.py
 * flask --app main.py db migrate
 * flask --app main.py db upgrade
 * Restart osysHome
+
+## Install recommended modules
+
+* git clone https://github.com/Anisan/osysHome-Modules.git plugins/Modules
+* git clone https://github.com/Anisan/osysHome-Objects.git plugins/Objects
+* git clone https://github.com/Anisan/osysHome-Users.git plugins/Users
+* git clone https://github.com/Anisan/osysHome-Scheduler.git plugins/Scheduler
+* git clone https://github.com/Anisan/osysHome-wsServer.git plugins/wsServer
+* git clone https://github.com/Anisan/osysHome-Dashboard.git plugins/Dashboard
+* git clone https://github.com/Anisan/osysHome-Mqtt.git plugins/Mqtt
 
 ## Create docs
 

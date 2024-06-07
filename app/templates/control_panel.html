@@ -15,6 +15,20 @@
 </div>
 <!-- [ breadcrumb ] end -->
 <h1>{{ _('Welcome!')}}</h1>
+
+<!-- Widgets -->
+<div class="pcoded-main-container">
+    <div class="row mx-1">
+        {% for key,template in widgets.items()%}
+        <div class="col-sm-12 col-md-6 col-lg-4 mb-2 px-1">
+          <div class="card p-2" style="height:100%;" id="widget_{{key}}">
+            {{template|safe}}
+          </div>
+        </div>
+        {%endfor%}
+    </div>
+</div>  
+<!-- Widgets end -->
 {% endblock %}
 
 <!-- Specific Page JS goes HERE  -->

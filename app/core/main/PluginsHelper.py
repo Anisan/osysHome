@@ -119,14 +119,6 @@ def register_plugins(app):
                                     "category": plugin_rec.category if plugin_rec.category else plugin["instance"].category,
                                 }
                             )
-                sidebar.append(
-                    {
-                        "name": "reload",
-                        "title": "Reload",
-                        "route": "/reload",
-                        "category": "System",
-                    }
-                )
                 sidebar.sort(key=lambda x: x["title"], reverse=False)
                 cache.set('sidebar', sidebar, timeout=0)
             #get notify
