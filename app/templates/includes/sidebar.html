@@ -14,7 +14,7 @@
                 <div class="list-group list-group-flush">
                     {% for item in group %}
                     <a  href="{{ item.route }}" class="list-group-item list-group-item-action{% if item.route in request.path %} list-group-item-primary {% endif %} d-flex justify-content-between align-items-start">
-                            <i class="fas fa-cog mt-1"></i>
+                            <img src="/{{item.name}}/static/{{item.name}}.png" height="24px" onError="this.src='{{ config.ASSETS_ROOT }}/images/module.png'">
                             <div class="ms-2 me-auto">
                                 {{ item.title }}
                             </div>

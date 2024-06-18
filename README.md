@@ -6,25 +6,41 @@ Object system smarthome
 
 * git clone https://github.com/Anisan/osysHome.git
 * cd osysHome
-* python3 -m venv venv
-* source venv\bin\activate
+* Create virtual environment
+    * Linux: python3 -m venv venv 
+    * Windows: python -m venv venv 
+* Activate virtual environment
+    * Linux: source venv\bin\activate
+    * Windows: venv\Scripts\activate
 * pip install -r requirements.txt
 * mkdir plugins
 
+## Install recommended modules
+
+* git clone https://github.com/Anisan/osysHome-Modules.git plugins/Modules
+* git clone https://github.com/Anisan/osysHome-Objects.git plugins/Objects
+* git clone https://github.com/Anisan/osysHome-Users.git plugins/Users
+* git clone https://github.com/Anisan/osysHome-Scheduler.git plugins/Scheduler
+* git clone https://github.com/Anisan/osysHome-wsServer.git plugins/wsServer
+* git clone https://github.com/Anisan/osysHome-Dashboard.git plugins/Dashboard
+* git clone https://github.com/Anisan/osysHome-Mqtt.git plugins/Mqtt
+
 ## Settings
 
-* Copy settings_sample.py to settings.py
+* Create settings file
+    * Linux: cp settings_sample.py to settings.py
+    * Windows: copy settings_sample.py to settings.py
 * Change settings db in settings.py
 
 ## Mirgrate DB
-
 * flask --app main.py db init
 * flask --app main.py db migrate
 * flask --app main.py db upgrade
 
 ## Start
 
-python3 main.py
+* Linux: python3 main.py
+* Windows: python3 main.py
 
 ## Update
 
@@ -48,16 +64,6 @@ python3 main.py
 * flask --app main.py db migrate
 * flask --app main.py db upgrade
 * Restart osysHome
-
-## Install recommended modules
-
-* git clone https://github.com/Anisan/osysHome-Modules.git plugins/Modules
-* git clone https://github.com/Anisan/osysHome-Objects.git plugins/Objects
-* git clone https://github.com/Anisan/osysHome-Users.git plugins/Users
-* git clone https://github.com/Anisan/osysHome-Scheduler.git plugins/Scheduler
-* git clone https://github.com/Anisan/osysHome-wsServer.git plugins/wsServer
-* git clone https://github.com/Anisan/osysHome-Dashboard.git plugins/Dashboard
-* git clone https://github.com/Anisan/osysHome-Mqtt.git plugins/Mqtt
 
 ## Create docs
 

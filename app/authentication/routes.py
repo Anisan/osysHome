@@ -1,8 +1,3 @@
-# -*- encoding: utf-8 -*-
-"""
-Copyright (c) 2019 - present AppSeed.us
-"""
-
 from flask import render_template, redirect, request, url_for
 from flask_login import (
     current_user,
@@ -10,11 +5,11 @@ from flask_login import (
     logout_user
 )
 
-from app.extensions import db, login_manager
 from . import blueprint
 from .forms import LoginForm
+from app.extensions import login_manager
 from app.core.models.Users import User
-from app.core.lib.object import getObject, getObjectsByClass, addClass, addObject, setProperty, getProperty
+from app.core.lib.object import getObject, getObjectsByClass, addClass, addObject, setProperty, addClassProperty
 
 @blueprint.route('/')
 def route_default():
@@ -38,8 +33,12 @@ def login():
         else:
             users = getObjectsByClass('Users')
             if len(users) == 0:
+                # Create class users
                 addClass('Users')
-                #todo add properties - password, role, home_page
+                addClassProperty('password', 'Users', 'Hash password')
+                addClassProperty('role', 'Users', 'Role user')
+                addClassProperty('home_page', 'Users', 'Home page for user (default: admin)')
+                # Create first admin user
                 obj = addObject(username,"Users")
                 user = User(obj)
                 user.set_password(password)
@@ -60,16 +59,17 @@ def login():
     if not current_user.is_authenticated:
         return render_template('accounts/login.html',
                                form=login_form)
+    # get home page from settings user
     home_page = current_user.home_page
     if not home_page:
         home_page = '/admin'
-    return redirect(home_page) #TODO get from settings user
+    return redirect(home_page) 
 
 
 @blueprint.route('/logout')
 def logout():
     logout_user()
-    return redirect(url_for('authentication_blueprint.login')) 
+    return redirect(url_for('authentication_blueprint.login'))
 
 # Errors
 

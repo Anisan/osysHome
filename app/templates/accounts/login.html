@@ -2,59 +2,62 @@
 
 {% block title %} Login {% endblock %}
 
-{% block content %}   
+{% block content %}
+<section class="vh-100">
+  <div class="container py-5 h-100">
+    <div class="row d-flex justify-content-center align-items-center h-100">
+      <div class="col-12 col-md-8 col-lg-6 col-xl-5">
+        <div class="card shadow-2-strong" style="border-radius: 1rem;">
+          <div class="card-body p-4 text-center">
 
-    <div class="auth-wrapper">
-        <div class="auth-content">
-            <div class="auth-bg">
-                <span class="r"></span>
-                <span class="r s"></span>
-                <span class="r s"></span>
-                <span class="r"></span>
-            </div>
-            <div class="card">
-                <div class="card-body text-center">
-                    <div class="mb-4">
-                        <i class="feather icon-unlock auth-icon"></i>
-                    </div>
-                    <h3 class="mb-4">Login</h3>
+            <h3 class="mb-3">osysHome</h3>
+            <span class="mb-0 text-muted">
+              {% if msg %}
+                  <span class="text-danger">{{ msg | safe }}</span>
+              {% endif %} 
+            </span>
+            <form role="form" method="post" action="">
 
-                    <span class="mb-0 text-muted">
-                        {% if msg %}
-                            <span class="text-danger">{{ msg | safe }}</span>
-                        {% else %}
-                            Add your credentials
-                        {% endif %} 
-                    </span>
+              {{ form.hidden_tag() }}
+              <div data-mdb-input-init class="form-outline input-group  mb-3">
+                <span class="input-group-text" id="basic-addon1"><i class="fas fa-user"></i></span>
+                {{ form.username(placeholder="Username", class="form-control form-control-lg") }}
+              </div>
 
-                    <br />
-                    <br />
-                    
-                    <form role="form" method="post" action="">
+              <div data-mdb-input-init class="form-outline  input-group mb-3">
+                <span class="input-group-text" id="basic-addon1"><i class="fas fa-lock"></i></span>
+                {{ form.password(placeholder="Password", class="form-control  form-control-lg", type="password") }}
+                <span class="input-group-text" onclick="password_show_hide();">
+                    <i class="fas fa-eye" id="show_eye"></i>
+                    <i class="fas fa-eye-slash d-none" id="hide_eye"></i>
+                </span>
+              </div>
 
-                        {{ form.hidden_tag() }}                    
-
-                        <div class="input-group mb-3">
-                            {{ form.username(placeholder="Username", class="form-control") }}
-                        </div>
-                        
-                        <div class="input-group mb-4">
-                            {{ form.password(placeholder="Password", class="form-control", type="password") }}
-                        </div>
-                        
-                        <div class="form-group text-left">
-                            <div class="checkbox checkbox-fill d-inline">
-                                <input type="checkbox" name="checkbox-fill-1" id="checkbox-fill-a1" checked="">
-                                <label for="checkbox-fill-a1" class="cr"> Save Details</label>
-                            </div>
-                        </div>
-                        <button type="submit" name="login" class="btn btn-primary shadow-2 mb-4">Login</button>
-
-                    </form>
-                    <br />
-                </div>
-            </div>
+              <button data-mdb-button-init data-mdb-ripple-init class="btn btn-primary btn-lg btn-block"
+                type="submit" name="login">Login</button>
+            </form>
+          </div>
         </div>
+      </div>
     </div>
+  </div>
+</section>
+<script>
+  function password_show_hide() {
+  var x = document.getElementById("pwd_login");
+  var show_eye = document.getElementById("show_eye");
+  var hide_eye = document.getElementById("hide_eye");
+  hide_eye.classList.remove("d-none");
+  if (x.type === "password") {
+    x.type = "text";
+    show_eye.style.display = "none";
+    hide_eye.style.display = "block";
+  } else {
+    x.type = "password";
+    show_eye.style.display = "block";
+    hide_eye.style.display = "none";
+  }
+}
+</script>
 
 {% endblock content %}

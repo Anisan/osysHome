@@ -34,7 +34,7 @@ class BasePlugin:
                                     root_path= Config.PLUGINS_FOLDER,
                                     template_folder= os.path.join(name, 'templates'),
                                     static_folder= os.path.join(name, 'static'),
-                                    static_url_path= '/'+name+'/assets')
+                                    static_url_path= '/'+name+'/static')
         self.register_routes()
         app.register_blueprint(self.blueprint)
     

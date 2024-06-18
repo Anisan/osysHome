@@ -302,6 +302,23 @@ def get_methods(object_name):
             result[key] = m.description
     return jsonify(result)
 
+@blueprint.route('/api/objects/details', methods=['GET'])
+@handle_admin_required
+def get_objects_detail():
+    from app.core.main.ObjectsStorage import objects
+    result = {}
+    for name,item in objects.items():
+        obj = {}
+        obj['description'] = item.description
+        obj['properties'] = {}
+        for key,prop in item.properties.items():
+            obj['properties'][key] = prop.description
+        obj['methods'] = {}
+        for key,m in item.methods.items():
+            obj['methods'][key] = m.description
+        result[name] = obj
+    return jsonify(result)
+
 @blueprint.route('/api/readnotify/<id>', methods=['GET'])
 @handle_admin_required
 def read_notify(id):

@@ -295,6 +295,27 @@ def setPropertyThread(name:str, value, source:str=''):
         _logger.exception('setPropertyThread %s: %s',name,e)
     return False
 
+def setPropertyTimeout(name: str, value, timeout: int, source:str=""):
+    """Set property on timeout
+
+    Args:
+        name (str): Name property. Syntax: Object.Property
+        value (Any): Value
+        timeout (int): Timeout seconds
+        source (str, optional): Source changing value. Defaults to ''.
+    """
+    try:
+        _logger.debug('setPropertyTimeout %s %s timeout:%s %s', name, value, timeout, source)
+        obj = name.split(".")[0]
+        prop = name.split(".")[1]
+        code = "setProperty('"+name+"','"+str(value)+"','"+source+"')"
+        from app.core.lib.common import setTimeout
+        setTimeout(obj+"_"+prop+"_set_timeout", code, timeout)
+        return True
+    except Exception as e:
+        _logger.exception('setPropertyTimeout %s: %s',name,e)
+    return False
+
 def updateProperty(name:str, value, source:str='') -> bool:
     """Update property by its name if value changed.
 
@@ -343,6 +364,30 @@ def updatePropertyThread(name:str, value, source:str='') -> bool:
         _logger.exception('updateProperty %s: %s',name,e)
     return False
 
+def updatePropertyTimeout(name:str, value, timeout:int, source:str='') -> bool:
+    """Update property by its name if value changed on timeout.
+
+    Args:
+        name (str): Name property. Syntax: Object.Property
+        value (Any): Value
+        timeout (int): Timeout seconds
+        source (str, optional): Source changing value. Defaults to ''.
+
+    Returns:
+        bool: Success set value
+    """
+    try:
+        _logger.debug('updatePropertyTimeout %s %s timeout:%s %s', name, value, timeout, source)
+        obj = name.split(".")[0]
+        prop = name.split(".")[1]
+        code = "updateProperty('"+name+"','"+str(value)+"','"+source+"')"
+        from app.core.lib.common import setTimeout
+        setTimeout(obj+"_"+prop+"_upd_timeout", code, timeout)
+        return True
+    except Exception as e:
+        _logger.exception('updatePropertyTimeout %s: %s',name,e)
+    return False
+
 def callMethod(name:str, args = {}):
     """Call method by its name
 
@@ -351,6 +396,7 @@ def callMethod(name:str, args = {}):
         args (dict, optional): Args. Defaults to {}.
     """
     try:
+        _logger.debug('callMethod %s', name)
         obj = name.split(".")[0]
         method = name.split(".")[1]
         if obj in objects:
@@ -367,6 +413,7 @@ def callMethodThread(name: str, args={}):
         args (dict, optional): Args. Defaults to {}.
     """
     try:
+        _logger.debug('callMethodThread %s', name)
         object_name = name.split(".")[0]
         method = name.split(".")[1]
         if object_name in objects:
@@ -377,6 +424,23 @@ def callMethodThread(name: str, args={}):
             thread.start()
     except Exception as e:
         _logger.exception('CallMethodThread %s: %s',name,e)
+
+def callMethodTimeout(name:str, timeout:int):
+    """Call method by its name
+
+    Args:
+        name (str): Name method. Syntax: Object.Method
+        timeout (int): Timeout seconds
+    """
+    try:
+        _logger.debug('callMethodTimeout %s timeout:%s', name, timeout)
+        obj = name.split(".")[0]
+        method = name.split(".")[1]
+        code = "callMethod('"+name+"')"
+        from app.core.lib.common import setTimeout
+        setTimeout(obj+"_"+method+"_timeout", code, timeout)
+    except Exception as e:
+        _logger.exception('callMethodTimeout %s: %s',name,e)
 
 def deleteObject(name: str):
     """Delete object from database
