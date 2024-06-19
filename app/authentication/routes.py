@@ -20,6 +20,8 @@ def route_default():
 @blueprint.route('/login', methods=['GET', 'POST'])
 def login():
     login_form = LoginForm(request.form)
+    users = getObjectsByClass('Users')
+            
     if 'login' in request.form:
 
         # read form data
@@ -31,7 +33,6 @@ def login():
         if obj:
             user = User(obj)
         else:
-            users = getObjectsByClass('Users')
             if len(users) == 0:
                 # Create class users
                 addClass('Users')
@@ -39,7 +40,7 @@ def login():
                 addClassProperty('role', 'Users', 'Role user')
                 addClassProperty('home_page', 'Users', 'Home page for user (default: admin)')
                 # Create first admin user
-                obj = addObject(username,"Users")
+                obj = addObject(username,"Users","Administrator")
                 user = User(obj)
                 user.set_password(password)
                 user.role = 'admin'
@@ -54,11 +55,19 @@ def login():
         # Something (user or pass) is not ok
         return render_template('accounts/login.html',
                                msg='Wrong user or password',
+                               register=False,
                                form=login_form)
 
     if not current_user.is_authenticated:
+        msg = None
+        register = False
+        if len(users) == 0:
+            msg = 'For create a user with administrator rights, specify login and password!'
+            register = True
         return render_template('accounts/login.html',
-                               form=login_form)
+                               form=login_form,
+                               register=register,
+                               msg=msg)
     # get home page from settings user
     home_page = current_user.home_page
     if not home_page:

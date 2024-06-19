@@ -40,7 +40,7 @@ Object system smarthome
 ## Start
 
 * Linux: python3 main.py
-* Windows: python3 main.py
+* Windows: python main.py
 
 ## Update
 

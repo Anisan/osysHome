@@ -11,11 +11,12 @@
           <div class="card-body p-4 text-center">
 
             <h3 class="mb-3">osysHome</h3>
-            <span class="mb-0 text-muted">
-              {% if msg %}
-                  <span class="text-danger">{{ msg | safe }}</span>
-              {% endif %} 
-            </span>
+            {% if msg %}
+            <div class="alert alert-danger" role="alert">
+              <h4 class="alert-heading">Warning!!!</h4>
+              <span>{{ msg | safe }}</span>
+            </div>
+            {% endif %} 
             <form role="form" method="post" action="">
 
               {{ form.hidden_tag() }}
@@ -34,7 +35,7 @@
               </div>
 
               <button data-mdb-button-init data-mdb-ripple-init class="btn btn-primary btn-lg btn-block"
-                type="submit" name="login">Login</button>
+                type="submit" name="login">{% if register==True %} Register {%else%} Login {%endif%}</button>
             </form>
           </div>
         </div>

@@ -3,6 +3,7 @@ import threading
 from sqlalchemy import delete
 from app.core.main.ObjectsStorage import objects, reload_objects_by_class, reload_object
 from app.logging_config import getLogger
+from app.database import session_scope
 from ..models.Clasess import Class, Object, Property, Value, Method, db
 from ..main.ObjectManager import ObjectManager, PropertyManager
 from .constants import PropertyType
@@ -54,7 +55,7 @@ def addClassProperty(name:str, class_name:str, description:str='', history:int=0
         prop.description = description
         prop.class_id = cls.id
         prop.history = history
-        prop.type = type
+        prop.type = type.value
         if method_name:
             method = Method.query.filter(Method.name == method_name, Method.class_id == cls.id).one_or_none()
             if method:
@@ -141,7 +142,7 @@ def addObjectProperty(name:str, object_name:str, description:str='', history:int
         prop.description = description
         prop.object_id = obj.id
         prop.history = history
-        prop.type = type
+        prop.type = type.value
         if method_name:
             method = Method.query.filter(Method.name == method_name, Method.class_id == obj.id).one_or_none()
             if method:
@@ -478,11 +479,12 @@ def setLinkToObject(object_name:str, property_name:str, link:str) -> bool:
             if link not in prop.linked:
                 prop.linked.append(link)
                 id = prop._value_id
-                rec = Value.get_by_id(id)
-                if rec:
-                    rec.linked = ','.join(prop.linked)
-                    db.session.commit()
-                    return True
+                with session_scope() as session:
+                    rec = session.query(Value).where(Value.id == id).one_or_none()
+                    if rec:
+                        rec.linked = ','.join(prop.linked)
+                        session.commit()
+                return True
             else:
                 return True
     return False
@@ -505,15 +507,31 @@ def removeLinkFromObject(object_name:str, property_name:str, link:str) -> bool:
             if prop.linked and link in prop.linked:
                 prop.linked.remove(link)
                 id = prop._value_id
-                rec = Value.get_by_id(id)
-                if rec:
-                    rec.linked = ','.join(prop.linked)
-                    db.session.commit()
-                    return True
+                with session_scope() as session:
+                    rec = session.query(Value).where(Value.id == id).one_or_none()
+                    if rec:
+                        rec.linked = ','.join(prop.linked)
+                        session.commit()
+                return True
             else:
                 return True
     return False
 
-# TODO clearLinkedObjects
-#def clearLinkedObjects(link):
-#   find all link with link
+def clearLinkedObjects(link:str):
+    """Clear link in all objects
+
+    Args:
+        link (str): Name module
+    """
+    with session_scope() as session:
+        for _, obj in objects.items():
+            for _, prop in obj.properties:
+                if prop.linked and link in prop.linked:
+                    prop.linked.remove(link)
+                    id = prop._value_id
+                    rec = session.query(Value).where(Value.id == id).one_or_none()
+                    if rec:
+                        rec.linked = ','.join(prop.linked)
+
+        session.commit()
+
