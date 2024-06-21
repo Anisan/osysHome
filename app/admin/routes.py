@@ -3,7 +3,7 @@ import subprocess
 from . import blueprint
 from settings import Config
 from app.logging_config import getLogger
-from app.authentication.handlers import handle_admin_required
+from app.authentication.handlers import handle_admin_required, handle_user_required
 from app.core.main.PluginsHelper import plugins
 
 _logger = getLogger("main")
@@ -25,9 +25,14 @@ def control_panel():
 
 # Маршрут для отображения файлов документации
 @blueprint.route('/docs/<path:filename>')
+@handle_user_required
 def docs_file(filename):
     return send_from_directory(Config.DOCS_DIR, filename)
 
+@blueprint.route("/about")
+@handle_user_required
+def about():
+    return render_template("about.html")
 
 @blueprint.route('/restart')
 @handle_admin_required

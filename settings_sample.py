@@ -13,8 +13,11 @@ class Config(object):
 
     # Settings app
     SECRET_KEY = 'secret-key'  # TODO: Change me
+    """ Secret key for sessions """
     DEBUG = False
+    """ Debug project (enable advanced information on logging)"""
     APP_PORT = 5000
+    """ Http port server"""
     LOGGER_LEVEL = logging.INFO
     ENV = 'dev'
 

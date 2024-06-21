@@ -7,8 +7,6 @@ from app.database import session_scope
 from app.core.main.PluginsHelper import plugins
 from app.core.models.Clasess import Object, Property, Value, History
 from app.core.lib.common import setTimeout
-        
-
 from app.logging_config import getLogger
 _logger = getLogger('object')
 
@@ -177,7 +175,7 @@ class ObjectManager:
                 property._value_id = valRec.id
         self.properties[property.name] = property
 
-    def setProperty(self, name, value, source=''):
+    def setProperty(self, name:str, value, source=''):
         try:
             _logger.debug("ObjectManager::setProperty %s.%s - %s", self.name, name, str(value))
             if name not in self.properties:
@@ -187,25 +185,28 @@ class ObjectManager:
                     property_db.name = name
                     session.add(property_db)
                     session.commit()
-                    property = PropertyManager(property_db,None)
-                    self.addProperty(property)
-            property = self.properties[name]
-            old = property.getValue() 
-            property.setValue(value, source)
-            value = property.getValue() 
-            if property.method:
+                    prop = PropertyManager(property_db,None)
+                    self.addProperty(prop)
+            prop = self.properties[name]
+            old = prop.getValue() 
+            prop.setValue(value, source)
+            value = prop.getValue() 
+            if prop.method:
                 args = {
                     'VALUE': value, 'NEW_VALUE': value, 'OLD_VALUE': old, 'PROPERTY': name, 'SOURCE': source,
                 }
-                self.callMethod(property.method, args, source)
+                self.callMethod(prop.method, args, source)
             # link
-            if property.linked:
-                for link in property.linked:
+            if prop.linked:
+                for link in prop.linked:
                     if link == source: continue
                     # TODO get plugin
                     if link in plugins:
                         plugin = plugins[link]
-                        plugin["instance"].changeLinkedProperty(self.name, name, value)
+                        try:
+                            plugin["instance"].changeLinkedProperty(self.name, name, value)
+                        except Exception as e:
+                            _logger.exception(e, ex_info=True)
 
             # TODO send to WS
             for _,plugin in plugins.items():
@@ -215,7 +216,7 @@ class ObjectManager:
         except Exception as ex:
             _logger.exception(ex, exc_info=True)
 
-    def updateProperty(self, name, value, source=''):
+    def updateProperty(self, name:str, value, source:str=''):
         try:
             oldValue = self.getProperty(name)
             if oldValue != value:
@@ -225,16 +226,19 @@ class ObjectManager:
             _logger.exception(ex, exc_info=True)
         return False
 
-    def getProperty(self, name):
+    def getProperty(self, name:str, data:str = 'value'):
         if name in self.properties:
-            property = self.properties[name]
-            return property.value
+            prop = self.properties[name]
+            return getattr(prop, data, None)
         return None
+    
+    def getChanged(self, name:str):
+        return self.getProperty(name, 'changed')
     
     def __getattr__(self, name):
         if name in self.__dict__['properties']:
-            property = self.__dict__['properties'][name]
-            return property.value
+            prop = self.__dict__['properties'][name]
+            return prop.value
         else:
             raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{name}'")
 
@@ -253,14 +257,14 @@ class ObjectManager:
 
     def bindMethod(self, prop_name, method_name):
         if method_name not in self.methods:
-            _logger.warning(f"Error: Method '{method_name}' does not exist.")
+            _logger.warning("Method %s does not exist.", method_name)
             return
         self.properties[prop_name].bindMethod(method_name)
 
-    def callMethod(self, name, args=None, source = ''):
+    def callMethod(self, name, args=None, source = '') -> str:
         if name not in self.methods:
-            _logger.warning(f"Error: Method '{name}' does not exist.")
-            return
+            _logger.warning("Method %s does not exist.", name)
+            return None
         try:
             code = self.methods[name].code
             code = "from app.core.lib.common import *\nfrom app.core.lib.object import *\nfrom app.core.lib.cache import *\n" + code ## TODO append common libs
@@ -274,12 +278,29 @@ class ObjectManager:
                 **vars(self)
             }
 
-            # Выполняем код модуля в контексте с logger
-            exec(code, exec_globals, exec_locals)
+            from io import StringIO
+            import sys
+            old_stdout = sys.stdout
+            redirected_output = sys.stdout = StringIO()
+            try:
+                # Выполняем код модуля в контексте с logger
+                exec(code, exec_globals, exec_locals)
+            except:
+                raise 
+            finally: # !
+                sys.stdout = old_stdout # !
+
+            return redirected_output.getvalue()
         except Exception as ex:
             _logger.critical(ex, exc_info=True) # TODO write adv info
+            return str(ex)
 
-    def render(self):
+    def render(self) -> str:
+        """Render object template
+
+        Returns:
+            str: html view object
+        """
         return render_template_string(self.template, object=self)
     
     def setPropertyTimeout(self, propName, value, timeout):

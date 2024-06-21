@@ -216,22 +216,24 @@ def getObjectsByClass(class_name:str) -> list[ObjectManager]:
         list[ObjectManager]: List objects
     """
     try:
-        cls = Class.query.filter(Class.name == class_name).one_or_none()
-        if not cls: return []
-        objs = Object.query.filter(Object.class_id == cls.id).all()
         objects = []
-        for obj in objs:
-            objects.append(getObject(obj.name))
+        with session_scope() as session:
+            cls = session.query(Class).filter(Class.name == class_name).one_or_none()
+            if cls:
+                objs = session.query(Object).filter(Object.class_id == cls.id).all()
+                for obj in objs:
+                    objects.append(getObject(obj.name))
         return objects
     except Exception as e:
         _logger.exception('getObjectsByClass %s: %s',class_name,e)
     return None
 
-def getProperty(name:str):
+def getProperty(name:str, data:str = 'value'):
     """Get value property by its name.
 
     Args:
-        name (_type_): Name property. Syntax: Object.Property
+        name (str): Name property. Syntax: Object.Property
+        data (str): Name data from property (value, changed, source). Default = value
 
     Returns:
         Any Value property
@@ -241,7 +243,7 @@ def getProperty(name:str):
         prop = name.split(".")[1]
         if obj in objects:
             obj = objects[obj]
-            return obj.getProperty(prop)
+            return obj.getProperty(prop, data)
     except Exception as e:
         _logger.exception('getProperty %s: %s',name,e)
     return None
@@ -389,7 +391,7 @@ def updatePropertyTimeout(name:str, value, timeout:int, source:str='') -> bool:
         _logger.exception('updatePropertyTimeout %s: %s',name,e)
     return False
 
-def callMethod(name:str, args = {}):
+def callMethod(name:str, args = {}) -> str:
     """Call method by its name
 
     Args:
@@ -402,9 +404,13 @@ def callMethod(name:str, args = {}):
         method = name.split(".")[1]
         if obj in objects:
             obj = objects[obj]
-            obj.callMethod(method, args)
+            return obj.callMethod(method, args)
+        else:
+            _logger.error('Object %s not found', obj)
+            return None
     except Exception as e:
         _logger.exception('CallMethod %s: %s',name,e)
+        return str(e)
 
 def callMethodThread(name: str, args={}):
     """Call method by its name in thread
@@ -423,6 +429,8 @@ def callMethodThread(name: str, args={}):
                 obj.callMethod(method, args)
             thread = threading.Thread(name="Thread_callMethod_"+name,target=wrapper)
             thread.start()
+        else:
+            _logger.error('Object %s not found', object_name)
     except Exception as e:
         _logger.exception('CallMethodThread %s: %s',name,e)
 

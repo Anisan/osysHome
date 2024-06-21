@@ -67,7 +67,7 @@ Object system smarthome
 
 ## Create docs
 
-pdoc --docformat google --no-show-source --output-dir docs settings.py app plugins
+pdoc --docformat google --no-show-source --output-dir docs settings_sample.py app plugins
 
 ## Systemd
 
