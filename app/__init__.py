@@ -5,7 +5,7 @@ import flask_monitoringdashboard as dashboard
 from . import commands
 from .exceptions import InvalidUsage
 from .constants import LANGUAGES
-from .extensions import db, migrate, jwt, login_manager, cors, bcrypt, babel, toolbar, cache 
+from .extensions import db, migrate, login_manager, cors, bcrypt, babel, toolbar, cache
 from .core.main.PluginsHelper import *
 
 from .logging_config import getLogger
@@ -65,10 +65,9 @@ def registerExtensions(app):
     db.init_app(app)
     cors.init_app(app)
     migrate.init_app(app, db)
-    jwt.init_app(app)
     login_manager.init_app(app)
     toolbar.init_app(app)
-
+    
     def locale():
         #TODO get from user language
         return request.accept_languages.best_match(LANGUAGES.keys())
@@ -85,14 +84,16 @@ def registerBlueprints(app):
     #cors.init_app(profile.views.blueprint, origins=origins)
     #cors.init_app(articles.views.blueprint, origins=origins)
 
-    #app.register_blueprint(auth.views.blueprint)
+    from app.api import api_blueprint
+    app.register_blueprint(api_blueprint)
     #app.register_blueprint(user.views.blueprint)
     #app.register_blueprint(profile.views.blueprint)
     #app.register_blueprint(articles.views.blueprint)
 
-    for moduleName in ('authentication','user','admin','api'):
+    for moduleName in ('authentication','admin'):
         module = import_module('app.{}.routes'.format(moduleName))
         app.register_blueprint(module.blueprint)
+    
 
 def registerErrorhandlers(app):
 

@@ -25,7 +25,7 @@
 <script>
     function readNotify(id){
         $.ajax({
-            url: '/api/readnotify/' + id,
+            url: '/api/utils/readnotify/' + id,
             method: 'GET',
             success: function(data) {
                 console.log(data)

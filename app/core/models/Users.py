@@ -10,6 +10,7 @@ class User(UserMixin):
     image: str
     role: str
     home_page: str
+    apikey: str
 
     def __init__(self, object):
         self.username = object.name
@@ -23,6 +24,8 @@ class User(UserMixin):
             self.home_page = object.home_page
         else:
             self.home_page = None
+        self.apikey = object.getProperty('apikey')
+        
 
     def set_password(self, password):
         """Set password."""
@@ -38,3 +41,9 @@ class User(UserMixin):
     def __repr__(self):
         """Represent instance as a unique string."""
         return '<User({username!r})>'.format(username=self.username)
+    
+    def to_dict(self):
+        return {
+            'username': self.username,
+            'role': self.role
+        }

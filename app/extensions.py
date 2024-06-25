@@ -4,7 +4,6 @@
 from flask_bcrypt import Bcrypt
 from flask_caching import Cache
 from flask_cors import CORS
-from flask_jwt_extended import JWTManager
 from flask_migrate import Migrate
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager
@@ -47,11 +46,7 @@ cors = CORS()
 babel = Babel()
 toolbar = DebugToolbarExtension()
 
-from .utils import jwt_identity, identity_loader, load_user  # noqa
-
-jwt = JWTManager()
-jwt.user_lookup_loader(jwt_identity)
-jwt.user_identity_loader(identity_loader)
+from .utils import load_user  # noqa
 
 login_manager = LoginManager()
 login_manager.login_view = "login"

@@ -1,12 +1,11 @@
 Flask
 SQLAlchemy
 Flask_SQLAlchemy
-PyJWT
-Flask-JWT-Extended
 Flask-Migrate
 Flask-Cors
 flask_apispec
 
+flask-restx
 Flask-Bcrypt
 flask-login
 flask_socketio

@@ -16,6 +16,9 @@
         <li class="nav-item">
           <a class="nav-link" href="/docs/index.html"><i class="fas fa-info me-2"></i>Docs</a>
         </li>
+        <li class="nav-item">
+          <a class="nav-link" href="/api"><i class="fas fa-info me-2"></i>API</a>
+        </li>
       </ul>
       {% if 'admin' in request.path %}
       <button class="btn btn-outline-success me-3" data-bs-toggle="modal" data-bs-target="#searchModal">Search</button>
@@ -69,7 +72,7 @@
         $('#filter_add').show().html('<center><div class="spinner-border" role="status"><span class="visually-hidden">Loading...</span></div></center>');
         
         var title = $('#filter_search').val();
-        var urlFilter="/api/search?";
+        var urlFilter="/api/utils/search?";
 
         if(title.length <= 2) {
             $('#filter_add').show().html('<div style="padding: 15px;text-align: center;"><i class="glyphicon glyphicon-info-sign"></i> Введите более 2-х символов для поиска...</div>');

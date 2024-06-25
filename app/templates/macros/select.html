@@ -23,12 +23,17 @@
 $(document).ready(function() {
     $('.select2').select2({
         theme: "bootstrap-5",
+        allowClear: true,
         width: $( this ).data( 'width' ) ? $( this ).data( 'width' ) : $( this ).hasClass( 'w-100' ) ? '100%' : 'style',
-        placeholder: $( this ).data( 'placeholder' ),
+        placeholder: {
+            id: null,
+            text: $( this ).data( 'placeholder' )
+        },
+        debug: true,
     });
     function updateProps(object_name, select){
         $.ajax({
-            url: '/api/properties/' + object_name,
+            url: '/api/property/list/' + object_name,
             method: 'GET',
             success: function(data) {
                 var property_select = $('#{{field_property.name}}');
@@ -42,7 +47,7 @@ $(document).ready(function() {
     }
     function updateMethods(object_name, select){
         $.ajax({
-            url: '/api/methods/' + object_name,
+            url: '/api/method/list/' + object_name,
             method: 'GET',
             success: function(data) {
                 var method_select = $('#{{field_method.name}}');
@@ -54,9 +59,9 @@ $(document).ready(function() {
             }
         });
     }
-    // Load countries via API
+    // Load objects via API
     $.ajax({
-        url: '/api/objects',
+        url: '/api/object/list',
         method: 'GET',
         success: function(data) {
             var object_select = $('#{{field_object.name}}');
@@ -70,14 +75,15 @@ $(document).ready(function() {
             updateMethods('{{field_object.data}}','{{field_method.data}}')
         }
     });
-    // Load cities based on selected country
+    // Load properties based on selected country
     $('#{{field_object.name}}').change(function() {
         var object_name = $(this).val();
+        console.log("change object",object_name)
         updateProps(object_name,"")
         updateMethods(object_name,"")
     });
 
-    // Preselect city if form was pre-filled
+    // Preselect object if form was pre-filled
     $('#{{field_property.name}}').val('{{field_property.data}}');
 });
 </script>
