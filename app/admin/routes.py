@@ -1,5 +1,6 @@
 from flask import render_template, send_from_directory
 import subprocess
+import os
 from . import blueprint
 from settings import Config
 from app.logging_config import getLogger
@@ -29,6 +30,23 @@ def control_panel():
 def docs_file(filename):
     return send_from_directory(Config.DOCS_DIR, filename)
 
+# Маршруты для отображения файлов
+@blueprint.route('/files/public/<path:filename>')
+@handle_user_required
+def public_file(filename):
+    return send_from_directory(os.path.join(Config.FILES_DIR,"public"), filename)
+
+@blueprint.route('/files/private/<path:filename>')
+@handle_user_required
+def private_file(filename):
+    return send_from_directory(os.path.join(Config.FILES_DIR,"private"), filename)
+
+@blueprint.route('/files/secure/<path:filename>')
+@handle_admin_required
+def secure_file(filename):
+    return send_from_directory(os.path.join(Config.FILES_DIR,"secure"), filename)
+
+#about
 @blueprint.route("/about")
 @handle_user_required
 def about():

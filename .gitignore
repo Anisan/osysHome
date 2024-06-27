@@ -11,3 +11,4 @@ settings.py
 build/*
 docs/*
 plugins/*
+files/*

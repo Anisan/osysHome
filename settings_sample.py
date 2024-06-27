@@ -10,6 +10,7 @@ class Config(object):
     ASSETS_ROOT = '/static/assets'
     PLUGINS_FOLDER = os.path.abspath(os.path.join(APP_DIR, "plugins"))
     DOCS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'docs')
+    FILES_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'files')
 
     # Settings app
     SECRET_KEY = 'secret-key'  # TODO: Change me

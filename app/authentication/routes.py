@@ -48,7 +48,7 @@ def login():
                 setProperty(username+".role", 'admin')
 
         # Check the password
-        if user and user.check_password(password):
+        if user and user.password and user.check_password(password):
             login_user(user)
             return redirect("/")
 

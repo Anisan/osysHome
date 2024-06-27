@@ -105,13 +105,12 @@ def addObject(name:str, class_name:str, description = '') -> ObjectManager:
     Returns:
         ObjectManager: Object
     """
-    cls = Class.query.filter(Class.name == class_name).one_or_none()
-    if not cls: return None
     obj = Object.query.filter(Object.name == name).one_or_none()
     if not obj:
+        cls = Class.query.filter(Class.name == class_name).one_or_none()
         obj = Object()
         obj.name = name
-        obj.class_id = cls.id
+        obj.class_id = cls.id if cls else None
         obj.description = description
         db.session.add(obj)
         db.session.commit()
@@ -144,14 +143,15 @@ def addObjectProperty(name:str, object_name:str, description:str='', history:int
         prop.history = history
         prop.type = type.value
         if method_name:
-            method = Method.query.filter(Method.name == method_name, Method.class_id == obj.id).one_or_none()
+            method = Method.query.filter(Method.name == method_name, Method.object_id == obj.id).one_or_none()
             if method:
                 prop.method_id = method.id
             else:
                 cls = Class.query.filter(Class.id == obj.class_id).one_or_none
-                method = Method.query.filter(Method.name == method_name, Method.class_id == cls.id).one_or_none()
-                if method:
-                    prop.method_id = method.id
+                if cls:
+                    method = Method.query.filter(Method.name == method_name, Method.class_id == cls.id).one_or_none()
+                    if method:
+                        prop.method_id = method.id
         db.session.add(prop)
         db.session.commit()
         reload_object(obj.id)
@@ -176,12 +176,12 @@ def addObjectMethod(name:str, object_name:str, description:str='', code:str='', 
         return False
     method = Method.query.filter(Method.name == name, Method.object_id == obj.id).one_or_none()
     if not method:
-        cls = Class.query.filter(Class.id == obj.class_id).one_or_none()
-        method = Method.query.filter(Method.name == name, Method.class_id == cls.id).one_or_none()
+        if obj.class_id:
+            method = Method.query.filter(Method.name == name, Method.class_id == obj.class_id).one_or_none()
     if not method:
         method = Method()
         method.name = name
-        method.class_id = obj.id
+        method.object_id = obj.id
         method.description = description
         method.code = code
         method.call_parent = call_parent

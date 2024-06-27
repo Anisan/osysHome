@@ -168,6 +168,8 @@ def say(message:str, level:int=0, destination:str=None):
         level (int, optional): Level. Defaults to 0.
         destination (_type_, optional): Destination. Defaults to None.
     """
+    from .object import setProperty
+    setProperty("SystemVar.LastSay",message)
     for _ , plugin in plugins.items():
         if "say" in plugin["instance"].actions:
             try:

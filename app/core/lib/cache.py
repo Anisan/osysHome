@@ -47,6 +47,26 @@ def saveToCache(filename:str, content: str, directory:str=None, subdir:bool=Fals
     
     return file_path
 
+def getFilesCache(directory:str=None):
+    """ Get files in cache
+
+    Args:
+        directory (str, optional): Directory in cache. Defaults to None.
+
+    Return:
+        list: List of files in cache
+    """
+    directory_path = os.path.join(__cacheDir, directory)
+    try:
+        filenames = os.listdir(directory_path)
+        return filenames
+    except FileNotFoundError:
+        return []
+    except PermissionError:
+        return f"Permission denied for directory {directory_path}."
+    
+
+
 def findInCache(filename:str, directory:str=None, subdir:bool=False) -> str:
     """Find file in cache
 

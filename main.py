@@ -4,6 +4,7 @@ import os
 from flask_migrate import Migrate, upgrade, migrate, init, stamp
 from settings import Config
 from app import createApp
+from app.utils import initSystemVar
 from app.core.main.ObjectsStorage import init_objects
 from app.core.main.PluginsHelper import start_plugins, stop_plugins
 
@@ -32,6 +33,9 @@ if __name__ == '__main__':
         init_objects()
 
     start_plugins()
+
+    with app.app_context():
+        initSystemVar()
 
     app.run(
         host="0.0.0.0",

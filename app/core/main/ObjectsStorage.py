@@ -69,11 +69,12 @@ cachePropertiesClasses = {}
 cacheMethodsClasses = {}
 
 def getPropertiesClass(id, properties):
-    props = Property.query.filter(Property.class_id==id).all()
-    properties = properties + props
-    cls = Class.get_by_id(id)
-    if cls.parent_id:
-        return getPropertiesClass(cls.parent_id, properties)
+    if id:
+        props = Property.query.filter(Property.class_id==id).all()
+        properties = properties + props
+        cls = Class.get_by_id(id)
+        if cls and cls.parent_id:
+            return getPropertiesClass(cls.parent_id, properties)
     return properties
 
 def getPropertiesClassFromCache(id):
@@ -86,11 +87,12 @@ def getPropertiesClassFromCache(id):
     return properties
 
 def getMethodsClass(id, methods):
-    meth = Method.query.filter(Method.class_id==id).all()
-    methods = meth + methods
-    cls = Class.get_by_id(id)
-    if cls.parent_id:
-        return getMethodsClass(cls.parent_id, methods)
+    if id:
+        meth = Method.query.filter(Method.class_id==id).all()
+        methods = meth + methods
+        cls = Class.get_by_id(id)
+        if cls and cls.parent_id:
+            return getMethodsClass(cls.parent_id, methods)
     return methods
 
 def getMethodsClassFromCache(id):
@@ -104,9 +106,9 @@ def getMethodsClassFromCache(id):
 
 def getTemplateClass(class_id):
     cls = Class.get_by_id(class_id)
-    if cls.template:
+    if cls and cls.template:
         return cls.template
-    if cls.parent_id:
+    if cls and cls.parent_id:
         return getTemplateClass(cls.parent_id)
     return None
 

@@ -5,12 +5,12 @@ from app.extensions import bcrypt
 
 class User(UserMixin):
 
-    username: str
-    password: str
-    image: str
-    role: str
-    home_page: str
-    apikey: str
+    username: str = None
+    password: str = None
+    image: str = None
+    role: str = None
+    home_page: str = None
+    apikey: str = None
 
     def __init__(self, object):
         self.username = object.name
@@ -22,8 +22,6 @@ class User(UserMixin):
             self.role = object.role
         if object.getProperty('home_page'):
             self.home_page = object.home_page
-        else:
-            self.home_page = None
         self.apikey = object.getProperty('apikey')
         
 
@@ -34,6 +32,7 @@ class User(UserMixin):
     def check_password(self, value):
         """Check password."""
         return bcrypt.check_password_hash(self.password.encode('utf-8'), value)
+        
     
     def get_id(self):
        return (self.username)
