@@ -1,3 +1,4 @@
+import datetime
 from flask import render_template, redirect, request, url_for
 from flask_login import (
     current_user,
@@ -49,6 +50,7 @@ def login():
 
         # Check the password
         if user and user.password and user.check_password(password):
+            setProperty(username+".lastLogin",datetime.datetime.now())
             login_user(user)
             return redirect("/")
 

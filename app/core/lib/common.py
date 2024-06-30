@@ -1,5 +1,8 @@
 """ Common library """
+
 import datetime
+from io import StringIO
+import sys
 from sqlalchemy import update, delete
 from app.logging_config import getLogger
 from app.database import session_scope, row2dict
@@ -9,9 +12,12 @@ from ..main.PluginsHelper import plugins
 from ..models.Tasks import Task
 from ..models.Plugins import Notify
 
-_logger = getLogger('common')
+_logger = getLogger("common")
 
-def addScheduledJob(name: str, code: str, dt: datetime.datetime, expire:int=1800) -> int:
+
+def addScheduledJob(
+    name: str, code: str, dt: datetime.datetime, expire: int = 1800
+) -> int:
     """Add scheduled job
     Args:
         name (str): Name schedule
@@ -38,8 +44,9 @@ def addScheduledJob(name: str, code: str, dt: datetime.datetime, expire:int=1800
         _logger.exception(name, ex)
         return None
 
-def addCronJob(name:str, code:str, crontab:str = '* * * * *') -> int:
-    """ Add cron job
+
+def addCronJob(name: str, code: str, crontab: str = "* * * * *") -> int:
+    """Add cron job
 
     Args:
         name (str): Name
@@ -66,9 +73,10 @@ def addCronJob(name:str, code:str, crontab:str = '* * * * *') -> int:
     except Exception as ex:
         _logger.exception(name, ex)
         return None
-    
-def getJob(name:str) -> dict:
-    """ Get job data by name
+
+
+def getJob(name: str) -> dict:
+    """Get job data by name
 
     Args:
         name (str): Name job
@@ -80,18 +88,20 @@ def getJob(name:str) -> dict:
         job = session.query(Task).filter(Task.name == name).one_or_none()
         if job:
             return row2dict(job)
-        return None 
+        return None
+
 
 def clearScheduledJob(name: str):
-    """ Clear jobs contains name
+    """Clear jobs contains name
 
     Args:
         name (str): Name for search
     """
     with session_scope() as session:
-        sql = delete(Task).where(Task.name.like(name)) #todo 
+        sql = delete(Task).where(Task.name.like(name))  # todo
         session.execute(sql)
         session.commit()
+
 
 def deleteScheduledJob(id: int):
     """Delete job by id
@@ -100,12 +110,13 @@ def deleteScheduledJob(id: int):
         id (int): ID job
     """
     with session_scope() as session:
-        sql = delete(Task).where(Task.id == id) #todo
+        sql = delete(Task).where(Task.id == id)  # todo
         session.execute(sql)
         session.commit()
 
-def setTimeout(name:str, code:str, timeout:int=0):
-    """ Set timeout for run code
+
+def setTimeout(name: str, code: str, timeout: int = 0):
+    """Set timeout for run code
 
     Args:
         name (str): Name timeout
@@ -115,38 +126,79 @@ def setTimeout(name:str, code:str, timeout:int=0):
     Returns:
         _type_: _description_
     """
-    res = addScheduledJob(name, code, datetime.datetime.now() + datetime.timedelta(seconds=timeout))
+    res = addScheduledJob(
+        name, code, datetime.datetime.now() + datetime.timedelta(seconds=timeout)
+    )
     return res
 
-def clearTimeout(name:str):
-    """ Clear timeout by name
+
+def clearTimeout(name: str):
+    """Clear timeout by name
 
     Args:
         name (str): Name
     """
     clearScheduledJob(name)
 
-def runCode(code:str):
+
+def getModule(name: str):
+    """Get instance module by name
+    Args:
+        name (str): Name module
+    Returns:
+        any: Module instance
+    """
+    if name not in plugins:
+        return None
+    return plugins[name]["instance"]
+
+
+def runCode(code: str, args=None):
     """Run code
 
     Args:
         code (str): Python code
+        args (dict, optional): Arguments. Defaults to None.
+
+    Return:
+        any: Result
     """
-    #append common
+    # append common
     try:
-        code = "from app.core.lib.common import *\nfrom app.core.lib.object import *\n" + code
-        exec(code)
+        code = (
+            "from app.core.lib.common import *\nfrom app.core.lib.object import *\n"
+            + code
+        )
+        exec_globals = globals().copy()
+        exec_locals = {
+            "params": args,
+            "logger": _logger,
+        }
+        old_stdout = sys.stdout
+        redirected_output = sys.stdout = StringIO()
+        try:
+            # Выполняем код модуля в контексте с logger
+            exec(code, exec_globals, exec_locals)
+        except:
+            raise
+        finally:  # !
+            sys.stdout = old_stdout  # !
+
+        return redirected_output.getvalue()
     except Exception as ex:
         _logger.exception(ex)
+        return ex
 
-def callPluginFunction(plugin:str, func:str, *args):
+
+def callPluginFunction(plugin: str, func: str, *args):
     """Call plugin function
 
     Args:
         plugin (str): Name plugin
         func (str): Name function in plugin
     """
-    if plugin not in plugin: return
+    if plugin not in plugins:
+        return
     plugin_obj = plugins[plugin]["instance"]
 
     # Вызываем функцию по её текстовому названию
@@ -160,7 +212,7 @@ def callPluginFunction(plugin:str, func:str, *args):
         _logger.error("Function '%s' not found in plugin %s.", func, plugin)
 
 
-def say(message:str, level:int=0, destination:str=None):
+def say(message: str, level: int = 0, destination: str = None):
     """Say
 
     Args:
@@ -169,22 +221,24 @@ def say(message:str, level:int=0, destination:str=None):
         destination (_type_, optional): Destination. Defaults to None.
     """
     from .object import setProperty
-    setProperty("SystemVar.LastSay",message)
-    for _ , plugin in plugins.items():
+
+    setProperty("SystemVar.LastSay", message)
+    for _, plugin in plugins.items():
         if "say" in plugin["instance"].actions:
             try:
                 plugin["instance"].say(message, level, destination)
             except Exception as ex:
                 _logger.exception(ex)
 
-def playSound(file_name:str, level:int = 0):
+
+def playSound(file_name: str, level: int = 0):
     """Play sound
 
     Args:
         file_name (_type_): Path media file
         level (int, optional): Level. Defaults to 0.
     """
-    for _ , plugin in plugins.items():
+    for _, plugin in plugins.items():
         if "playsound" in plugin["instance"].actions:
             try:
                 plugin["instance"].playSound(file_name, level)
@@ -192,7 +246,12 @@ def playSound(file_name:str, level:int = 0):
                 _logger.exception(ex)
 
 
-def addNotify(name:str, description:str = "", category:CategoryNotify = CategoryNotify.Info, source = ""):
+def addNotify(
+    name: str,
+    description: str = "",
+    category: CategoryNotify = CategoryNotify.Info,
+    source="",
+):
     """Add notify
 
     Args:
@@ -208,10 +267,11 @@ def addNotify(name:str, description:str = "", category:CategoryNotify = Category
         notify.category = category
         notify.source = source
         session.add(notify)
-    #todo send to websocket
+    # todo send to websocket
+
 
 def readNotify(notify_id):
-    """ Set read for notify
+    """Set read for notify
 
     Args:
         notify_id (int): ID notify
@@ -223,7 +283,7 @@ def readNotify(notify_id):
 
 
 def getUrl(url) -> str:
-    """ Get content from URL
+    """Get content from URL
 
     Args:
         url (str): URL
@@ -232,6 +292,7 @@ def getUrl(url) -> str:
         str: Content
     """
     import requests
+
     try:
         result = requests.get(url)
         return result.content
@@ -242,11 +303,12 @@ def getUrl(url) -> str:
 
 import xml.etree.ElementTree as ET
 
+
 def xml_to_dict(xml_data):
     def recursive_dict(element):
         node = {}
         if element.attrib:
-            node.update(('@' + k, v) for k, v in element.attrib.items())
+            node.update(("@" + k, v) for k, v in element.attrib.items())
         children = list(element)
         if children:
             child_dict = {}
@@ -263,7 +325,7 @@ def xml_to_dict(xml_data):
             node = element.text
 
         return element.tag, node
-    
+
     root = ET.fromstring(xml_data)
 
     return {root.tag: recursive_dict(root)[1]}

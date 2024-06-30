@@ -42,7 +42,7 @@ def createObjectManager(obj):
         if prop.method_id:
             method = Method.query.filter(Method.id == prop.method_id).one_or_none()
             pm.bindMethod(method.name)
-        om.addProperty(pm)
+        om._addProperty(pm)
     # load methods
     methods = getMethodsClassFromCache(obj.class_id)
     methods = methods + Method.query.filter(Method.object_id == obj.id).all()
@@ -57,7 +57,7 @@ def createObjectManager(obj):
 
     for _, group in group_methods.items():
         mm = MethodManager(group)
-        om.addMethod(mm)
+        om._addMethod(mm)
 
     # get template from class
     if not obj.template:

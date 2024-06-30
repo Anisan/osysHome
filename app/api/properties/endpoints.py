@@ -18,10 +18,13 @@ class PropertiesList(Resource):
         Get properties of object.
         '''
         result = {}
-        if object_name in objects:
-            for key,prop in objects[object_name].properties.items():
-                result[key] = prop.description
-        return result
+        if object_name not in objects:
+            return {"success": False,
+                    "msg": "Object not found."}, 404
+        for key,prop in objects[object_name].properties.items():
+            result[key] = prop.description
+        return {"success" : True,
+                "properties" : result}, 200
     
 @props_ns.route("/get", endpoint="property_get")
 class GetProperty(Resource):
@@ -39,9 +42,12 @@ class GetProperty(Resource):
         property_name = request.args.get("property",None)
         if not object_name or not property_name:
             abort(404, 'Missing required parameters')
-        if object_name in objects:
-            result = objects[object_name].getProperty(property_name)
-        return result
+        if object_name not in objects:
+            return {"success": False,
+                    "msg": "Object not found."}, 404
+        result = objects[object_name].getProperty(property_name)
+        return {"success" : True,
+                "value" : result}, 200
 
 @props_ns.route("/set", endpoint="property_set")
 class SetProperty(Resource):
@@ -61,6 +67,8 @@ class SetProperty(Resource):
         value = request.args.get("value",None)
         if not object_name or not property_name or not value:
             abort(404, 'Missing required parameters')
-        if object_name in objects:
-            result = objects[object_name].setProperty(property_name, value, "api")
-        return result
+        if object_name not in objects:
+            return {"success": False,
+                    "msg": "Object not found."}, 404
+        result = objects[object_name].setProperty(property_name, value, "api")
+        return {"success" : True}, 200

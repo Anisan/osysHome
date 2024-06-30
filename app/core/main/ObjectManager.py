@@ -18,7 +18,7 @@ class PropertyManager():
         self.description = property.description
         self.object_id = None
         self.history = property.history or 0
-        self.changed = None
+        self.changed = value.changed if value else None
         self.method = None
         self.linked = None
         self.source = None
@@ -163,7 +163,7 @@ class ObjectManager:
         self.properties = {}
         self.methods = {}
 
-    def addProperty(self, property: PropertyManager) -> None:
+    def _addProperty(self, property: PropertyManager) -> None:
         property.object_id = self.__object.id
         if property._value_id == None:
             with session_scope() as session:
@@ -175,7 +175,15 @@ class ObjectManager:
                 property._value_id = valRec.id
         self.properties[property.name] = property
 
-    def setProperty(self, name:str, value, source=''):
+    def setProperty(self, name:str, value, source:str=''):
+        """ Set property value
+        
+        Args:
+            name (str): property name
+            value (str): property value
+            source (str): source of the value
+
+        """
         try:
             _logger.debug("ObjectManager::setProperty %s.%s - %s", self.name, name, str(value))
             if name not in self.properties:
@@ -186,7 +194,7 @@ class ObjectManager:
                     session.add(property_db)
                     session.commit()
                     prop = PropertyManager(property_db,None)
-                    self.addProperty(prop)
+                    self._addProperty(prop)
             prop = self.properties[name]
             old = prop.getValue() 
             prop.setValue(value, source)
@@ -216,7 +224,18 @@ class ObjectManager:
         except Exception as ex:
             _logger.exception(ex, exc_info=True)
 
-    def updateProperty(self, name:str, value, source:str=''):
+    def updateProperty(self, name:str, value, source:str='') -> bool:
+        """Update property
+
+        Args:
+            name (str): Name property
+            value (_type_): New value
+            source (str, optional): Source. Defaults to ''.
+
+        Returns:
+            bool: Result
+        """
+
         try:
             oldValue = self.getProperty(name)
             if oldValue != value:
@@ -227,12 +246,29 @@ class ObjectManager:
         return False
 
     def getProperty(self, name:str, data:str = 'value'):
+        """Get value of property
+
+        Args:
+            name (str): Name property
+            data (str, optional): Data type. Defaults to 'value'. (changed, source)
+
+        Returns:
+            any: Value
+        """
         if name in self.properties:
             prop = self.properties[name]
             return getattr(prop, data, None)
         return None
     
     def getChanged(self, name:str):
+        """Get datetime changing property
+
+        Args:
+            name (str): name property
+
+        Returns:
+            datetime: Datetime changing property
+        """
         return self.getProperty(name, 'changed')
     
     def __getattr__(self, name):
@@ -252,16 +288,24 @@ class ObjectManager:
             super().__setattr__(name, value)
 
 
-    def addMethod(self, method: MethodManager):
+    def _addMethod(self, method: MethodManager):
         self.methods[method.name] = method
 
-    def bindMethod(self, prop_name, method_name):
+    def _bindMethod(self, prop_name, method_name):
         if method_name not in self.methods:
             _logger.warning("Method %s does not exist.", method_name)
             return
         self.properties[prop_name].bindMethod(method_name)
 
-    def callMethod(self, name, args=None, source = '') -> str:
+    def callMethod(self, name, args=None, source:str = '') -> str:
+        """Call a method on the object.
+        Args:
+            name (str): The name of the method to call.
+            args (list): The arguments to pass to the method.
+            source (str): The source of the call.
+        Returns:
+            str: The result of the method call.
+        """
         if name not in self.methods:
             _logger.warning("Method %s does not exist.", name)
             return None
@@ -275,6 +319,7 @@ class ObjectManager:
                 'self': self,
                 'params': args,
                 'logger': _logger,
+                'source': source,
                 **vars(self)
             }
 
@@ -303,23 +348,37 @@ class ObjectManager:
         """
         return render_template_string(self.template, object=self)
     
-    def setPropertyTimeout(self, propName, value, timeout):
+    def setPropertyTimeout(self, propName:str, value, timeout:int, source=''):
         """Set the value of a Property with a Timeout
 
         Args:
             propName (str): Name property
             value(Any): Value
-            timeout (int): Timeout in sec
+            timeout(int): Timeout in sec
+            source(str): Source
         """
-        code = "setProperty('"+self.name+"."+propName+"','"+str(value)+"')"
+        code = "setProperty('"+self.name+"."+propName+"','"+str(value)+"','"+source+"')"
         setTimeout(self.name+"_"+propName+"_timeout", code, timeout)
 
-    def callMethodTimeout(self, methodName, timeout):
+    def updatePropertyTimeout(self, propName:str, value, timeout:int, source=''):
+        """Update property by its name if value changed on timeout.
+
+        Args:
+            propName (str): Name property
+            value(Any): Value
+            timeout(int): Timeout in sec
+            source(str): Source
+        """
+        code = "updateProperty('"+self.name+"."+propName+"','"+str(value)+"','"+source+"')"
+        setTimeout(self.name+"_"+propName+"_timeout", code, timeout)
+   
+    def callMethodTimeout(self, methodName:str, timeout:int, source:str = ''):
         """Call method with a timeout
 
         Args:
             methodName (str): Name method
             timeout (int): Timeout in sec
+            source (str, optional): Source. Defaults to ''.
         """
-        code = "callMethod('"+self.name+"."+methodName+"')"
+        code = "callMethod('"+self.name+"."+methodName+"','"+source+"')"
         setTimeout(self.name+"_"+methodName+"_timeout", code, timeout)
