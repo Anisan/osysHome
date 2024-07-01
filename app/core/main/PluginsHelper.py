@@ -127,9 +127,9 @@ def register_plugins(app):
             database_dialect = db.engine.dialect.name
             notifies = []
             if database_dialect == 'mysql':
-                notifies = db.session.execute(text("SELECT source, COUNT(*) FROM notify WHERE `read` = 0 GROUP BY source"))
+                notifies = db.session.execute(text("SELECT source, sum(count) FROM notify WHERE `read` = 0 GROUP BY source"))
             else:
-                notifies = db.session.execute(text('SELECT source, COUNT(*) FROM notify WHERE read IS false GROUP BY source'))
+                notifies = db.session.execute(text('SELECT source, sum(count) FROM notify WHERE read IS false GROUP BY source'))
 
             for n in notifies:
                 for item in sidebar:

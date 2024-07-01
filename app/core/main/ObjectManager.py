@@ -1,4 +1,5 @@
 import datetime
+from dateutil import parser
 import threading
 import json
 from sqlalchemy import update
@@ -21,7 +22,7 @@ class PropertyManager():
         self.changed = value.changed if value else None
         self.method = None
         self.linked = None
-        self.source = None
+        self.source = value.source if value else None
         if value and value.linked:
             links = value.linked.split(',')
             self.linked = links
@@ -44,7 +45,7 @@ class PropertyManager():
                 converted_value = value
             elif self.type == "datetime":
                 if  isinstance(value, str):
-                    converted_value = datetime.datetime.strptime(value, "%Y-%m-%d %H:%M:%S")
+                    converted_value = parser.parse(value)
                 else:
                     converted_value = value
             elif self.type == "dict":
@@ -214,7 +215,7 @@ class ObjectManager:
                         try:
                             plugin["instance"].changeLinkedProperty(self.name, name, value)
                         except Exception as e:
-                            _logger.exception(e, ex_info=True)
+                            _logger.exception(e)
 
             # TODO send to WS
             for _,plugin in plugins.items():

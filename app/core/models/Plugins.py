@@ -22,3 +22,4 @@ class Notify(SurrogatePK, db.Model):
     source = Column(db.String(255), default=False)
     created = Column(db.DateTime, default = datetime.datetime.now())
     read = Column(db.Boolean, default=False)
+    count = Column(db.Integer(), default=1)

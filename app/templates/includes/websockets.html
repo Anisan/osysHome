@@ -26,10 +26,10 @@
   });
 
   socket.on('changeProperty', function(msg) {
-      var element = document.getElementById("prop:"+msg.property);
-      if (element) {
+      const elements = document.querySelectorAll(`[id^="prop:${msg.property}"]`);
+      elements.forEach(element => {
         element.textContent = msg.value;
-      }
+      });
   });
   socket.on('changeObject', function(msg) {
       console.log("change objects", msg)

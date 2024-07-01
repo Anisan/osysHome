@@ -46,3 +46,22 @@ class ReadNotify(Resource):
         from app.core.lib.common import readNotify
         readNotify(id)
         return "ok"
+    
+@utils_ns.route('/readnotify/all')
+class ReadNotify(Resource):
+    @api_key_required
+    @role_required('admin')
+    @utils_ns.doc(security="apikey")
+    @utils_ns.param('source', 'Source notify')
+    def get(self):
+        '''
+        Mark read all notify for source
+        '''
+        source = request.args.get("source",None)
+        if not source:
+            return {"success": False,
+                    "msg": "Need source"}, 404
+        from app.core.lib.common import readNotifyAll
+        readNotifyAll(source)
+        return {"success" : True}, 200
+        

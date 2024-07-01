@@ -261,16 +261,21 @@ def addNotify(
         source (str, optional): Source notify (use name plugins). Defaults to "".
     """
     with session_scope() as session:
-        notify = Notify()
-        notify.name = name
-        notify.description = description
-        notify.category = category
-        notify.source = source
-        session.add(notify)
+        notify = session.query(Notify).filter(Notify.description == description, Notify.read == False).one_or_none()
+        if notify:
+            notify.count = notify.count + 1
+        else:
+            notify = Notify()
+            notify.name = name
+            notify.description = description
+            notify.category = category
+            notify.source = source
+            session.add(notify)
     # todo send to websocket
+    
 
 
-def readNotify(notify_id):
+def readNotify(notify_id: int):
     """Set read for notify
 
     Args:
@@ -278,6 +283,17 @@ def readNotify(notify_id):
     """
     with session_scope() as session:
         sql = update(Notify).where(Notify.id == notify_id).values(read=True)
+        session.execute(sql)
+        session.commit()
+
+def readNotifyAll(source: str):
+    """Set read all notify for source
+
+    Args:
+        source (str): Source notify
+    """
+    with session_scope() as session:
+        sql = update(Notify).where(Notify.source == source).values(read=True)
         session.execute(sql)
         session.commit()
 
