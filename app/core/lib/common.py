@@ -161,7 +161,7 @@ def runCode(code: str, args=None):
         args (dict, optional): Arguments. Defaults to None.
 
     Return:
-        any: Result
+        success, any: Result
     """
     # append common
     try:
@@ -176,18 +176,20 @@ def runCode(code: str, args=None):
         }
         old_stdout = sys.stdout
         redirected_output = sys.stdout = StringIO()
+        success = False
         try:
             # Выполняем код модуля в контексте с logger
             exec(code, exec_globals, exec_locals)
+            success = True
         except:
             raise
         finally:  # !
             sys.stdout = old_stdout  # !
 
-        return redirected_output.getvalue()
+        return success, redirected_output.getvalue()
     except Exception as ex:
         _logger.exception(ex)
-        return ex
+        return False, str(ex)
 
 
 def callPluginFunction(plugin: str, func: str, *args):
@@ -261,7 +263,7 @@ def addNotify(
         source (str, optional): Source notify (use name plugins). Defaults to "".
     """
     with session_scope() as session:
-        notify = session.query(Notify).filter(Notify.description == description, Notify.read == False).one_or_none()
+        notify = session.query(Notify).filter(Notify.name == name, Notify.description == description, Notify.read == False).one_or_none()
         if notify:
             notify.count = notify.count + 1
         else:
@@ -285,6 +287,7 @@ def readNotify(notify_id: int):
         sql = update(Notify).where(Notify.id == notify_id).values(read=True)
         session.execute(sql)
         session.commit()
+        return True
 
 def readNotifyAll(source: str):
     """Set read all notify for source

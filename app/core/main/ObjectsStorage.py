@@ -1,5 +1,5 @@
-from .ObjectManager import  ObjectManager, PropertyManager, MethodManager
-from ..models.Clasess import Class, Property, Method, Object, Value
+from app.core.main.ObjectManager import  ObjectManager, PropertyManager, MethodManager
+from app.core.models.Clasess import Class, Property, Method, Object, Value
 
 objects = {}
 

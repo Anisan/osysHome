@@ -1,17 +1,20 @@
-from http import HTTPStatus
-from flask import jsonify
 from flask_restx import Namespace, Resource
+from app.api.models import model_result, model_404
 from app.api.decorators import api_key_required, role_required
 from app.core.main.ObjectsStorage import objects
 
 objects_ns = Namespace(name="objects",description="Objects namespace",validate=True)
+
+response_result = objects_ns.model('Result', model_result)
+response_404 = objects_ns.model('Error', model_404)
 
 @objects_ns.route("/<object_name>", endpoint="object")
 class GetObject(Resource):
     @api_key_required
     @role_required('admin')
     @objects_ns.doc(security="apikey")
-    @objects_ns.response(HTTPStatus.OK, "Retrieved object.")
+    @objects_ns.response(200, "Retrieved object.", response_result)
+    @objects_ns.response(404, 'Not Found', response_404)
     def get(self, object_name):
         '''
         Get object.
@@ -26,8 +29,12 @@ class GetObject(Resource):
             obj['methods'] = {}
             for key,m in item.methods.items():
                 obj['methods'][key] = m.description
-            return obj
-        return jsonify({'message': 'Object not found'}), HTTPStatus.NOT_FOUND
+            return {
+                'success': True,
+                'result': obj}, 200
+        return {
+            'success': False,
+            'message': 'Object not found'}, 404
     
 @objects_ns.route("/list", endpoint="objects_list")
 class ObjectList(Resource):
@@ -35,7 +42,7 @@ class ObjectList(Resource):
     @api_key_required
     @role_required('admin')
     @objects_ns.doc(security="apikey")
-    @objects_ns.response(HTTPStatus.OK, "Retrieved objects dict.")
+    @objects_ns.response(200, "Retrieved objects dict.", response_result)
     def get(self):
         """
         Get dictionary of objects description.
@@ -43,7 +50,9 @@ class ObjectList(Resource):
         result = {}
         for key,obj in objects.items():
             result[key] = obj.description
-        return result
+        return {
+                'success': True,
+                'result':result }, 200
     
 @objects_ns.route("/list/details", endpoint="objects_list_details")
 class ObjectListDetails(Resource):
@@ -51,7 +60,7 @@ class ObjectListDetails(Resource):
     @api_key_required
     @role_required('admin')
     @objects_ns.doc(security="apikey")
-    @objects_ns.response(HTTPStatus.OK, "Retrieved objects dict.")
+    @objects_ns.response(200, "Retrieved objects dict.", response_result)
     def get(self):
         """
         Get dictionary objects with properties and methods descriptions
@@ -67,4 +76,6 @@ class ObjectListDetails(Resource):
             for key,m in item.methods.items():
                 obj['methods'][key] = m.description
             result[name] = obj
-        return result
+        return {
+                'success': True,
+                'result':result }, 200

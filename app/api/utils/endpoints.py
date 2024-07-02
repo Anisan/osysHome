@@ -1,6 +1,5 @@
-from http import HTTPStatus
 from flask import request, render_template
-from flask_restx import Namespace, Resource
+from flask_restx import Namespace, Resource, fields
 from app.api.decorators import api_key_required, role_required
 from app.logging_config import getLogger
 
@@ -32,7 +31,8 @@ class GlobalSearch(Resource):
                     result.append({"url":"Logs", "title":f'{ex}', "tags":[{"name":name,"color":"danger"}]}) 
 
         render = render_template("search_result.html", result=result)
-        return render
+        return {"success" : True,
+                "result":render}, 200
     
 @utils_ns.route('/readnotify/<id>')
 class ReadNotify(Resource):
@@ -45,10 +45,10 @@ class ReadNotify(Resource):
         '''
         from app.core.lib.common import readNotify
         readNotify(id)
-        return "ok"
+        return {"success" : True}, 200
     
 @utils_ns.route('/readnotify/all')
-class ReadNotify(Resource):
+class ReadNotifyAll(Resource):
     @api_key_required
     @role_required('admin')
     @utils_ns.doc(security="apikey")
@@ -65,3 +65,23 @@ class ReadNotify(Resource):
         readNotifyAll(source)
         return {"success" : True}, 200
         
+run_model = utils_ns.model('CodeTextModel', {
+    'code': fields.String(description='Python code', required=True)
+})
+
+@utils_ns.route('/run')
+class RunCode(Resource):
+    @api_key_required
+    @role_required('admin')
+    @utils_ns.expect(run_model, validate=True)
+    @utils_ns.doc(security="apikey")
+    def post(self):
+        '''
+        Run code
+        '''
+        payload = request.get_json()
+        code = payload['code']
+        from app.core.lib.common import runCode
+        success, result = runCode(code)
+        return {"success" : success,
+                "result": result}, 200

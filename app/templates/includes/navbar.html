@@ -21,6 +21,7 @@
         </li>
       </ul>
       {% if 'admin' in request.path %}
+      <button class="btn btn-outline-secondary me-3" data-bs-toggle="modal" data-bs-target="#consoleModal">Console</button>
       <button class="btn btn-outline-success me-3" data-bs-toggle="modal" data-bs-target="#searchModal">Search</button>
       {%endif%}
 
@@ -46,6 +47,8 @@
       </ul>
     </div>
 </nav>
+{% if 'admin' in request.path %}
+      
 <!-- Vertically centered scrollable modal -->
 <div class="modal fade" id="searchModal" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
   <div class="modal-dialog modal-lg modal-dialog-centered">
@@ -88,7 +91,7 @@
                 $('#filter_add').show();
 
                 if(data) {
-                    $('#filter_add').html(data);
+                    $('#filter_add').html(data.result);
                 } else {
                     $('#filter_add').html('<div style="padding: 15px;text-align: center;"><i class="glyphicon glyphicon-info-sign"></i> Ничего не найдено :(</div>');
                 }
@@ -109,3 +112,57 @@
     filterSearch();
   });
 </script>
+<div class="modal fade" id="consoleModal" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+      <div class="modal-content">
+          <form  method="POST">
+          <div class="modal-header">
+              <h5 class="modal-title" id="exampleModalLabel">Console</h5>
+          </div>
+          <div class="modal-body">
+              <!-- Поля формы -->
+              <div class="d-flex">
+              <input class="form-control me-2" type="search" placeholder="Code" aria-label="Code" id="code" name="code">
+              <button type="button" class="btn btn-primary" aria-label="Run" onclick="run_code()">Run</button>
+              </div>
+              <div class="mt-2" id="result_code" style="height: 266px; min-height: 150px; overflow: auto; padding: 10px; font-family: Consolas, Verdana; background: rgb(0, 0, 0); color: rgb(130, 245, 95); border-radius: 5px; resize: vertical;">
+                #:...
+              </div>
+          </div>
+          <div class="modal-footer">
+              <button type="button" onclick="$('#code').val('');$('#result_code').html('#:...');" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+          </div>
+          </form>
+      </div>
+  </div>
+</div>
+<script>
+  function run_code() {
+        
+        var code = $('#code').val();
+        var url="/api/utils/run";
+        var reqBody = { 'code' : code }
+        $.ajax({
+          type: "POST",
+          url: url,
+          data: JSON.stringify(reqBody),// Данные, которые отправляются в запросе
+          contentType: 'application/json; charset=utf-8', // Тип контента отправляемых данных
+          dataType: 'json', // Ожидаемый тип данных в ответе
+          success: function(data){
+                $('#result_code').show();
+                $('#code').val('');
+                if(data.success) {
+                  $('#result_code').html("#:"+code+"<br>&gt;:"+data.result);
+                }else{
+                  $('#result_code').html("#:"+code+"<br><span style='color:red;'>&gt;:"+data.result+"</span>");
+                }
+          },
+            error: function(data){
+                $('#result_code').show();
+                $('#result_code').html('<div style="min-width: 200px;padding: 10px;background: #ffafaf;border-radius: 10px;text-align: center;">Error sending request - filterSearch()</div>');
+          },
+        });
+        return false;
+    }
+</script>
+{%endif%}

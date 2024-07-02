@@ -1,27 +1,20 @@
-from http import HTTPStatus
 from flask import request, abort
 from flask_restx import Namespace, Resource, fields
 from app.api.decorators import api_key_required, role_required
+from app.api.models import model_result, model_404
 from app.core.main.ObjectsStorage import objects
 
 methods_ns = Namespace(name="methods",description="Methods namespace",validate=True)
 
-response_404 = methods_ns.model('Error', {
-    'success': fields.Boolean(description='Indicates success of the operation', default=False),
-    'msg': fields.String(description='Error message')
-})
-
-response_list = methods_ns.model('Methods', {
-    'success': fields.Boolean(description='Indicates success of the operation'),
-    'methods': fields.Raw(description='Methods of the object'),
-})
+response_result = methods_ns.model('Result', model_result)
+response_404 = methods_ns.model('Error', model_404)
 
 @methods_ns.route("/list/<object_name>", endpoint="methods_list")
 class MethodsList(Resource):
     @api_key_required
     @role_required('admin')
     @methods_ns.doc(security="apikey")
-    @methods_ns.response(HTTPStatus.OK, "Retrieved list methods of object.", response_list)
+    @methods_ns.response(200, "Retrieved list methods of object.", response_result)
     @methods_ns.response(404, 'Not Found', response_404)
     def get(self, object_name):
         '''
@@ -34,12 +27,12 @@ class MethodsList(Resource):
         for key,m in objects[object_name].methods.items():
             result[key] = m.description
         return {"success" : True,
-                "methods" : result}, 200
+                "result" : result}, 200
 
-response_call = methods_ns.model('Response', {
+response_call = methods_ns.model('ResultCallMethod', {
     'success': fields.Boolean(description='Indicates success of the operation'),
     'args': fields.Raw(description='Request arguments'),
-    'data': fields.Raw(description='Resulting data'),
+    'result': fields.Raw(description='Result request'),
 })
 
 @methods_ns.route("/call", endpoint="method_call")
@@ -49,7 +42,7 @@ class CallMethod(Resource):
     @methods_ns.doc(security="apikey")
     @methods_ns.param('object', 'Object name')
     @methods_ns.param('method', 'Method name')
-    @methods_ns.response(HTTPStatus.OK, "Retrieved result.", response_call)
+    @methods_ns.response(200, "Retrieved result call method.", response_call)
     @methods_ns.response(404, 'Not Found', response_404)
     def get(self):
         '''
@@ -69,6 +62,6 @@ class CallMethod(Resource):
         result = objects[object_name].callMethod(method_name,request.args, 'api')
         return {"success" : True,
                 "args" : request.args,
-                "data" : result}, 200
+                "result" : result}, 200
 
 

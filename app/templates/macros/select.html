@@ -38,8 +38,8 @@ $(document).ready(function() {
             success: function(data) {
                 var property_select = $('#{{field_property.name}}');
                 property_select.empty();
-                Object.keys(data).forEach(function(key) {
-                    property_select.append(new Option(key +" - "+ data[key], key));
+                Object.keys(data.result).forEach(function(key) {
+                    property_select.append(new Option(key +" - "+ data.result[key], key));
                 })
                 property_select.val(select);
             }
@@ -52,8 +52,8 @@ $(document).ready(function() {
             success: function(data) {
                 var method_select = $('#{{field_method.name}}');
                 method_select.empty();
-                Object.keys(data).forEach(function(key) {
-                    method_select.append(new Option(key +" - "+ data[key], key));
+                Object.keys(data.result).forEach(function(key) {
+                    method_select.append(new Option(key +" - "+ data.result[key], key));
                 })
                 method_select.val(select);
             }
@@ -67,8 +67,8 @@ $(document).ready(function() {
             var object_select = $('#{{field_object.name}}');
             object_select.empty();
             console.log(data, object_select, '{{field_object.data}}')
-            Object.keys(data).forEach(function(key) {
-                object_select.append(new Option(key +" - "+ data[key], key));
+            Object.keys(data.result).forEach(function(key) {
+                object_select.append(new Option(key +" - "+ data.result[key], key));
             })
             object_select.val('{{field_object.data}}');
             updateProps('{{field_object.data}}','{{field_property.data}}')

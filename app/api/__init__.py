@@ -55,7 +55,9 @@ class CurrentUserResource(Resource):
         Get current user information
         '''
         user = g.current_user
-        return {'user': user.to_dict()}
+        return {
+            'success':True,
+            'result': user.to_dict()}
 
 api.add_namespace(objects_ns, path="/object")
 api.add_namespace(props_ns, path="/property")
