@@ -96,7 +96,7 @@ def register_plugins(app):
             sidebar = cache.get('sidebar')
             if sidebar is None:
                 sidebar = []
-                for key, plugin in plugins.items():
+                for _, plugin in plugins.items():
                     plugin_rec = Plugin.query.filter(
                         Plugin.name == plugin["instance"].name
                     ).one_or_none()

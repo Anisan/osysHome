@@ -153,45 +153,6 @@ def getModule(name: str):
     return plugins[name]["instance"]
 
 
-def runCode(code: str, args=None):
-    """Run code
-
-    Args:
-        code (str): Python code
-        args (dict, optional): Arguments. Defaults to None.
-
-    Return:
-        success, any: Result
-    """
-    # append common
-    try:
-        code = (
-            "from app.core.lib.common import *\nfrom app.core.lib.object import *\n"
-            + code
-        )
-        exec_globals = globals().copy()
-        exec_locals = {
-            "params": args,
-            "logger": _logger,
-        }
-        old_stdout = sys.stdout
-        redirected_output = sys.stdout = StringIO()
-        success = False
-        try:
-            # Выполняем код модуля в контексте с logger
-            exec(code, exec_globals, exec_locals)
-            success = True
-        except:
-            raise
-        finally:  # !
-            sys.stdout = old_stdout  # !
-
-        return success, redirected_output.getvalue()
-    except Exception as ex:
-        _logger.exception(ex)
-        return False, str(ex)
-
-
 def callPluginFunction(plugin: str, func: str, *args):
     """Call plugin function
 
@@ -348,3 +309,42 @@ def xml_to_dict(xml_data):
     root = ET.fromstring(xml_data)
 
     return {root.tag: recursive_dict(root)[1]}
+
+
+def runCode(code: str, args=None):
+    """Run code
+
+    Args:
+        code (str): Python code
+        args (dict, optional): Arguments. Defaults to None.
+
+    Return:
+        success, any: Result
+    """
+    # append common
+    try:
+        code = (
+            "from app.core.lib.common import *\nfrom app.core.lib.object import *\n"
+            + code
+        )
+        exec_globals = globals().copy()
+        exec_locals = {
+            "params": args,
+            "logger": _logger,
+        }
+        old_stdout = sys.stdout
+        redirected_output = sys.stdout = StringIO()
+        success = False
+        try:
+            # Выполняем код модуля в контексте с logger
+            exec(code, exec_globals, exec_locals)
+            success = True
+        except:
+            raise
+        finally:  # !
+            sys.stdout = old_stdout  # !
+
+        return success, redirected_output.getvalue()
+    except Exception as ex:
+        _logger.exception(ex)
+        return False, str(ex)

@@ -358,7 +358,8 @@ class ObjectManager:
             timeout(int): Timeout in sec
             source(str): Source
         """
-        code = "setProperty('"+self.name+"."+propName+"','"+str(value)+"','"+source+"')"
+        src = f',"{source}"' if source else ''
+        code = f'setProperty("{self.name}.{propName}","{str(value)}"{src})'
         setTimeout(self.name+"_"+propName+"_timeout", code, timeout)
 
     def updatePropertyTimeout(self, propName:str, value, timeout:int, source=''):
@@ -370,7 +371,8 @@ class ObjectManager:
             timeout(int): Timeout in sec
             source(str): Source
         """
-        code = "updateProperty('"+self.name+"."+propName+"','"+str(value)+"','"+source+"')"
+        src = f',"{source}"' if source else ''
+        code = f'updateProperty("{self.name}.{propName}","{str(value)}"{src})'
         setTimeout(self.name+"_"+propName+"_timeout", code, timeout)
    
     def callMethodTimeout(self, methodName:str, timeout:int, source:str = ''):
@@ -381,5 +383,6 @@ class ObjectManager:
             timeout (int): Timeout in sec
             source (str, optional): Source. Defaults to ''.
         """
-        code = "callMethod('"+self.name+"."+methodName+"','"+source+"')"
+        src = f',"{source}"' if source else ''
+        code = f'callMethod("{self.name}.{methodName}"{src})'
         setTimeout(self.name+"_"+methodName+"_timeout", code, timeout)

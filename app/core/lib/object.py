@@ -244,6 +244,9 @@ def getProperty(name:str, data:str = 'value'):
         if obj in objects:
             obj = objects[obj]
             return obj.getProperty(prop, data)
+        else:
+            _logger.error('Object %s not found', obj)
+            return False
     except Exception as e:
         _logger.exception('getProperty %s: %s',name,e)
     return None
@@ -267,6 +270,9 @@ def setProperty(name:str, value, source:str='') -> bool:
             obj = objects[obj]
             obj.setProperty(prop, value, source)
             return True
+        else:
+            _logger.error('Object %s not found', obj)
+            return False
     except Exception as e:
         _logger.exception('setProperty %s: %s',name,e)
     return False
@@ -293,7 +299,9 @@ def setPropertyThread(name:str, value, source:str=''):
             thread = threading.Thread(name="Thread_setProperty_"+name,target=wrapper)
             thread.start()
             return True
-        return False
+        else:
+            _logger.error('Object %s not found', obj)
+            return False
     except Exception as e:
         _logger.exception('setPropertyThread %s: %s',name,e)
     return False
@@ -311,10 +319,13 @@ def setPropertyTimeout(name: str, value, timeout: int, source:str=""):
         _logger.debug('setPropertyTimeout %s %s timeout:%s %s', name, value, timeout, source)
         obj = name.split(".")[0]
         prop = name.split(".")[1]
-        code = "setProperty('"+name+"','"+str(value)+"','"+source+"')"
-        from app.core.lib.common import setTimeout
-        setTimeout(obj+"_"+prop+"_set_timeout", code, timeout)
-        return True
+        if obj in objects:
+            obj:ObjectManager = objects[obj]
+            obj.setPropertyTimeout(prop, value, timeout, source)
+            return True
+        else:
+            _logger.error('Object %s not found', obj)
+            return False
     except Exception as e:
         _logger.exception('setPropertyTimeout %s: %s',name,e)
     return False
@@ -335,8 +346,11 @@ def updateProperty(name:str, value, source:str='') -> bool:
         obj = name.split(".")[0]
         prop = name.split(".")[1]
         if obj in objects:
-            obj = objects[obj]
+            obj:ObjectManager = objects[obj]
             return obj.updateProperty(prop, value, source)
+        else:
+            _logger.error('Object %s not found', obj)
+            return False
     except Exception as e:
         _logger.exception('updateProperty %s: %s',name,e)
     return False
@@ -363,6 +377,9 @@ def updatePropertyThread(name:str, value, source:str='') -> bool:
             thread = threading.Thread(name="Thread_updateProperty_"+name,target=wrapper)
             thread.start()
             return True
+        else:
+            _logger.error('Object %s not found', obj)
+            return False
     except Exception as e:
         _logger.exception('updateProperty %s: %s',name,e)
     return False
@@ -383,9 +400,11 @@ def updatePropertyTimeout(name:str, value, timeout:int, source:str='') -> bool:
         _logger.debug('updatePropertyTimeout %s %s timeout:%s %s', name, value, timeout, source)
         obj = name.split(".")[0]
         prop = name.split(".")[1]
-        code = "updateProperty('"+name+"','"+str(value)+"','"+source+"')"
-        from app.core.lib.common import setTimeout
-        setTimeout(obj+"_"+prop+"_upd_timeout", code, timeout)
+        if obj in objects:
+            obj:ObjectManager = objects[obj]
+            obj.updatePropertyTimeout(prop, value, timeout, source)
+        else:
+            _logger.error('Object %s not found', obj)
         return True
     except Exception as e:
         _logger.exception('updatePropertyTimeout %s: %s',name,e)
@@ -448,9 +467,11 @@ def callMethodTimeout(name:str, timeout:int, source:str=''):
         _logger.debug('callMethodTimeout %s timeout:%s source:%s', name, timeout, source)
         obj = name.split(".")[0]
         method = name.split(".")[1]
-        code = "callMethod('"+name+"')"
-        from app.core.lib.common import setTimeout
-        setTimeout(obj+"_"+method+"_timeout", code, timeout)
+        if obj in objects:
+            obj:ObjectManager = objects[obj]
+            obj.callMethodTimeout(method, timeout, source)
+        else:
+            _logger.error('Object %s not found', name)
     except Exception as e:
         _logger.exception('callMethodTimeout %s: %s',name,e)
 
