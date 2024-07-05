@@ -1,3 +1,7 @@
+[![Mailing list : test](http://img.shields.io/badge/Telegram-blue.svg?style=for-the-badge&logo=telegram)](https://t.me/osysHome)
+
+![header](https://github.com/Anisan/osysHome/blob/master/app/static/assets/images/logo.png?raw=true)
+
 # osysHome 
 
 Object system smarthome
