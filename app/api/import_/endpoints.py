@@ -58,7 +58,7 @@ class ImportObjects(Resource):
 
                         if 'object' in m:
                             obj = Object.query.filter(Object.name == m['object']).one_or_none()
-                            method = Method.query.filter(Method.name == m['name'], Method.class_id == obj.id).one_or_none()
+                            method = Method.query.filter(Method.name == m['name'], Method.object_id == obj.id).one_or_none()
                             if not method:
                                 method = Method()
                                 method.name = m['name']
@@ -94,11 +94,11 @@ class ImportObjects(Resource):
 
                         if p['method']:
                             method = None
-                            if 'method_class' in p and p['method_class']:
-                                c = Class.query.filter(Class.name == p['method_class']).one_or_none()
+                            if 'class_method' in p and p['class_method']:
+                                c = Class.query.filter(Class.name == p['class_method']).one_or_none()
                                 method = Method.query.filter(Method.name == p['method'], Method.class_id == c.id).one_or_none()
-                            if 'method_object' in p and p['method_object']:
-                                o = Object.query.filter(Object.name == p['method_object']).one_or_none()
+                            if 'object_method' in p and p['object_method']:
+                                o = Object.query.filter(Object.name == p['object_method']).one_or_none()
                                 method = Method.query.filter(Method.name == p['method'], Method.object_id == o.id).one_or_none()
                             if method:
                                 property.method_id = method.id

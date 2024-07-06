@@ -14,7 +14,7 @@ def methodsSort(methods):
     """
     result = []
     for method in methods[:]:
-        if not method.call_parent or method.call_parent == -1:
+        if method.call_parent is None or method.call_parent == -1:
             result.append(method)
         elif method.call_parent == 0:
             result = []
@@ -54,8 +54,6 @@ def createObjectManager(obj):
     for _, group in group_methods.items():
         if len(group) > 1:
             group = methodsSort(group)
-
-    for _, group in group_methods.items():
         mm = MethodManager(group)
         om._addMethod(mm)
 
