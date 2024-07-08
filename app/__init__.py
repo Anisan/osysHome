@@ -1,6 +1,8 @@
 """ Main module """
 from importlib import import_module
 from flask import Flask, request, render_template
+from json import JSONEncoder
+import datetime
 import flask_monitoringdashboard as dashboard
 from . import commands
 from .exceptions import InvalidUsage
@@ -11,6 +13,13 @@ from .core.main.PluginsHelper import *
 from .logging_config import getLogger
 _logger = getLogger('flask')
 
+class CustomJSONEncoder(JSONEncoder):
+    """Custom encoder for handling default values from a function call"""
+    def default(self, o):
+        if isinstance(o, datetime.datetime):
+            return str(o)
+        return super().default(o)
+    
 def createApp(config_object):
     """An application factory, as explained here:
     http://flask.pocoo.org/docs/patterns/appfactories/.
@@ -29,6 +38,9 @@ def createApp(config_object):
     _logger.info("DB: %s", config_object.SQLALCHEMY_DATABASE_URI)
     app.config['SQLALCHEMY_DATABASE_URI'] = config_object.SQLALCHEMY_DATABASE_URI
     app.config['SQLALCHEMY_POOL_SIZE'] = 20
+        
+    app.config.update(RESTX_JSON={"cls": CustomJSONEncoder})
+
     if config_object.DEBUG:
         app.config['DEBUG_TB_TEMPLATE_EDITOR_ENABLED'] = True
         app.config['DEBUG_TB_PROFILER_ENABLED'] = True

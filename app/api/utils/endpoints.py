@@ -85,3 +85,31 @@ class RunCode(Resource):
         success, result = runCode(code)
         return {"success" : success,
                 "result": result}, 200
+    
+
+cron_task_model = utils_ns.model('CodeTextModel', {
+    'method': fields.String(description='Object method', required=True),
+    'crontab': fields.String(description='Crontab', required=True)
+})
+
+@utils_ns.route('/crontask')
+class setCronTask(Resource):
+    @api_key_required
+    @role_required('admin')
+    @utils_ns.expect(cron_task_model, validate=True)
+    @utils_ns.doc(security="apikey")
+    def post(self):
+        '''
+        Set cron task for method
+        '''
+        payload = request.get_json()
+        obj = payload['method'].split(".")[0]
+        method = payload['method'].split(".")[1]
+        crontab = payload['crontab']
+
+        from app.core.lib.common import addCronJob, clearScheduledJob
+        clearScheduledJob(f'{obj}_{method}_periodic')
+        if crontab:
+            addCronJob(f'{obj}_{method}_periodic',f'callMethod("{obj}.{method}")',crontab)
+
+        return {"success" : True }, 200

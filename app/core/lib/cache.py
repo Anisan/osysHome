@@ -15,12 +15,14 @@ def getCacheDir() -> str:
 
 def getFullFilename(filename:str, directory:str=None, subdir:bool=False) -> str:
     """ Get fullpath for filename in cache
+    
     Args:
-    filename (str): Filename
-    directory (str, optional): Directory. Defaults to None.
-    subdir (bool, optional): Subdirectory. Defaults to False.
+        filename (str): Filename
+        directory (str, optional): Directory. Defaults to None.
+        subdir (bool, optional): Subdirectory. Defaults to False.
+    
     Returns:
-    str: Full filename
+        str: Full filename
     """
     if directory:
         directory_path = os.path.join(__cacheDir, directory)
@@ -54,6 +56,7 @@ def saveToCache(filename:str, content: str, directory:str=None, subdir:bool=Fals
 
 def copyToCache(source: str, filename:str, directory:str=None, subdir:bool=False):
     """ Copy file to cache
+
     Args:
         source (str): File path
         filename (str): File name
@@ -69,18 +72,20 @@ def copyToCache(source: str, filename:str, directory:str=None, subdir:bool=False
 
 def deleteFromCache(filename:str, directory:str=None, subdir:bool=False):
     """ Delete file from cache
+
     Args:
-    filename (str): File name
-    directory (str, optional): Directory in cache. Defaults to None.
-    subdir (bool, optional): Split by subdirectories . Defaults to False.
+        filename (str): File name
+        directory (str, optional): Directory in cache. Defaults to None.
+        subdir (bool, optional): Split by subdirectories . Defaults to False.
     """
     file_path = getFullFilename(filename, directory, subdir)
     os.remove(file_path)
 
 def clearCache(directory:str=None):
     """ Clear cache directory
+    
     Args:
-    directory (str, optional): Directory in cache. Defaults to None.
+        directory (str, optional): Directory in cache. Defaults to None.
     """
     directory_path = os.path.join(__cacheDir, directory)
     shutil.rmtree(directory_path)

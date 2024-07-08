@@ -6,7 +6,7 @@ from threading import Thread, Event
 from flask import Blueprint, request, render_template
 from settings import Config
 from app.core.models.Plugins import Plugin
-from app.database import getSession
+from app.database import session_scope
 from app.authentication.handlers import handle_admin_required
 from app.logging_config import getLogger
         
@@ -25,8 +25,7 @@ class BasePlugin:
         self.actions = [] # list support actions
 
         self.event = None
-        self.session = getSession()
-
+        
         self.logger = getLogger(name)    
 
         self.loadConfig()   
@@ -102,15 +101,16 @@ class BasePlugin:
 
     def loadConfig(self):
         """ Load plugin configuration """
-        
-        rec = self.session.query(Plugin).filter_by(name=self.name).one_or_none()
-        if rec:
-            if rec.config:
-                self.config = json.loads(rec.config)
+        with session_scope() as session:
+            rec = session.query(Plugin).filter_by(name=self.name).one_or_none()
+            if rec:
+                if rec.config:
+                    self.config = json.loads(rec.config)
 
     def saveConfig(self):
         """ Save plugin configuration """
-        rec = self.session.query(Plugin).filter_by(name=self.name).one_or_none()
-        if rec:
-            rec.config = json.dumps(self.config)
-            self.session.commit()
+        with session_scope() as session:
+            rec = session.query(Plugin).filter_by(name=self.name).one_or_none()
+            if rec:
+                rec.config = json.dumps(self.config)
+                session.commit()

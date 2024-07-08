@@ -175,12 +175,13 @@ def callPluginFunction(plugin: str, func: str, *args):
         _logger.error("Function '%s' not found in plugin %s.", func, plugin)
 
 
-def say(message: str, level: int = 0, destination: str = None):
+def say(message: str, level: int = 0, image: str = None, destination: str = None):
     """Say
 
     Args:
         message (_type_): Message
         level (int, optional): Level. Defaults to 0.
+        image (str, optional): Image. Defaults to None.
         destination (_type_, optional): Destination. Defaults to None.
     """
     from .object import setProperty
@@ -189,7 +190,7 @@ def say(message: str, level: int = 0, destination: str = None):
     for _, plugin in plugins.items():
         if "say" in plugin["instance"].actions:
             try:
-                plugin["instance"].say(message, level, destination)
+                plugin["instance"].say(message, level, image, destination)
             except Exception as ex:
                 _logger.exception(ex)
 
