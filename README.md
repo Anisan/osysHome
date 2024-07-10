@@ -4,7 +4,15 @@
 
 # osysHome 
 
-Object system smarthome
+osysHome (Object System smartHome) is smart home system developed in Python that offers users flexible and powerful tools to automate and manage their living space. The osysHome system is based on object-oriented programming, which ensures modularity, ease of use and ease of expansion of functionality.
+
+* Support for various communication protocols
+* Modular architecture
+* Intuitive interface
+* Automation and scripts
+* Security and privacy
+* Extensibility and integration
+* Built-in documentation
 
 ## Install
 
@@ -40,6 +48,9 @@ Object system smarthome
 * flask --app main.py db init
 * flask --app main.py db migrate
 * flask --app main.py db upgrade
+
+> [!IMPORTANT]
+> DO NOT DELETE migrations folder!!! Otherwise, problems will arise with updating the database structure.
 
 ## Start
 
