@@ -1,5 +1,6 @@
 import sys
 import io
+import traceback
 
 module_names = [
     "app.core.lib.common",
@@ -41,7 +42,7 @@ def execute_and_capture_output(code: str, variables: dict) -> (str, bool):
         # Получаем результат из захваченного вывода
         output = sys.stdout.getvalue()
     except Exception as e:
-        output =  f"Error in line {e.__traceback__.tb_next.tb_lineno}: {e}"
+        output =  f"Exception: {str(e)}\nTraceback:\n{traceback.format_exc()}"
         error = True
     finally:
         # Восстанавливаем стандартный вывод
