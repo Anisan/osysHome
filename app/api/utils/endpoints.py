@@ -82,7 +82,7 @@ class RunCode(Resource):
         payload = request.get_json()
         code = payload['code']
         from app.core.lib.common import runCode
-        success, result = runCode(code)
+        result, success = runCode(code)
         return {"success" : success,
                 "result": result}, 200
     

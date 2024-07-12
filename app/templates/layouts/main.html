@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <title>
+        osysHome - {% block title %}{% endblock %}
+    </title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=0, minimal-ui">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge"/>
+
+    <!-- Favicon icon -->
+    <link rel="icon" href="{{ config.ASSETS_ROOT }}/images/favicon.ico" type="image/x-icon">
+    <!-- fontawesome icon -->
+    <link rel="stylesheet" href="{{ config.ASSETS_ROOT }}/fonts/fontawesome/css/fontawesome-all.min.css">
+    <link rel="stylesheet" href="{{ config.ASSETS_ROOT }}/fonts/feather/css/feather.css">
+
+    <!-- Latest compiled and minified CSS -->
+    <link href="{{ config.ASSETS_ROOT }}/plugins/bootstrap/css/bootstrap.min.css" rel="stylesheet">
+
+    <!-- custom css -->
+    <link rel="stylesheet" href="{{ config.ASSETS_ROOT }}/css/custom.css">
+
+    <script src="{{ config.ASSETS_ROOT }}/plugins/jquery/jquery-3.6.0.min.js"></script>
+
+    <!-- Specific CSS goes HERE -->
+    {% block stylesheets %}{% endblock stylesheets %}
+
+</head>
+<body data-tag="body" data-bs-theme="light">
+
+    {% block main %}{% endblock main %}
+
+    <!-- Specific Page JS goes HERE  -->
+    {% block javascripts %}{% endblock javascripts %}
+
+</body>
+</html>

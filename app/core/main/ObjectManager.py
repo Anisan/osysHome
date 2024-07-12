@@ -8,6 +8,7 @@ from app.database import session_scope
 from app.core.main.PluginsHelper import plugins
 from app.core.models.Clasess import Object, Property, Value, History
 from app.core.lib.common import setTimeout
+from app.core.lib.execute import execute_and_capture_output
 from app.logging_config import getLogger
 _logger = getLogger('object')
 
@@ -144,13 +145,9 @@ class PropertyManager():
 
 class MethodManager():
     def  __init__(self, methods):
-        self.name = methods[0].name
-        self.description = methods[0].description
-        code = ""
-        for m in methods:
-            if m.code:
-                code+="\n"+m.code
-        self.code = code
+        self.methods = methods # include parents
+        self.name = methods[0]["name"]
+        self.description = methods[0]["description"]
 
 class ObjectManager:
     """ Object manager
@@ -311,32 +308,24 @@ class ObjectManager:
             _logger.warning("Method %s does not exist.", name)
             return None
         try:
-            code = self.methods[name].code
-            code = "from app.core.lib.common import *\nfrom app.core.lib.object import *\nfrom app.core.lib.cache import *\n" + code ## TODO append common libs
-            #exec(code, globals(), {'self': self, 'params':args, **vars(self)})
-            # Создаем контекст, в который передаем logger и другие переменные
-            exec_globals = globals().copy()
-            exec_locals = {
+            variables = {
                 'self': self,
                 'params': args,
                 'logger': _logger,
                 'source': source,
                 **vars(self)
             }
-
-            from io import StringIO
-            import sys
-            old_stdout = sys.stdout
-            redirected_output = sys.stdout = StringIO()
-            try:
-                # Выполняем код модуля в контексте с logger
-                exec(code, exec_globals, exec_locals)
-            except:
-                raise 
-            finally: # !
-                sys.stdout = old_stdout # !
-
-            return redirected_output.getvalue()
+            methods = self.methods[name].methods
+            output = ''
+            for method in methods:
+                res, error = execute_and_capture_output(method['code'],variables)
+                if error:
+                    output += "Error method in "+method['owner']+"\n"+res
+                    break
+                if res:
+                    output += res +"\n"
+                
+            return output
         except Exception as ex:
             _logger.critical(ex, exc_info=True) # TODO write adv info
             return str(ex)

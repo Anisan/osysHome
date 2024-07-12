@@ -1,9 +1,8 @@
 """ Common library """
 
 import datetime
-from io import StringIO
-import sys
 from sqlalchemy import update, delete
+from app.core.lib.execute import execute_and_capture_output
 from app.logging_config import getLogger
 from app.database import session_scope, row2dict
 from .crontab import nextStartCronJob
@@ -153,7 +152,7 @@ def getModule(name: str):
     return plugins[name]["instance"]
 
 
-def callPluginFunction(plugin: str, func: str, *args):
+def callPluginFunction(plugin: str, func: str, args):
     """Call plugin function
 
     Args:
@@ -168,7 +167,7 @@ def callPluginFunction(plugin: str, func: str, *args):
     if hasattr(plugin_obj, func):
         function = getattr(plugin_obj, func)
         try:
-            function(*args)
+            function(**args)
         except Exception as ex:
             _logger.exception(ex)
     else:
@@ -320,32 +319,17 @@ def runCode(code: str, args=None):
         args (dict, optional): Arguments. Defaults to None.
 
     Return:
-        success, any: Result
+        any, bool: Result
     """
     # append common
     try:
-        code = (
-            "from app.core.lib.common import *\nfrom app.core.lib.object import *\n"
-            + code
-        )
-        exec_globals = globals().copy()
-        exec_locals = {
+        variables = {
             "params": args,
             "logger": _logger,
         }
-        old_stdout = sys.stdout
-        redirected_output = sys.stdout = StringIO()
-        success = False
-        try:
-            # Выполняем код модуля в контексте с logger
-            exec(code, exec_globals, exec_locals)
-            success = True
-        except:
-            raise
-        finally:  # !
-            sys.stdout = old_stdout  # !
+        output, error = execute_and_capture_output(code, variables)
 
-        return success, redirected_output.getvalue()
+        return output, not error
     except Exception as ex:
         _logger.exception(ex)
-        return False, str(ex)
+        return str(ex), False

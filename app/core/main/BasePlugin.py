@@ -17,7 +17,9 @@ class BasePlugin:
         self.title = "Undefined"
         self.description = "Undefined"
         self.category = "Undefined"
+        self.author = "Undefined"
         self.version = 0
+        
         self.system = False
         self.thread = None
         self.dtUpdated = datetime.datetime.now()
@@ -78,8 +80,9 @@ class BasePlugin:
         """ Stop cycle """
         self.logger.info("Stoping cycle...")
         self.event.set()
-        self.thread.join()
-        self.thread = None
+        if self.thread:
+            self.thread.join()
+            self.thread = None
         self.logger.info("Stoped cycle")
 
     def _cyclic_task(self):

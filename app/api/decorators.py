@@ -26,7 +26,7 @@ def role_required(role):
             user = g.get('current_user')
             if not user:
                 abort(401, 'Authorization required')
-            if user.role != role:
+            if user.role != role and user.role != 'admin':
                 abort(403, 'Forbidden: Insufficient permissions. Only for '+role)
             return f(*args, **kwargs)
         return decorated

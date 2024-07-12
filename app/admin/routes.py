@@ -1,6 +1,5 @@
-from flask import render_template, send_from_directory
-import subprocess
 import os
+from flask import render_template, send_from_directory
 from . import blueprint
 from settings import Config
 from app.logging_config import getLogger
@@ -51,14 +50,3 @@ def secure_file(filename):
 @handle_user_required
 def about():
     return render_template("about.html")
-
-@blueprint.route('/restart')
-@handle_admin_required
-def restart():
-    """Маршрут для перезапуска приложения через systemd"""
-    try:
-        subprocess.run(['sudo', 'systemctl', 'restart', 'smh'], check=True)
-        return "osysHome is restarting...", 200
-    except subprocess.CalledProcessError as e:
-        return f"Error: {e}", 500
-    

@@ -1,3 +1,4 @@
+from app.database import row2dict
 from app.core.main.ObjectManager import  ObjectManager, PropertyManager, MethodManager
 from app.core.models.Clasess import Class, Property, Method, Object, Value
 
@@ -54,6 +55,14 @@ def createObjectManager(obj):
     for _, group in group_methods.items():
         if len(group) > 1:
             group = methodsSort(group)
+        group = [row2dict(item) for item in group]
+        for item in group:
+            if item['class_id']:
+                cls = Class.get_by_id(item['class_id'])
+                if cls:
+                    item['owner'] = cls.name
+            else:
+                item['owner'] = obj.name
         mm = MethodManager(group)
         om._addMethod(mm)
 
