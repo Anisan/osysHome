@@ -13,14 +13,14 @@ def getCacheDir() -> str:
     """
     return __cacheDir
 
-def getFullFilename(filename:str, directory:str=None, subdir:bool=False) -> str:
+def getFullFilename(filename:str, directory:str = None, subdir:bool = False) -> str:
     """ Get fullpath for filename in cache
-    
+
     Args:
         filename (str): Filename
         directory (str, optional): Directory. Defaults to None.
         subdir (bool, optional): Subdirectory. Defaults to False.
-    
+
     Returns:
         str: Full filename
     """
@@ -83,7 +83,7 @@ def deleteFromCache(filename:str, directory:str=None, subdir:bool=False):
 
 def clearCache(directory:str=None):
     """ Clear cache directory
-    
+
     Args:
         directory (str, optional): Directory in cache. Defaults to None.
     """
@@ -108,8 +108,6 @@ def getFilesCache(directory:str=None):
         return []
     except PermissionError:
         return f"Permission denied for directory {directory_path}."
-    
-
 
 def existInCache(filename:str, directory:str=None, subdir:bool=False) -> bool:
     """Exist file in cache
@@ -128,7 +126,7 @@ def existInCache(filename:str, directory:str=None, subdir:bool=False) -> bool:
         return True
     else:
         return False
-    
+
 def findInCache(filename:str, directory:str=None, subdir:bool=False) -> str:
     """Find file in cache
 

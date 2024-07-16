@@ -8,7 +8,8 @@ module_names = [
     "app.core.lib.cache",
 ]
 
-def execute_and_capture_output(code: str, variables: dict) -> (str, bool):
+
+def execute_and_capture_output(code: str, variables: dict):
     """Execute code with variables
 
     Args:
@@ -18,19 +19,19 @@ def execute_and_capture_output(code: str, variables: dict) -> (str, bool):
     Returns:
         str: Output
         bool: Error execute
-        
+
     """
     if code is None or code == '':
         return '', False
     # Создаем окружение и добавляем в него переменные
     environment = globals().copy()
     environment.update(variables)
-    
+
     # Выполняем импорт для каждого модуля в окружении
     for module_name in module_names:
         import_statement = f'from {module_name} import *'
         exec(import_statement, environment)
-    
+
     # Захватываем стандартный вывод
     old_stdout = sys.stdout
     sys.stdout = io.StringIO()
@@ -42,10 +43,10 @@ def execute_and_capture_output(code: str, variables: dict) -> (str, bool):
         # Получаем результат из захваченного вывода
         output = sys.stdout.getvalue()
     except Exception as e:
-        output =  f"Exception: {str(e)}\nTraceback:\n{traceback.format_exc()}"
+        output = f"Exception: {str(e)}\n\nTraceback:\n{traceback.format_exc()}"
         error = True
     finally:
         # Восстанавливаем стандартный вывод
         sys.stdout = old_stdout
-    
+
     return output, error

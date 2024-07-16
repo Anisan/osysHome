@@ -1,5 +1,6 @@
 """Object library"""
 import threading
+import datetime
 from sqlalchemy import delete
 from app.core.main.ObjectsStorage import objects, reload_objects_by_class, reload_object
 from app.logging_config import getLogger
@@ -94,7 +95,7 @@ def addClassMethod(name:str, class_name:str, description:str='', code:str='', ca
         reload_objects_by_class(cls.id)
     return method
 
-def addObject(name:str, class_name:str, description = '') -> ObjectManager:
+def addObject(name:str, class_name:str, description='') -> ObjectManager:
     """Add a object to the database
 
     Args:
@@ -114,7 +115,7 @@ def addObject(name:str, class_name:str, description = '') -> ObjectManager:
         obj.description = description
         db.session.add(obj)
         db.session.commit()
-        objects[name] = ObjectManager(obj) #TODO  use method for ObjectsStorage
+        objects[name] = ObjectManager(obj)  # TODO  use method for ObjectsStorage
     return objects[name]
 
 def addObjectProperty(name:str, object_name:str, description:str='', history:int=0, type:PropertyType=PropertyType.Empty, method_name:str=None) -> bool:
@@ -156,7 +157,7 @@ def addObjectProperty(name:str, object_name:str, description:str='', history:int
         db.session.commit()
         reload_object(obj.id)
     return True
-    
+
 
 def addObjectMethod(name:str, object_name:str, description:str='', code:str='', call_parent:int=0) -> bool:
     """Add a method object to the database
@@ -294,9 +295,11 @@ def setPropertyThread(name:str, value, source:str=''):
         prop = name.split(".")[1]
         if obj in objects:
             obj = objects[obj]
+
             def wrapper():
                 obj.setProperty(prop, value, source)
-            thread = threading.Thread(name="Thread_setProperty_"+name,target=wrapper)
+
+            thread = threading.Thread(name="Thread_setProperty_" + name, target=wrapper)
             thread.start()
             return True
         else:
@@ -372,9 +375,11 @@ def updatePropertyThread(name:str, value, source:str='') -> bool:
         prop = name.split(".")[1]
         if obj in objects:
             obj = objects[obj]
+
             def wrapper():
                 obj.updateProperty(prop, value, source)
-            thread = threading.Thread(name="Thread_updateProperty_"+name,target=wrapper)
+
+            thread = threading.Thread(name="Thread_updateProperty_" + name, target=wrapper)
             thread.start()
             return True
         else:
@@ -410,7 +415,7 @@ def updatePropertyTimeout(name:str, value, timeout:int, source:str='') -> bool:
         _logger.exception('updatePropertyTimeout %s: %s',name,e)
     return False
 
-def callMethod(name:str, args = {}, source:str='') -> str:
+def callMethod(name:str, args={}, source:str='') -> str:
     """Call method by its name
 
     Args:
@@ -446,9 +451,11 @@ def callMethodThread(name: str, args={}, source:str=''):
         method = name.split(".")[1]
         if object_name in objects:
             obj = objects[object_name]
+
             def wrapper():
                 obj.callMethod(method, args, source)
-            thread = threading.Thread(name="Thread_callMethod_"+name,target=wrapper)
+
+            thread = threading.Thread(name="Thread_callMethod_" + name, target=wrapper)
             thread.start()
         else:
             _logger.error('Object %s not found', object_name)
@@ -507,10 +514,11 @@ def setLinkToObject(object_name:str, property_name:str, link:str) -> bool:
         obj: ObjectManager = objects[object_name]
         if property_name in obj.properties:
             prop: PropertyManager = obj.properties[property_name]
-            if not prop.linked : prop.linked  = []
+            if not prop.linked:
+                prop.linked = []
             if link not in prop.linked:
                 prop.linked.append(link)
-                id = prop._value_id
+                id = prop.value_id
                 with session_scope() as session:
                     rec = session.query(Value).where(Value.id == id).one_or_none()
                     if rec:
@@ -538,7 +546,7 @@ def removeLinkFromObject(object_name:str, property_name:str, link:str) -> bool:
             prop: PropertyManager = obj.properties[property_name]
             if prop.linked and link in prop.linked:
                 prop.linked.remove(link)
-                id = prop._value_id
+                id = prop.value_id
                 with session_scope() as session:
                     rec = session.query(Value).where(Value.id == id).one_or_none()
                     if rec:
@@ -567,3 +575,31 @@ def clearLinkedObjects(link:str):
 
         session.commit()
 
+
+def getHistory(name:str, dt_begin:datetime = None, dt_end:datetime = None, limit:int = None, order_desc: bool = False, func=None) -> list:
+    """Get history of a property
+
+        Args:
+            name (str): Name property
+            dt_begin (datetime, optional): Begin date. Defaults to None.
+            dt_end (datetime, optional): End date. Defaults to None.
+            limit (int, optional): Limit. Defaults to None.
+            order_desc (bool, optional): Order desc. Defaults to False.
+            func (function, optional): Function to apply to the data. Defaults to None.
+
+        Returns:
+            list: List of history
+    """
+    try:
+        _logger.debug('getHistory %s', name)
+        obj = name.split(".")[0]
+        prop = name.split(".")[1]
+        if obj in objects:
+            obj:ObjectManager = objects[obj]
+            return obj.getHistory(prop, dt_begin, dt_end, limit, order_desc, func)
+        else:
+            _logger.error('Object %s not found', obj)
+            return None
+    except Exception as e:
+        _logger.exception('updatePropertyTimeout %s: %s',name,e)
+    return None

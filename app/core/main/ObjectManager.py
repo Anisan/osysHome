@@ -4,7 +4,7 @@ import threading
 import json
 from sqlalchemy import update
 from flask import render_template_string
-from app.database import session_scope
+from app.database import session_scope,row2dict
 from app.core.main.PluginsHelper import plugins
 from app.core.models.Clasess import Object, Property, Value, History
 from app.core.lib.common import setTimeout
@@ -13,9 +13,9 @@ from app.logging_config import getLogger
 _logger = getLogger('object')
 
 class PropertyManager():
-    def  __init__(self, property: Property, value: Value):
+    def __init__(self, property: Property, value: Value):
         self.__property_id = property.id
-        self._value_id = value.id if value else None
+        self.value_id = value.id if value else None
         self.name = property.name
         self.description = property.description
         self.object_id = None
@@ -33,9 +33,10 @@ class PropertyManager():
             self.__value = self._decodeValue(value.value)
 
     def _decodeValue(self, value):
-        if  value == None: return None
+        if value is None:
+            return None
         converted_value = None
-         ## TODO cast type ??
+        # TODO cast type ??
         # Конвертация строки в указанный тип
         try:
             if self.type == "int":
@@ -45,7 +46,7 @@ class PropertyManager():
             elif self.type == "str":
                 converted_value = value
             elif self.type == "datetime":
-                if  isinstance(value, str):
+                if isinstance(value, str):
                     converted_value = parser.parse(value)
                 else:
                     converted_value = value
@@ -54,13 +55,13 @@ class PropertyManager():
             elif self.type == "object":
                 converted_value = json.loads(value)
             else:
-                converted_value = value 
+                converted_value = value
         except Exception as ex:
             _logger.exception(ex, exc_info=True)
-            converted_value = value 
+            converted_value = value
         return converted_value
 
-    def _encodeValue(self):  
+    def _encodeValue(self):
         # TODO convert to string
         value = self.__value
         try:
@@ -77,64 +78,64 @@ class PropertyManager():
             elif self.type == "object":
                 return json.dumps(value)
             else:
-                return value 
+                return value
         except Exception as ex:
             _logger.exception(ex, exc_info=True)
         return str(self.__value)
 
     def saveValue(self):
         try:
-            with session_scope() as session: #todo maybe use one session ??
-                if self._value_id == None:
+            with session_scope() as session:    # todo maybe use one session ??
+                if self.value_id is None:
                     valRec = Value()
                     valRec.object_id = self.object_id
                     valRec.name = self.name
                     session.add(valRec)
                     session.commit()
-                    self._value_id = valRec.id
+                    self.value_id = valRec.id
 
                 stringValue = self._encodeValue()
-                if stringValue == None:
+                if stringValue is None:
                     _logger.info(stringValue)
-                
-                sql = update(Value).where(Value.id == self._value_id).values(value = stringValue,changed = self.changed, source = self.source)
+
+                sql = update(Value).where(Value.id == self.value_id).values(value=stringValue, changed=self.changed, source=self.source)
                 session.execute(sql)
-                
+
                 # save history
                 if self.history > 0:
                     hist = History()
-                    hist.value_id = self._value_id
+                    hist.value_id = self.value_id
                     hist.added = self.changed
                     hist.value = stringValue
                     hist.source = self.source
                     session.add(hist)
-                
+
                 session.commit()
         except Exception as ex:
             _logger.exception(ex, exc_info=True)
 
-    def setValue(self, value, source='', changed = None):
-        
+    def setValue(self, value, source='', changed=None):
+
         self.__value = self._decodeValue(value)
         self.source = source
-        if changed !=None:
+        if changed is not None:
             self.changed = changed
         else:
             now = datetime.datetime.now()
             self.changed = now
 
         # save Value To DB
-        #self.saveValue()
+        # self.saveValue()
         thread = threading.Thread(target=self.saveValue)
         thread.start()
 
     def getValue(self):
         return self.__value
-    
+
     @property
     def value(self):
         return self.getValue()
-    
+
     @value.setter
     def value(self, value):
         self.setValue(value)
@@ -144,8 +145,8 @@ class PropertyManager():
 
 
 class MethodManager():
-    def  __init__(self, methods):
-        self.methods = methods # include parents
+    def __init__(self, methods):
+        self.methods = methods  # include parents
         self.name = methods[0]["name"]
         self.description = methods[0]["description"]
 
@@ -163,19 +164,19 @@ class ObjectManager:
 
     def _addProperty(self, property: PropertyManager) -> None:
         property.object_id = self.__object.id
-        if property._value_id == None:
+        if property.value_id is None:
             with session_scope() as session:
                 valRec = Value()
                 valRec.object_id = property.object_id
                 valRec.name = property.name
                 session.add(valRec)
                 session.commit()
-                property._value_id = valRec.id
+                property.value_id = valRec.id
         self.properties[property.name] = property
 
     def setProperty(self, name:str, value, source:str=''):
         """ Set property value
-        
+
         Args:
             name (str): property name
             value (str): property value
@@ -194,9 +195,9 @@ class ObjectManager:
                     prop = PropertyManager(property_db,None)
                     self._addProperty(prop)
             prop = self.properties[name]
-            old = prop.getValue() 
+            old = prop.getValue()
             prop.setValue(value, source)
-            value = prop.getValue() 
+            value = prop.getValue()
             if prop.method:
                 args = {
                     'VALUE': value, 'NEW_VALUE': value, 'OLD_VALUE': old, 'PROPERTY': name, 'SOURCE': source,
@@ -205,7 +206,8 @@ class ObjectManager:
             # link
             if prop.linked:
                 for link in prop.linked:
-                    if link == source: continue
+                    if link == source:
+                        continue
                     # TODO get plugin
                     if link in plugins:
                         plugin = plugins[link]
@@ -218,7 +220,7 @@ class ObjectManager:
             for _,plugin in plugins.items():
                 if 'proxy' in plugin["instance"].actions:
                     plugin["instance"].changeProperty(self.name, name, value)
-            
+
         except Exception as ex:
             _logger.exception(ex, exc_info=True)
 
@@ -257,7 +259,7 @@ class ObjectManager:
             prop = self.properties[name]
             return getattr(prop, data, None)
         return None
-    
+
     def getChanged(self, name:str):
         """Get datetime changing property
 
@@ -268,7 +270,7 @@ class ObjectManager:
             datetime: Datetime changing property
         """
         return self.getProperty(name, 'changed')
-    
+
     def __getattr__(self, name):
         if name in self.__dict__['properties']:
             prop = self.__dict__['properties'][name]
@@ -276,7 +278,6 @@ class ObjectManager:
         else:
             raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{name}'")
 
-        
     def __setattr__(self, name, value):
         if name == "properties":
             super().__setattr__(name, value)
@@ -284,7 +285,6 @@ class ObjectManager:
             self.setProperty(name,value)
         else:
             super().__setattr__(name, value)
-
 
     def _addMethod(self, method: MethodManager):
         self.methods[method.name] = method
@@ -320,14 +320,14 @@ class ObjectManager:
             for method in methods:
                 res, error = execute_and_capture_output(method['code'],variables)
                 if error:
-                    output += "Error method in "+method['owner']+"\n"+res
+                    output += "Error method in " + method['owner'] + "\n" + res
                     break
                 if res:
-                    output += res +"\n"
-                
+                    output += res + "\n"
+
             return output
         except Exception as ex:
-            _logger.critical(ex, exc_info=True) # TODO write adv info
+            _logger.critical(ex, exc_info=True)     # TODO write adv info
             return str(ex)
 
     def render(self) -> str:
@@ -337,7 +337,7 @@ class ObjectManager:
             str: html view object
         """
         return render_template_string(self.template, object=self)
-    
+
     def setPropertyTimeout(self, propName:str, value, timeout:int, source=''):
         """Set the value of a Property with a Timeout
 
@@ -349,7 +349,7 @@ class ObjectManager:
         """
         src = f',"{source}"' if source else ''
         code = f'setProperty("{self.name}.{propName}","{str(value)}"{src})'
-        setTimeout(self.name+"_"+propName+"_timeout", code, timeout)
+        setTimeout(self.name + "_" + propName + "_timeout", code, timeout)
 
     def updatePropertyTimeout(self, propName:str, value, timeout:int, source=''):
         """Update property by its name if value changed on timeout.
@@ -362,8 +362,8 @@ class ObjectManager:
         """
         src = f',"{source}"' if source else ''
         code = f'updateProperty("{self.name}.{propName}","{str(value)}"{src})'
-        setTimeout(self.name+"_"+propName+"_timeout", code, timeout)
-   
+        setTimeout(self.name + "_" + propName + "_timeout", code, timeout)
+
     def callMethodTimeout(self, methodName:str, timeout:int, source:str = ''):
         """Call method with a timeout
 
@@ -374,4 +374,70 @@ class ObjectManager:
         """
         src = f',"{source}"' if source else ''
         code = f'callMethod("{self.name}.{methodName}"{src})'
-        setTimeout(self.name+"_"+methodName+"_timeout", code, timeout)
+        setTimeout(self.name + "_" + methodName + "_timeout", code, timeout)
+
+    def getHistory(self, name:str, dt_begin:datetime = None, dt_end:datetime = None, limit:int = None, order_desc: bool = False, func=None) -> list:
+        """Get history of a property
+
+        Args:
+            name (str): Name property
+            dt_begin (datetime, optional): Begin date. Defaults to None.
+            dt_end (datetime, optional): End date. Defaults to None.
+            limit (int, optional): Limit. Defaults to None.
+            order_desc (bool, optional): Order desc. Defaults to False.
+            func (function, optional): Function to apply to the data. Defaults to None.
+
+        Returns:
+            list: List of history
+        """
+
+        if name not in self.properties:
+            return None
+        prop:PropertyManager = self.properties[name]
+        value_id = prop.value_id
+
+        with session_scope() as session:
+            result = History.getHistory(session, value_id, dt_begin,dt_end,limit,order_desc,row2dict)
+            for item in result:
+                item['value'] = prop._decodeValue(item["value"])
+                del item["value_id"]
+            if func:
+                result = [func(r) for r in result]
+            return result
+
+    def getHistoryAggregate(self, name:str, dt_begin:datetime = None, dt_end:datetime = None, func:str = 'count'):
+        """Get aggregate history of a property
+
+        Args:
+            name (str): Name property
+            dt_begin (datetime, optional): Begin date. Defaults to None.
+            dt_end (datetime, optional): End date. Defaults to None.
+            func (str, optional): Aggregate function (min,max,sum,avg,count). Defaults to 'count'.
+
+
+        Returns:
+            any : Result function
+        """
+        if name not in self.properties:
+            return None
+        prop:PropertyManager = self.properties[name]
+        value_id = prop.value_id
+
+        with session_scope() as session:
+            if func == 'count':
+                result = History.get_count(session, value_id, dt_begin,dt_end)
+                return result
+            elif func == 'min':
+                result = History.get_min_value(session, value_id, dt_begin,dt_end)
+                return result
+            elif func == 'max':
+                result = History.get_max_value(session, value_id, dt_begin,dt_end)
+                return result
+            elif func == 'sum':
+                result = History.get_sum_value(session, value_id, dt_begin,dt_end)
+                return result
+            elif func == 'avg':
+                result = History.get_avg_value(session, value_id, dt_begin,dt_end)
+                return result
+
+            return None

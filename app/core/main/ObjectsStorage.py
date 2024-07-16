@@ -1,5 +1,5 @@
 from app.database import row2dict
-from app.core.main.ObjectManager import  ObjectManager, PropertyManager, MethodManager
+from app.core.main.ObjectManager import ObjectManager, PropertyManager, MethodManager
 from app.core.models.Clasess import Class, Property, Method, Object, Value
 
 objects = {}
@@ -33,11 +33,11 @@ def createObjectManager(obj):
     properties = properties + property_obj
     for prop in properties:
         value = Value.query.filter(Value.object_id == obj.id, Value.name == prop.name).first()
-        #value = values[0]
-        #if len(values) > 1:
-        #    logger.warning("Warning! More than one value with same name and object id")
-            #db.session.query(Value).filter(Value.object_id == obj.id, Value.name == property.name).filter(Value.id != value.id).delete()
-            #db.session.commit()
+        # value = values[0]
+        # if len(values) > 1:
+        #   logger.warning("Warning! More than one value with same name and object id")
+        #   db.session.query(Value).filter(Value.object_id == obj.id, Value.name == property.name).filter(Value.id != value.id).delete()
+        #   db.session.commit()
 
         pm = PropertyManager(prop, value)
         if prop.method_id:
@@ -72,12 +72,13 @@ def createObjectManager(obj):
 
     return om
 
+
 cachePropertiesClasses = {}
 cacheMethodsClasses = {}
 
 def getPropertiesClass(id, properties):
     if id:
-        props = Property.query.filter(Property.class_id==id).all()
+        props = Property.query.filter(Property.class_id == id).all()
         properties = properties + props
         cls = Class.get_by_id(id)
         if cls and cls.parent_id:
@@ -86,8 +87,8 @@ def getPropertiesClass(id, properties):
 
 def getPropertiesClassFromCache(id):
     global cachePropertiesClasses
-    ##if id in cachePropertiesClasses:
-    ##    return cachePropertiesClasses[id]
+    # if id in cachePropertiesClasses:
+    #    return cachePropertiesClasses[id]
     properties = []
     properties = getPropertiesClass(id, properties)
     cachePropertiesClasses[id] = properties
@@ -95,7 +96,7 @@ def getPropertiesClassFromCache(id):
 
 def getMethodsClass(id, methods):
     if id:
-        meth = Method.query.filter(Method.class_id==id).all()
+        meth = Method.query.filter(Method.class_id == id).all()
         methods = meth + methods
         cls = Class.get_by_id(id)
         if cls and cls.parent_id:
@@ -104,8 +105,8 @@ def getMethodsClass(id, methods):
 
 def getMethodsClassFromCache(id):
     global cacheMethodsClasses
-   ## if id in cacheMethodsClasses:
-   ##     return cacheMethodsClasses[id]
+    # if id in cacheMethodsClasses:
+    #     return cacheMethodsClasses[id]
     methods = []
     methods = getMethodsClass(id, methods)
     cacheMethodsClasses[id] = methods

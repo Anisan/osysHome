@@ -10,7 +10,20 @@
         "--init-hook",
         "import sys, os; sys.path.insert(0, os.path.join('app'))"
     ],
+    "flake8.args": [
+        "--max-line-length=250",
+        "--ignore=E231,E301,E302,E252",
+    ],
     "cSpell.words": [
+        "apikey",
+        "Clasess",
+        "dateutil",
+        "DDTHH",
+        "fontawesome",
+        "javascripts",
+        "osys",
+        "playsound",
+        "restx",
         "SQLALCHEMY"
     ],
     "files.exclude": {
@@ -22,5 +35,5 @@
         "**/Thumbs.db": true,
         "**/*.pyc": {"when": "$(basename).py"}, 
         "**/__pycache__": true,
-    }
+    },
 }

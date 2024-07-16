@@ -1,5 +1,5 @@
-from sqlalchemy import ForeignKey
-from app.database import Column, Model, SurrogatePK, db, relationship
+from sqlalchemy import ForeignKey, func, desc, asc
+from app.database import Column, SurrogatePK, db, relationship
 
 class Class(SurrogatePK, db.Model):
     """ Model Class
@@ -44,7 +44,7 @@ class Property(SurrogatePK, db.Model):
     object_id = Column(db.Integer, ForeignKey('objects.id', name='fk_object_property_id'))
     object_ = relationship("Object", back_populates="properties")
     method_id = Column(db.Integer)
-    history = Column(db.Integer, default = 0)
+    history = Column(db.Integer, default=0)
     # TODO type and validator
     type = Column(db.String(100))
 
@@ -55,7 +55,7 @@ class Method(SurrogatePK, db.Model):
     class_id = Column(db.Integer)
     object_id = Column(db.Integer)
     code = Column(db.Text)
-    call_parent= Column(db.Integer)
+    call_parent = Column(db.Integer)
 
 class Value(SurrogatePK, db.Model):
     __tablename__ = 'values'
@@ -65,10 +65,101 @@ class Value(SurrogatePK, db.Model):
     changed = Column(db.DateTime())
     linked = Column(db.String(512))
     source = Column(db.Text)
-    
+
 class History(SurrogatePK, db.Model):
     __tablename__ = 'history'
     value_id = Column(db.Integer)
     value = Column(db.Text)
     added = Column(db.DateTime())
     source = Column(db.Text)
+
+    @staticmethod
+    def getHistory(session, value_id, dt_begin=None, dt_end=None, limit=None, order_desc=False, func=None):
+        query = session.query(History).filter_by(value_id=value_id)
+
+        if dt_begin:
+            query = query.filter(History.added >= dt_begin)
+        if dt_end:
+            query = query.filter(History.added <= dt_end)
+
+        if order_desc:
+            query = query.order_by(desc(History.added))
+        else:
+            query = query.order_by(asc(History.added))
+
+        if limit:
+            query = query.limit(limit)
+
+        result = query.all()
+
+        if func:
+            result = [func(r) for r in result]
+
+        return result
+
+    @staticmethod
+    def get_min_value(session, value_id, dt_begin=None, dt_end=None):
+        query = session.query(func.min(History.value).label('min_value')).filter_by(value_id=value_id)
+        if dt_begin:
+            query = query.filter(History.added >= dt_begin)
+        if dt_end:
+            query = query.filter(History.added <= dt_end)
+        return query.scalar()
+
+    @staticmethod
+    def get_max_value(session, value_id, dt_begin=None, dt_end=None):
+        query = session.query(func.max(History.value).label('max_value')).filter_by(value_id=value_id)
+        if dt_begin:
+            query = query.filter(History.added >= dt_begin)
+        if dt_end:
+            query = query.filter(History.added <= dt_end)
+        return query.scalar()
+
+    @staticmethod
+    def get_avg_value(session, value_id, dt_begin=None, dt_end=None):
+        query = session.query(func.avg(History.value).label('avg_value')).filter_by(value_id=value_id)
+        if dt_begin:
+            query = query.filter(History.added >= dt_begin)
+        if dt_end:
+            query = query.filter(History.added <= dt_end)
+        return query.scalar()
+
+    @staticmethod
+    def get_sum_value(session, value_id, dt_begin=None, dt_end=None):
+        query = session.query(func.sum(History.value).label('sum_value')).filter_by(value_id=value_id)
+        if dt_begin:
+            query = query.filter(History.added >= dt_begin)
+        if dt_end:
+            query = query.filter(History.added <= dt_end)
+        return query.scalar()
+
+    @staticmethod
+    def get_count(session, value_id, dt_begin=None, dt_end=None):
+        query = session.query(func.count(History.value).label('count')).filter_by(value_id=value_id) # noqa
+        if dt_begin:
+            query = query.filter(History.added >= dt_begin)
+        if dt_end:
+            query = query.filter(History.added <= dt_end)
+        return query.scalar()
+
+    @staticmethod
+    def delete_by_id(session, id):
+        entry = session.query(History).filter_by(id=id).first()
+        if entry:
+            session.delete(entry)
+            session.commit()
+            return True
+        return False
+
+    @staticmethod
+    def delete_by_filter(session, value_id, dt_begin=None, dt_end=None):
+        query = session.query(History).filter_by(value_id=value_id)
+
+        if dt_begin:
+            query = query.filter(History.added >= dt_begin)
+        if dt_end:
+            query = query.filter(History.added <= dt_end)
+
+        deleted_count = query.delete(synchronize_session=False)
+        session.commit()
+        return deleted_count

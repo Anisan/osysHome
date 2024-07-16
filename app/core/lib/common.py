@@ -2,6 +2,7 @@
 
 import datetime
 from sqlalchemy import update, delete
+import xml.etree.ElementTree as ET
 from app.core.lib.execute import execute_and_capture_output
 from app.logging_config import getLogger
 from app.database import session_scope, row2dict
@@ -119,7 +120,7 @@ def setTimeout(name: str, code: str, timeout: int = 0):
 
     Args:
         name (str): Name timeout
-        code (str): Pythob code
+        code (str): Python code
         timeout (int, optional): Timeout in seconds. Defaults to 0.
 
     Returns:
@@ -158,6 +159,7 @@ def callPluginFunction(plugin: str, func: str, args):
     Args:
         plugin (str): Name plugin
         func (str): Name function in plugin
+        ars (dict): Arguments
     """
     if plugin not in plugins:
         return
@@ -174,14 +176,13 @@ def callPluginFunction(plugin: str, func: str, args):
         _logger.error("Function '%s' not found in plugin %s.", func, plugin)
 
 
-def say(message: str, level: int = 0, image: str = None, destination: str = None):
+def say(message: str, level: int = 0, args: dict = None):
     """Say
 
     Args:
         message (_type_): Message
         level (int, optional): Level. Defaults to 0.
-        image (str, optional): Image. Defaults to None.
-        destination (_type_, optional): Destination. Defaults to None.
+        args (dict, optional): Arguments. Defaults to None.
     """
     from .object import setProperty
 
@@ -189,7 +190,7 @@ def say(message: str, level: int = 0, image: str = None, destination: str = None
     for _, plugin in plugins.items():
         if "say" in plugin["instance"].actions:
             try:
-                plugin["instance"].say(message, level, image, destination)
+                plugin["instance"].say(message, level, args)
             except Exception as ex:
                 _logger.exception(ex)
 
@@ -224,7 +225,7 @@ def addNotify(
         source (str, optional): Source notify (use name plugins). Defaults to "".
     """
     with session_scope() as session:
-        notify = session.query(Notify).filter(Notify.name == name, Notify.description == description, Notify.read == False).one_or_none()
+        notify = session.query(Notify).filter(Notify.name == name, Notify.description == description, Notify.read == False).one_or_none() # noqa
         if notify:
             notify.count = notify.count + 1
         else:
@@ -235,7 +236,6 @@ def addNotify(
             notify.source = source
             session.add(notify)
     # todo send to websocket
-    
 
 
 def readNotify(notify_id: int):
@@ -279,10 +279,6 @@ def getUrl(url) -> str:
     except Exception as e:
         _logger.exception(e)
     return None
-
-
-import xml.etree.ElementTree as ET
-
 
 def xml_to_dict(xml_data):
     def recursive_dict(element):
