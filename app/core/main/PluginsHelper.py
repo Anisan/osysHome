@@ -145,7 +145,7 @@ def register_plugins(app):
             return groups
 
         def getListNotify(source):
-            data = Notify.query.filter(not Notify.read, Notify.source == source).all()
+            data = Notify.query.filter(Notify.read == False, Notify.source == source).all()
             res = []
             for rec in data:
                 item = row2dict(rec)

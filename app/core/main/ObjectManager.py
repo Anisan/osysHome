@@ -405,14 +405,14 @@ class ObjectManager:
                 result = [func(r) for r in result]
             return result
 
-    def getHistoryAggregate(self, name:str, dt_begin:datetime = None, dt_end:datetime = None, func:str = 'count'):
+    def getHistoryAggregate(self, name:str, dt_begin:datetime = None, dt_end:datetime = None, func:str = None):
         """Get aggregate history of a property
 
         Args:
             name (str): Name property
             dt_begin (datetime, optional): Begin date. Defaults to None.
             dt_end (datetime, optional): End date. Defaults to None.
-            func (str, optional): Aggregate function (min,max,sum,avg,count). Defaults to 'count'.
+            func (str, optional): Aggregate function (min,max,sum,avg,count). Defaults to None, return all aggregate value.
 
         Returns:
             any : Result function
@@ -427,18 +427,21 @@ class ObjectManager:
                 result = History.get_count(session, value_id, dt_begin,dt_end)
                 return result
             data = self.getHistory(name, dt_begin, dt_end)
-            data = (item['value'] for item in data)
+            data = [item['value'] for item in data]
             if func == 'min':
                 result = min(data)
-                return result
             elif func == 'max':
                 result = max(data)
-                return result
             elif func == 'sum':
                 result = sum(data)
-                return result
             elif func == 'avg':
-                result = sum(data) / len(data)
-                return result
-
-            return None
+                result = sum(data) / len(data) if data else 0
+            else:
+                result = {
+                    "count": len(data),
+                    "min": min(data),
+                    "max": max(data),
+                    "sum": sum(data),
+                    "avg": sum(data) / len(data) if data else 0
+                }
+            return result

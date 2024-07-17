@@ -138,3 +138,40 @@ class GetHistory(Resource):
             if History.delete_by_id(session, id):
                 return {"success": True, 'message': 'Entry deleted successfully'}, 200
         return {"success": False, 'message': 'Entry not found'}, 404
+
+@props_ns.route("/history/aggregate")
+class GetAggregateHistory(Resource):
+    @api_key_required
+    @role_required('admin')
+    @props_ns.doc(security="apikey")
+    @props_ns.doc(params={
+        'object': {'description': 'The object name (source)', 'type': 'string', 'required': True},
+        'property': {'description': 'The property name (source)', 'type': 'string', 'required': True},
+        'dt_begin': {'description': 'The start date and time for filtering (format: YYYY-MM-DDTHH:MM:SS)', 'type': 'string', 'required': False},
+        'dt_end': {'description': 'The end date and time for filtering (format: YYYY-MM-DDTHH:MM:SS)', 'type': 'string', 'required': False},
+    })
+    @props_ns.response(200, "Result", response_result)
+    @props_ns.response(404, 'Not Found', response_404)
+    def get(self):
+        '''
+        Get history aggregate value of object property.
+        '''
+        result = None
+        object_name = request.args.get("object",None)
+        property_name = request.args.get("property",None)
+        if not object_name or not property_name:
+            abort(404, 'Missing required parameters')
+        if object_name not in objects:
+            return {"success": False,
+                    "msg": "Object not found."}, 404
+
+        dt_begin_str = request.args.get('dt_begin')
+        dt_end_str = request.args.get('dt_end')
+
+        dt_begin = datetime.datetime.fromisoformat(dt_begin_str) if dt_begin_str else None
+        dt_end = datetime.datetime.fromisoformat(dt_begin_str) if dt_end_str else None
+
+        result = objects[object_name].getHistoryAggregate(property_name, dt_begin, dt_end)
+
+        return {"success": True,
+                "result": result}, 200
