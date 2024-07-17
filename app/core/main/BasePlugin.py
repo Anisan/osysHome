@@ -9,7 +9,7 @@ from app.core.models.Plugins import Plugin
 from app.database import session_scope
 from app.authentication.handlers import handle_admin_required
 from app.logging_config import getLogger
-        
+
 class BasePlugin:
     def __init__(self, app, name):
         self._app = app
@@ -19,26 +19,28 @@ class BasePlugin:
         self.category = "Undefined"
         self.author = "Undefined"
         self.version = 0
-        
+
         self.system = False
         self.thread = None
         self.dtUpdated = datetime.datetime.now()
         self.config = {}
-        self.actions = [] # list support actions
+        self.actions = []  # list support actions
 
         self.event = None
-        
-        self.logger = getLogger(name)    
 
-        self.loadConfig()   
-        self.blueprint = Blueprint(name, __name__,
-                                    root_path= Config.PLUGINS_FOLDER,
-                                    template_folder= os.path.join(name, 'templates'),
-                                    static_folder= os.path.join(name, 'static'),
-                                    static_url_path= '/'+name+'/static')
+        self.logger = getLogger(name)
+
+        self.loadConfig()
+        self.blueprint = Blueprint(name,
+                                   __name__,
+                                   root_path=Config.PLUGINS_FOLDER,
+                                   template_folder=os.path.join(name, 'templates'),
+                                   static_folder=os.path.join(name, 'static'),
+                                   static_url_path='/' + name + '/static'
+                                   )
         self.register_routes()
         app.register_blueprint(self.blueprint)
-    
+
     def register_routes(self):
         for attr_name in dir(self):
             if attr_name.startswith('route_'):
@@ -46,18 +48,18 @@ class BasePlugin:
                 method()
 
     def route_admin(self):
-        @self.blueprint.route("/admin/"+self.name, methods=['GET','POST'])
+        @self.blueprint.route("/admin/" + self.name, methods=['GET','POST'])
         @handle_admin_required
         def funcAdmin():
             return self.admin(request)
-        
+
     def admin(self, request):
         raise NotImplementedError("Subclasses must implement generate_web_content method")
-    
+
     def render(self, template, content):
         content["segment"] = self.name
         return render_template(template, **content)
-    
+
     def initialization(self):
         raise NotImplementedError("Subclasses must implement initialization method")
 
@@ -75,7 +77,7 @@ class BasePlugin:
         self.thread = Thread(name=f'Thread_{self.name}_cycle', target=self._cyclic_task, daemon=True)
         self.thread.start()
         self.logger.info("Started cycle")
-        
+
     def stop_cycle(self):
         """ Stop cycle """
         self.logger.info("Stoping cycle...")
@@ -92,7 +94,7 @@ class BasePlugin:
                 break
 
             self.cyclic_task()
-                
+
             self.dtUpdated = datetime.datetime.now()
 
     def cyclic_task(self):
@@ -100,7 +102,6 @@ class BasePlugin:
 
     def changeLinkedProperty(self, obj, prop, val):
         pass
-        
 
     def loadConfig(self):
         """ Load plugin configuration """

@@ -74,7 +74,8 @@
   socket.on('changeProperty', function(msg) {
       const elements = document.querySelectorAll(`[id^="prop:${msg.property}"]`);
       elements.forEach(element => {
-        element.textContent = msg.value;
+        if (element.id === `prop:${msg.property}`)
+          element.textContent = msg.value;
       });
   });
   socket.on('changeObject', function(msg) {

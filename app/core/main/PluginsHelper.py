@@ -47,7 +47,8 @@ def register_plugins(app):
                                 plugins[plugin_name] = {
                                     "name": plugin_name,
                                     "instance": plugin_instance,
-                                    "file_path": plugin_file_path,                                    }
+                                    "file_path": plugin_file_path,
+                                }
                     except Exception as ex:
                         _logger.critical(ex, exc_info=True)
 
@@ -92,7 +93,7 @@ def register_plugins(app):
     @app.context_processor
     def inject_sidebar():
         def get_sidebar():
-        # todo cashed plugins for sidebar
+            # cashed plugins for sidebar
             sidebar = cache.get('sidebar')
             if sidebar is None:
                 sidebar = []
@@ -121,7 +122,7 @@ def register_plugins(app):
                             )
                 sidebar.sort(key=lambda x: x["title"], reverse=False)
                 cache.set('sidebar', sidebar, timeout=0)
-            #get notify
+            # get notify
             from app.database import db
             from sqlalchemy import text
             database_dialect = db.engine.dialect.name
@@ -133,17 +134,18 @@ def register_plugins(app):
 
             for n in notifies:
                 for item in sidebar:
-                    if n[0] == item['name']: item['notify'] = n[1]
-    
+                    if n[0] == item['name']:
+                        item['notify'] = n[1]
+
             groups = {}
             for item in sidebar:
                 if item["category"] not in groups:
                     groups[item["category"]] = []
                 groups[item["category"]].append(item)
             return groups
-        
+
         def getListNotify(source):
-            data = Notify.query.filter(Notify.read != True, Notify.source==source).all()
+            data = Notify.query.filter(not Notify.read, Notify.source == source).all()
             res = []
             for rec in data:
                 item = row2dict(rec)
@@ -157,7 +159,7 @@ def register_plugins(app):
                 res.append(item)
             return res
 
-        return { 
+        return {
             'sidebar': get_sidebar,
             'list_notify': getListNotify,
         }

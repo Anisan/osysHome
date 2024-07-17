@@ -11,9 +11,9 @@ _logger = getLogger("main")
 @blueprint.route("/admin")
 @handle_admin_required
 def control_panel():
-    widgets={}
+    widgets = {}
 
-    for key , plugin in plugins.items():
+    for key, plugin in plugins.items():
         if "widget" in plugin["instance"].actions:
             try:
                 widgets[key] = plugin["instance"].widget()
@@ -45,7 +45,7 @@ def private_file(filename):
 def secure_file(filename):
     return send_from_directory(os.path.join(Config.FILES_DIR,"secure"), filename)
 
-#about
+# About
 @blueprint.route("/about")
 @handle_user_required
 def about():

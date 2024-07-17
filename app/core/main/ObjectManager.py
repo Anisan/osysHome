@@ -414,7 +414,6 @@ class ObjectManager:
             dt_end (datetime, optional): End date. Defaults to None.
             func (str, optional): Aggregate function (min,max,sum,avg,count). Defaults to 'count'.
 
-
         Returns:
             any : Result function
         """
@@ -427,17 +426,19 @@ class ObjectManager:
             if func == 'count':
                 result = History.get_count(session, value_id, dt_begin,dt_end)
                 return result
-            elif func == 'min':
-                result = History.get_min_value(session, value_id, dt_begin,dt_end)
+            data = self.getHistory(name, dt_begin, dt_end)
+            data = (item['value'] for item in data)
+            if func == 'min':
+                result = min(data)
                 return result
             elif func == 'max':
-                result = History.get_max_value(session, value_id, dt_begin,dt_end)
+                result = max(data)
                 return result
             elif func == 'sum':
-                result = History.get_sum_value(session, value_id, dt_begin,dt_end)
+                result = sum(data)
                 return result
             elif func == 'avg':
-                result = History.get_avg_value(session, value_id, dt_begin,dt_end)
+                result = sum(data) / len(data)
                 return result
 
             return None

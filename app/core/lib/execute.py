@@ -4,6 +4,7 @@ import traceback
 
 module_names = [
     "app.core.lib.common",
+    "app.core.lib.constants",
     "app.core.lib.object",
     "app.core.lib.cache",
 ]

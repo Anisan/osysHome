@@ -601,5 +601,31 @@ def getHistory(name:str, dt_begin:datetime = None, dt_end:datetime = None, limit
             _logger.error('Object %s not found', obj)
             return None
     except Exception as e:
-        _logger.exception('updatePropertyTimeout %s: %s',name,e)
+        _logger.exception('getHistory %s: %s',name,e)
+    return None
+
+def getHistoryAggregate(name:str, dt_begin:datetime = None, dt_end:datetime = None, func:str = 'count'):
+    """Get aggregate history of a property
+
+    Args:
+        name (str): Name property
+        dt_begin (datetime, optional): Begin date. Defaults to None.
+        dt_end (datetime, optional): End date. Defaults to None.
+        func (str, optional): Aggregate function (min,max,sum,avg,count). Defaults to 'count'.
+
+    Returns:
+        any : Result function
+    """
+    try:
+        _logger.debug('getHistoryAggregate %s', name)
+        obj = name.split(".")[0]
+        prop = name.split(".")[1]
+        if obj in objects:
+            obj:ObjectManager = objects[obj]
+            return obj.getHistoryAggregate(prop, dt_begin, dt_end, func)
+        else:
+            _logger.error('Object %s not found', obj)
+            return None
+    except Exception as e:
+        _logger.exception('getHistoryAggregate %s: %s',name,e)
     return None

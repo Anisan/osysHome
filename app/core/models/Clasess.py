@@ -1,4 +1,4 @@
-from sqlalchemy import ForeignKey, func, desc, asc
+from sqlalchemy import ForeignKey, func, desc, asc, Index
 from app.database import Column, SurrogatePK, db, relationship
 
 class Class(SurrogatePK, db.Model):
@@ -68,10 +68,14 @@ class Value(SurrogatePK, db.Model):
 
 class History(SurrogatePK, db.Model):
     __tablename__ = 'history'
-    value_id = Column(db.Integer)
+    value_id = Column(db.Integer, index=True)
     value = Column(db.Text)
     added = Column(db.DateTime())
     source = Column(db.Text)
+
+    __table_args__ = (
+        Index('ix_value_id_added', 'value_id', 'added'),
+    )
 
     @staticmethod
     def getHistory(session, value_id, dt_begin=None, dt_end=None, limit=None, order_desc=False, func=None):
@@ -96,42 +100,6 @@ class History(SurrogatePK, db.Model):
             result = [func(r) for r in result]
 
         return result
-
-    @staticmethod
-    def get_min_value(session, value_id, dt_begin=None, dt_end=None):
-        query = session.query(func.min(History.value).label('min_value')).filter_by(value_id=value_id)
-        if dt_begin:
-            query = query.filter(History.added >= dt_begin)
-        if dt_end:
-            query = query.filter(History.added <= dt_end)
-        return query.scalar()
-
-    @staticmethod
-    def get_max_value(session, value_id, dt_begin=None, dt_end=None):
-        query = session.query(func.max(History.value).label('max_value')).filter_by(value_id=value_id)
-        if dt_begin:
-            query = query.filter(History.added >= dt_begin)
-        if dt_end:
-            query = query.filter(History.added <= dt_end)
-        return query.scalar()
-
-    @staticmethod
-    def get_avg_value(session, value_id, dt_begin=None, dt_end=None):
-        query = session.query(func.avg(History.value).label('avg_value')).filter_by(value_id=value_id)
-        if dt_begin:
-            query = query.filter(History.added >= dt_begin)
-        if dt_end:
-            query = query.filter(History.added <= dt_end)
-        return query.scalar()
-
-    @staticmethod
-    def get_sum_value(session, value_id, dt_begin=None, dt_end=None):
-        query = session.query(func.sum(History.value).label('sum_value')).filter_by(value_id=value_id)
-        if dt_begin:
-            query = query.filter(History.added >= dt_begin)
-        if dt_end:
-            query = query.filter(History.added <= dt_end)
-        return query.scalar()
 
     @staticmethod
     def get_count(session, value_id, dt_begin=None, dt_end=None):

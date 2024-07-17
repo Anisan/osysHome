@@ -1,4 +1,4 @@
-from app.database import Column, Model, SurrogatePK, db
+from app.database import Column, SurrogatePK, db
 
 class Task(SurrogatePK, db.Model):
     __tablename__ = 'tasks'

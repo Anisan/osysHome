@@ -1,6 +1,6 @@
 import datetime
 from sqlalchemy.orm import (Mapped, mapped_column,)
-from app.database import Column, Model, SurrogatePK, db
+from app.database import Column, SurrogatePK, db
 from app.core.lib.constants import CategoryNotify
 
 class Plugin(SurrogatePK, db.Model):
@@ -12,7 +12,7 @@ class Plugin(SurrogatePK, db.Model):
     active = Column(db.Boolean, default=True)
     config = Column(db.Text)
     url = Column(db.String(512))
-    updated = Column(db.DateTime, default = datetime.datetime.now())
+    updated = Column(db.DateTime, default=datetime.datetime.now())
 
 class Notify(SurrogatePK, db.Model):
     __tablename__ = 'notify'
@@ -20,6 +20,6 @@ class Notify(SurrogatePK, db.Model):
     description = Column(db.String(255))
     category: Mapped[CategoryNotify] = mapped_column(default=CategoryNotify.Info)
     source = Column(db.String(255), default=False)
-    created = Column(db.DateTime, default = datetime.datetime.now())
+    created = Column(db.DateTime, default=datetime.datetime.now())
     read = Column(db.Boolean, default=False)
     count = Column(db.Integer(), default=1)

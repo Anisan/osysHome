@@ -23,7 +23,6 @@ class User(UserMixin):
         if object.getProperty('home_page'):
             self.home_page = object.home_page
         self.apikey = object.getProperty('apikey')
-        
 
     def set_password(self, password):
         """Set password."""
@@ -32,15 +31,14 @@ class User(UserMixin):
     def check_password(self, value):
         """Check password."""
         return bcrypt.check_password_hash(self.password.encode('utf-8'), value)
-        
-    
+
     def get_id(self):
-       return (self.username)
+        return self.username
 
     def __repr__(self):
         """Represent instance as a unique string."""
         return '<User({username!r})>'.format(username=self.username)
-    
+
     def to_dict(self):
         return {
             'username': self.username,

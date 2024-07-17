@@ -1,9 +1,15 @@
 # -*- coding: utf-8 -*-
 """Database module, including the SQLAlchemy database object and DB-related utilities."""
+import time
+import random
 from sqlalchemy.orm import relationship
 from sqlalchemy.orm import sessionmaker, scoped_session
 from contextlib import contextmanager
 from sqlalchemy import create_engine, exc
+from settings import Config
+from .extensions import db
+from .logging_config import getLogger
+
 try:
     # the declarative API is a part of the ORM layer since SQLAlchemy 1.4
     from sqlalchemy.orm import declarative_base
@@ -12,8 +18,6 @@ except ImportError:
     from sqlalchemy.ext.declarative import declarative_base
 
 Base = declarative_base()
-
-from .extensions import db
 
 # Alias common SQLAlchemy names
 Column = db.Column
@@ -53,28 +57,26 @@ def reference_col(tablename, nullable=False, pk_name='id', **kwargs):
         db.ForeignKey('{0}.{1}'.format(tablename, pk_name)),
         nullable=nullable, **kwargs)
 
-from settings import Config
+
 # define the database
 engine = create_engine(Config.SQLALCHEMY_DATABASE_URI, pool_size=20, max_overflow=30)
 Base.metadata.create_all(engine)
 Base.metadata.bind = engine
 DBSession = sessionmaker(bind=engine)
-import time, random
 
-from .logging_config import getLogger
 logger = getLogger('session')
 
 def model_exists(model_class):
     # The recommended way to check for existence
     import sqlalchemy
     return sqlalchemy.inspect(engine).has_table(model_class.__tablename__)
-    #return model_class.metadata.tables[model_class.__tablename__].exists(engine)
+    # return model_class.metadata.tables[model_class.__tablename__].exists(engine)
 
 def getSession():
     session_obj = scoped_session(DBSession)
     session = session_obj()
     return session
- 
+
 @contextmanager
 def session_scope():
     """When accessing the database, use the following syntax:
