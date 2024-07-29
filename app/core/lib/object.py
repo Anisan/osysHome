@@ -604,14 +604,14 @@ def getHistory(name:str, dt_begin:datetime = None, dt_end:datetime = None, limit
         _logger.exception('getHistory %s: %s',name,e)
     return None
 
-def getHistoryAggregate(name:str, dt_begin:datetime = None, dt_end:datetime = None, func:str = 'count'):
+def getHistoryAggregate(name:str, dt_begin:datetime = None, dt_end:datetime = None, func:str = None):
     """Get aggregate history of a property
 
     Args:
         name (str): Name property
         dt_begin (datetime, optional): Begin date. Defaults to None.
         dt_end (datetime, optional): End date. Defaults to None.
-        func (str, optional): Aggregate function (min,max,sum,avg,count). Defaults to 'count'.
+        func (str, optional): Aggregate function (min,max,sum,avg,count). Defaults to None, return all
 
     Returns:
         any : Result function

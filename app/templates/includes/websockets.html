@@ -72,10 +72,42 @@
   });
 
   socket.on('changeProperty', function(msg) {
-      const elements = document.querySelectorAll(`[id^="prop:${msg.property}"]`);
+      var elements = document.querySelectorAll(`[id^="prop:${msg.property}"]`);
       elements.forEach(element => {
         if (element.id === `prop:${msg.property}`)
           element.textContent = msg.value;
+      });
+      elements = document.querySelectorAll(`[id^="prop_changed:${msg.property}"]`);
+      elements.forEach(element => {
+        if (element.id === `prop_changed:${msg.property}`)
+          element.textContent = msg.changed;
+      });
+      elements = document.querySelectorAll(`[id^="prop_source:${msg.property}"]`);
+      elements.forEach(element => {
+        if (element.id === `prop_source:${msg.property}`)
+          element.textContent = msg.source;
+      });
+  });
+  socket.on('executedMethod', function(msg) {
+      var elements = document.querySelectorAll(`[id^="method_source:${msg.method}"]`);
+      elements.forEach(element => {
+        if (element.id === `method_source:${msg.method}`)
+          element.textContent = msg.source;
+      });
+      elements = document.querySelectorAll(`[id^="method_executed:${msg.method}"]`);
+      elements.forEach(element => {
+        if (element.id === `method_executed:${msg.method}`)
+          element.textContent = msg.executed;
+      });
+      elements = document.querySelectorAll(`[id^="method_exec_params:${msg.method}"]`);
+      elements.forEach(element => {
+        if (element.id === `method_exec_params:${msg.method}`)
+          element.textContent = msg.exec_params;
+      });
+      elements = document.querySelectorAll(`[id^="method_exec_result:${msg.method}"]`);
+      elements.forEach(element => {
+        if (element.id === `method_exec_result:${msg.method}`)
+          element.textContent = msg.exec_result;
       });
   });
   socket.on('changeObject', function(msg) {

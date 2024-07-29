@@ -23,4 +23,4 @@ def initSystemVar():
     addObject("SystemVar",None,"System variable")
     addObjectMethod('isStarted',"SystemVar","Method for start",'say("System started");')
     addObjectProperty('Started','SystemVar',"Datetime starting system",0,PropertyType.Datetime,"isStarted")
-    setProperty("SystemVar.Started",datetime.datetime.now())
+    setProperty("SystemVar.Started",datetime.datetime.now(), "osysHome")

@@ -149,6 +149,10 @@ class MethodManager():
         self.methods = methods  # include parents
         self.name = methods[0]["name"]
         self.description = methods[0]["description"]
+        self.source = None
+        self.executed = None
+        self.exec_params = None
+        self.exec_result = None
 
 class ObjectManager:
     """ Object manager
@@ -216,7 +220,7 @@ class ObjectManager:
                         except Exception as e:
                             _logger.exception(e)
 
-            # TODO send to WS
+            # send event to proxy
             for _,plugin in plugins.items():
                 if 'proxy' in plugin["instance"].actions:
                     plugin["instance"].changeProperty(self.name, name, value)
@@ -325,6 +329,16 @@ class ObjectManager:
                 if res:
                     output += res + "\n"
 
+            self.methods[name].source = source
+            self.methods[name].executed = datetime.datetime.now()
+            self.methods[name].exec_params = args
+            self.methods[name].exec_result = output
+
+            # send event to proxy
+            for _,plugin in plugins.items():
+                if 'proxy' in plugin["instance"].actions:
+                    plugin["instance"].executedMethod(self.name, name)
+
             return output
         except Exception as ex:
             _logger.critical(ex, exc_info=True)     # TODO write adv info
@@ -347,7 +361,7 @@ class ObjectManager:
             timeout(int): Timeout in sec
             source(str): Source
         """
-        src = f',"{source}"' if source else ''
+        src = f',"{source}"' if source else ',"Scheduler"'
         code = f'setProperty("{self.name}.{propName}","{str(value)}"{src})'
         setTimeout(self.name + "_" + propName + "_timeout", code, timeout)
 
@@ -360,7 +374,7 @@ class ObjectManager:
             timeout(int): Timeout in sec
             source(str): Source
         """
-        src = f',"{source}"' if source else ''
+        src = f',"{source}"' if source else ',"Scheduler"'
         code = f'updateProperty("{self.name}.{propName}","{str(value)}"{src})'
         setTimeout(self.name + "_" + propName + "_timeout", code, timeout)
 
@@ -372,7 +386,7 @@ class ObjectManager:
             timeout (int): Timeout in sec
             source (str, optional): Source. Defaults to ''.
         """
-        src = f',"{source}"' if source else ''
+        src = f',"{source}"' if source else ',"Scheduler"'
         code = f'callMethod("{self.name}.{methodName}"{src})'
         setTimeout(self.name + "_" + methodName + "_timeout", code, timeout)
 

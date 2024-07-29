@@ -31,7 +31,7 @@ class GlobalSearch(Resource):
                     result.append({"url":"Logs", "title":f'{ex}', "tags":[{"name":name,"color":"danger"}]}) 
 
         render = render_template("search_result.html", result=result)
-        return {"success" : True,
+        return {"success": True,
                 "result":render}, 200
     
 @utils_ns.route('/readnotify/<id>')
@@ -45,8 +45,8 @@ class ReadNotify(Resource):
         '''
         from app.core.lib.common import readNotify
         readNotify(id)
-        return {"success" : True}, 200
-    
+        return {"success": True}, 200
+
 @utils_ns.route('/readnotify/all')
 class ReadNotifyAll(Resource):
     @api_key_required
@@ -63,8 +63,9 @@ class ReadNotifyAll(Resource):
                     "msg": "Need source"}, 404
         from app.core.lib.common import readNotifyAll
         readNotifyAll(source)
-        return {"success" : True}, 200
-        
+        return {"success": True}, 200
+
+
 run_model = utils_ns.model('CodeTextModel', {
     'code': fields.String(description='Python code', required=True)
 })
@@ -83,7 +84,7 @@ class RunCode(Resource):
         code = payload['code']
         from app.core.lib.common import runCode
         result, success = runCode(code)
-        return {"success" : success,
+        return {"success": success,
                 "result": result}, 200
     
 
@@ -110,6 +111,6 @@ class setCronTask(Resource):
         from app.core.lib.common import addCronJob, clearScheduledJob
         clearScheduledJob(f'{obj}_{method}_periodic')
         if crontab:
-            addCronJob(f'{obj}_{method}_periodic',f'callMethod("{obj}.{method}")',crontab)
+            addCronJob(f'{obj}_{method}_periodic',f'callMethod("{obj}.{method}", source="Scheduler")',crontab)
 
-        return {"success" : True }, 200
+        return {"success": True}, 200

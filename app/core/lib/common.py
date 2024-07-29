@@ -186,7 +186,7 @@ def say(message: str, level: int = 0, args: dict = None):
     """
     from .object import setProperty
 
-    setProperty("SystemVar.LastSay", message)
+    setProperty("SystemVar.LastSay", message, "osysHome")
     for _, plugin in plugins.items():
         if "say" in plugin["instance"].actions:
             try:

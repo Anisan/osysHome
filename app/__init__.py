@@ -1,25 +1,17 @@
 """ Main module """
 from importlib import import_module
 from flask import Flask, request, render_template
-from json import JSONEncoder
-import datetime
 import flask_monitoringdashboard as dashboard
 from . import commands
 from .exceptions import InvalidUsage
 from .constants import LANGUAGES
 from .extensions import db, migrate, login_manager, cors, bcrypt, babel, toolbar, cache
 from .core.main.PluginsHelper import *
+from app.core.utils import CustomJSONEncoder
 
 from .logging_config import getLogger
 _logger = getLogger('flask')
 
-class CustomJSONEncoder(JSONEncoder):
-    """Custom encoder for handling default values from a function call"""
-    def default(self, o):
-        if isinstance(o, datetime.datetime):
-            return str(o)
-        return super().default(o)
-    
 def createApp(config_object):
     """An application factory, as explained here:
     http://flask.pocoo.org/docs/patterns/appfactories/.
