@@ -7,6 +7,7 @@ module_names = [
     "app.core.lib.constants",
     "app.core.lib.object",
     "app.core.lib.cache",
+    "app.core.lib.sql",
 ]
 
 

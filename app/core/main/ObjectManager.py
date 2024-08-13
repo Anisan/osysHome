@@ -39,7 +39,9 @@ class PropertyManager():
         # TODO cast type ??
         # Конвертация строки в указанный тип
         try:
-            if self.type == "int":
+            if value == 'None':
+                converted_value = None
+            elif self.type == "int":
                 converted_value = int(value)
             elif self.type == "float":
                 converted_value = float(value)

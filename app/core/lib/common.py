@@ -98,7 +98,7 @@ def clearScheduledJob(name: str):
         name (str): Name for search
     """
     with session_scope() as session:
-        sql = delete(Task).where(Task.name.like(name))  # todo
+        sql = delete(Task).where(Task.name.like(name))
         session.execute(sql)
         session.commit()
 
@@ -185,8 +185,8 @@ def say(message: str, level: int = 0, args: dict = None):
         args (dict, optional): Arguments. Defaults to None.
     """
     from .object import setProperty
-
-    setProperty("SystemVar.LastSay", message, "osysHome")
+    source = args.get("source", "osysHome") if args else "osysHome"
+    setProperty("SystemVar.LastSay", message, source)
     for _, plugin in plugins.items():
         if "say" in plugin["instance"].actions:
             try:

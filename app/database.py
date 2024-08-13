@@ -96,6 +96,7 @@ def session_scope():
     except Exception as e:
         session.rollback()
         logger.exception('No commit has been made, due to the following error: {}'.format(e))
+        raise e
     finally:
         session.close()
 

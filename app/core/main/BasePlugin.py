@@ -92,8 +92,11 @@ class BasePlugin:
             # check for stop
             if self.event.is_set():
                 break
-
-            self.cyclic_task()
+            
+            try:
+                self.cyclic_task()
+            except Exception as ex:
+                self.logger.error(f"Error in cyclic task: {ex}")
 
             self.dtUpdated = datetime.datetime.now()
 

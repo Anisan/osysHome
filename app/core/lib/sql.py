@@ -4,28 +4,66 @@ from sqlalchemy.sql import text
 from app.database import session_scope
 
 def SqlExec(sql: str):
+    """
+    Exec SQL
+
+    Args:
+        sql (str): SQL
+    """
+    with session_scope() as session:
+        statement = text(sql)
+        session.execute(statement)
+
+def SqlScalar(sql: str):
+    """
+    Exec SQL and return scalar value
+
+    Args:
+        sql (str): SQL
+
+    Returns:
+        any: scalar value
+    """
     with session_scope() as session:
         statement = text(sql)
         return session.execute(statement).scalar_one_or_none()
 
 def SqlSelectOne(sql: str) -> dict:
+    """
+    Exec SQL and return one row as dict
+
+    Args:
+        sql (str): SQL
+
+    Returns:
+        dict: Row
+    """
     with session_scope() as session:
         statement = text(sql)
         row = session.execute(statement).one_or_none()
         if row is None:
             return None
         return row._mapping
-      
+
 def SqlSelect(sql) -> list:
+    """
+    Exec SQL and return rows as list of dict
+
+    Args:
+        sql (str): SQL
+
+    Returns:
+        list: Rows
+    """
     with session_scope() as session:
         statement = text(sql)
         result = session.execute(statement).fetchall()
         res_dict = []
         for row in result:
             res_dict.append(row._mapping)
-            
+
         return res_dict
-        
+
 def SqlInsert(table: str, data: dict):
     """
     Inserts a new row into the specified table.
@@ -60,7 +98,6 @@ def SqlInsert(table: str, data: dict):
             return False
         finally:
             session.close()
-    
 
 def SqlUpdate(table: str, data: dict, id_column: str):
     """
