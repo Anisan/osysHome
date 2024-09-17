@@ -22,14 +22,14 @@ class Config(object):
     LOGGER_LEVEL = logging.INFO
     ENV = 'dev'
 
-    #DB settings
+    # DB settings
     SQLALCHEMY_ECHO = False  # SQL log
     DB_NAME = 'app.db'
     # Put the db file in project root
     DB_PATH = os.path.join(APP_DIR, DB_NAME)
     SQLALCHEMY_DATABASE_URI = 'sqlite:///{0}'.format(DB_PATH)
-    #SQLALCHEMY_DATABASE_URI = 'postgresql://user:password@127.0.0.1/app'
-    #SQLALCHEMY_DATABASE_URI = 'mysql://user:password@127.0.0.1/app'
+    # SQLALCHEMY_DATABASE_URI = 'postgresql://user:password@127.0.0.1/app'
+    # SQLALCHEMY_DATABASE_URI = 'mysql://user:password@127.0.0.1/app'
 
     CACHE_FILE_PATH = "cache"  # Замените на путь к вашей папке кеша
 

@@ -236,6 +236,7 @@ def addNotify(
             notify.source = source
             session.add(notify)
     # todo send to websocket
+    #callPluginFunction()
 
 
 def readNotify(notify_id: int):
@@ -280,7 +281,41 @@ def getUrl(url) -> str:
         _logger.exception(e)
     return None
 
-def xml_to_dict(xml_data):
+def sendWebsocket(command: str, data: any, client_id:str=None) -> bool:
+    """Send command to websocket
+    Args:
+        command (str): Command
+        data (any): Data
+        client_id(str): Client ID (None - send all)
+    Returns:
+        bool: Success
+    """
+    if "wsServer" not in plugins:
+        return False
+        
+    plugin_obj = plugins["wsServer"]["instance"]
+
+    if hasattr(plugin_obj, "sendCommand"):
+        function = getattr(plugin_obj, "sendCommand")
+        try:
+            return function(command, data, client_id)
+        except Exception as ex:
+            _logger.exception(ex)
+            return False
+    else:
+        _logger.error("Function '%s' not found in plugin %s.", "sendCommand", "wsServer")
+        return False
+
+
+def xml_to_dict(xml_data) -> dict:
+    """Convert xml to dictionary
+
+    Args:
+        xml_data (str): XML string
+
+    Returns:
+        dict: Dictionary
+    """
     def recursive_dict(element):
         node = {}
         if element.attrib:

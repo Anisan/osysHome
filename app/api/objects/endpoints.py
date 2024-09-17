@@ -1,3 +1,4 @@
+from flask import request
 from flask_restx import Namespace, Resource
 from app.api.models import model_result, model_404
 from app.api.decorators import api_key_required, role_required
@@ -32,6 +33,41 @@ class GetObject(Resource):
             return {
                 'success': True,
                 'result': obj}, 200
+        return {
+            'success': False,
+            'message': 'Object not found'}, 404
+    
+@objects_ns.route("/data/<object_name>", endpoint="object_data")
+class GetObjectData(Resource):
+    @api_key_required
+    @role_required('user')
+    @objects_ns.doc(security="apikey")
+    @objects_ns.response(200, "Retrieved object data.", response_result)
+    @objects_ns.response(404, 'Not Found', response_404)
+    def get(self, object_name):
+        '''
+        Get object.
+        '''
+        if object_name in objects:
+            obj = {}
+            item = objects[object_name]
+            obj['name'] = object_name
+            obj['description'] = item.description
+            for key,prop in item.properties.items():
+                obj[key] = prop.value
+            return {
+                'success': True,
+                'result': obj}, 200
+        return {
+            'success': False,
+            'message': 'Object not found'}, 404
+    def post(self, object_name):
+        if object_name in objects:
+            payload = request.get_json()
+            item = objects[object_name]
+            for key,value in payload.items():
+                item.setProperty(key,value,'api')
+            return {'success': True}, 200
         return {
             'success': False,
             'message': 'Object not found'}, 404

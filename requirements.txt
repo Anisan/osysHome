@@ -31,3 +31,5 @@ paho-mqtt
 python-vlc
 
 pyTelegramBotAPI
+
+pycryptodome

@@ -52,7 +52,12 @@ class GetProperty(Resource):
         if object_name not in objects:
             return {"success": False,
                     "msg": "Object not found."}, 404
-        result = objects[object_name].getProperty(property_name)
+        if property_name == "description":
+            result = objects[object_name].description
+        elif property_name == "template":
+            result = objects[object_name].template
+        else:
+            result = objects[object_name].getProperty(property_name)
         return {"success": True,
                 "result": result}, 200
 

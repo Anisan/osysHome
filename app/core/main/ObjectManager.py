@@ -36,7 +36,6 @@ class PropertyManager():
         if value is None:
             return None
         converted_value = None
-        # TODO cast type ??
         # Конвертация строки в указанный тип
         try:
             if value == 'None':
@@ -66,6 +65,8 @@ class PropertyManager():
     def _encodeValue(self):
         # TODO convert to string
         value = self.__value
+        if value is None:
+            return 'None'
         try:
             if self.type == "int":
                 return str(value)
