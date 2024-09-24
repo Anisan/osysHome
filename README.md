@@ -22,7 +22,7 @@ osysHome (Object System smartHome) is smart home system developed in Python that
     * Linux: python3 -m venv venv 
     * Windows: python -m venv venv 
 * Activate virtual environment
-    * Linux: source venv\bin\activate
+    * Linux: source venv/bin/activate
     * Windows: venv\Scripts\activate
 * pip install -r requirements.txt
 * mkdir plugins
@@ -40,8 +40,8 @@ osysHome (Object System smartHome) is smart home system developed in Python that
 ## Settings
 
 * Create settings file
-    * Linux: cp settings_sample.py to settings.py
-    * Windows: copy settings_sample.py to settings.py
+    * Linux: cp settings_sample.py settings.py
+    * Windows: copy settings_sample.py settings.py
 * Change settings db in settings.py
 
 ## Mirgrate DB

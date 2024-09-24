@@ -5,19 +5,22 @@ import logging.handlers
 import os
 from settings import Config
 
-def getLogger(moduleName, level='INFO', logDirectory='logs'):
+def getLogger(moduleName, level=None, logDirectory='logs'):
     """ Get logger
 
     Args:
         moduleName (String): Name logger
-        level (String): Level logger. Default to INFO
+        level (String): Level logger.
         logDirectory (str, optional): directory for logs. Defaults to 'logs'.
 
     Returns:
         logger: logger
     """
-    if Config.DEBUG:
-        level = 'DEBUG'
+    if level is None:
+        level = 'INFO'
+
+        if Config.DEBUG:
+            level = 'DEBUG'
 
     if not os.path.exists(logDirectory):
         os.makedirs(logDirectory)

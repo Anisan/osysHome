@@ -28,9 +28,11 @@ class BasePlugin:
 
         self.event = None
 
-        self.logger = getLogger(name)
-
         self.loadConfig()
+
+        level = self.config.get("level_logging", None)
+        self.logger = getLogger(name, level)
+
         self.blueprint = Blueprint(name,
                                    __name__,
                                    root_path=Config.PLUGINS_FOLDER,
