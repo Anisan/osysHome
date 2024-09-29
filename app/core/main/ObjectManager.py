@@ -244,6 +244,10 @@ class ObjectManager:
         """
 
         try:
+            # cast value
+            if name in self.properties:
+                prop = self.properties[name]
+                value = prop._decodeValue(value)
             oldValue = self.getProperty(name)
             if oldValue != value:
                 self.setProperty(name, value, source)

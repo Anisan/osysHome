@@ -16,7 +16,7 @@ def getLogger(moduleName, level=None, logDirectory='logs'):
     Returns:
         logger: logger
     """
-    if level is None:
+    if level is None or level == 'None':
         level = 'INFO'
 
         if Config.DEBUG:
