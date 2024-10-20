@@ -123,7 +123,7 @@ class GetHistory(Resource):
         order_desc = order_desc_str == 'true'
 
         dt_begin = datetime.datetime.fromisoformat(dt_begin_str) if dt_begin_str else None
-        dt_end = datetime.datetime.fromisoformat(dt_begin_str) if dt_end_str else None
+        dt_end = datetime.datetime.fromisoformat(dt_end_str) if dt_end_str else None
 
         result = objects[object_name].getHistory(property_name, dt_begin, dt_end, limit, order_desc)
 
