@@ -3,6 +3,7 @@
 import os
 from glob import glob
 from subprocess import call
+from app.admin.tools import create_user as cr_user
 
 import click
 from flask import current_app
@@ -87,4 +88,18 @@ def urls(url, order):
     for row in rows:
         click.echo(str_template.format(*row[:column_length]))
 
+@click.command()
+@click.option('--username', prompt='Username', help='Username user')
+@click.option('--password', prompt='Password', hide_input=True, confirmation_prompt=True, help='Password user')
+@with_appcontext
+def create_user(username, password):
+    """Create user
+    """
+    res = cr_user(username, password)
 
+    if res is None:
+        click.echo("Need first login to osysHome!")
+    elif res == 1:
+        click.echo("User {} exists! Updated password.".format(username))
+    else:
+        click.echo('User {} successfully created'.format(username))

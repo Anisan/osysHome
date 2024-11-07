@@ -224,7 +224,9 @@ def getObjectsByClass(class_name:str) -> list[ObjectManager]:
                 objs = session.query(Object).filter(Object.class_id == cls.id).all()
                 for obj in objs:
                     objects.append(getObject(obj.name))
-        return objects
+                return objects
+            else:
+                return None
     except Exception as e:
         _logger.exception('getObjectsByClass %s: %s',class_name,e)
     return None

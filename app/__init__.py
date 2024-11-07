@@ -137,3 +137,4 @@ def registerCommands(app):
     """Register Click commands."""
     app.cli.add_command(commands.clean)
     app.cli.add_command(commands.urls)
+    app.cli.add_command(commands.create_user)

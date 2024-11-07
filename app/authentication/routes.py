@@ -34,7 +34,7 @@ def login():
         if obj:
             user = User(obj)
         else:
-            if len(users) == 0:
+            if users is None or len(users) == 0:
                 # Create class users
                 addClass('Users')
                 addClassProperty('password', 'Users', 'Hash password')
