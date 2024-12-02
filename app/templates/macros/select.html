@@ -7,11 +7,13 @@
     <select id="{{ field_object.name }}" name="{{ field_object.name }}" class="select2" aria-label="{{label}}">
     </select>
 </div>
+{% if field_property %}
 <div>
     <label for="{{ field_property.name }}">{{ field_property.label }}</label><br>
     <select id="{{ field_property.name }}" name="{{ field_property.name }}" class="select2" aria-label="{{label}}">
     </select>
 </div>
+{% endif %}
 {% if field_method %}
 <div>
     <label for="{{ field_method.name }}">{{ field_method.label }}</label><br>
@@ -83,8 +85,10 @@ $(document).ready(function() {
         updateMethods(object_name,"")
     });
 
+    {% if field_property %}
     // Preselect object if form was pre-filled
     $('#{{field_property.name}}').val('{{field_property.data}}');
+    {%endif%}
 });
 </script>
 {% endmacro %}

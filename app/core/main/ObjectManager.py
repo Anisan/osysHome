@@ -357,7 +357,9 @@ class ObjectManager:
         Returns:
             str: html view object
         """
-        return render_template_string(self.template, object=self)
+        if self.template:
+            return render_template_string(self.template, object=self)
+        return ''
 
     def setPropertyTimeout(self, propName:str, value, timeout:int, source=''):
         """Set the value of a Property with a Timeout

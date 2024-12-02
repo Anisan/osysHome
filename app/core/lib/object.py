@@ -372,7 +372,7 @@ def updatePropertyThread(name:str, value, source:str='') -> bool:
         bool: Success set value
     """
     try:
-        _logger.debug('updateProperty %s %s %s', name, value, source)
+        _logger.debug('updatePropertyThread %s %s %s', name, value, source)
         obj = name.split(".")[0]
         prop = name.split(".")[1]
         if obj in objects:

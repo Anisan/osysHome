@@ -139,6 +139,8 @@ def findInCache(filename:str, directory:str=None, subdir:bool=False) -> str:
         str: Filepath in cache
     """
     directory_path = os.path.join(__cacheDir, directory)
+    if not os.path.exists(directory_path):
+        return None
     if subdir:
         for root, _, files in os.walk(directory_path):
             if filename in files:
