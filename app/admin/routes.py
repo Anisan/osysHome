@@ -16,6 +16,8 @@ def control_panel():
 
     for key, plugin in plugins.items():
         if "widget" in plugin["instance"].actions:
+            if plugin["instance"].config.get('hide_widget',False):
+                continue
             try:
                 widgets[key] = plugin["instance"].widget()
             except Exception as ex:
