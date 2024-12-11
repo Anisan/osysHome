@@ -63,7 +63,7 @@ def login():
     if not current_user.is_authenticated:
         msg = None
         register = False
-        if len(users) == 0:
+        if users is None:
             msg = 'For create a user with administrator rights, specify login and password!'
             register = True
         return render_template('accounts/login.html',
