@@ -236,7 +236,7 @@ def addNotify(
             notify.source = source
             session.add(notify)
     # todo send to websocket
-    #callPluginFunction()
+    # callPluginFunction()
 
 
 def readNotify(notify_id: int):
@@ -292,7 +292,7 @@ def sendWebsocket(command: str, data: any, client_id:str=None) -> bool:
     """
     if "wsServer" not in plugins:
         return False
-        
+
     plugin_obj = plugins["wsServer"]["instance"]
 
     if hasattr(plugin_obj, "sendCommand"):
@@ -304,6 +304,30 @@ def sendWebsocket(command: str, data: any, client_id:str=None) -> bool:
             return False
     else:
         _logger.error("Function '%s' not found in plugin %s.", "sendCommand", "wsServer")
+        return False
+
+def sendDataToWebsocket(typeData: str, data: any) -> bool:
+    """Send data to websocket
+    Args:
+        typeData (str): Type data
+        data (any): Data
+    Returns:
+        bool: Success
+    """
+    if "wsServer" not in plugins:
+        return False
+        
+    plugin_obj = plugins["wsServer"]["instance"]
+
+    if hasattr(plugin_obj, "sendData"):
+        function = getattr(plugin_obj, "sendData")
+        try:
+            return function(typeData, data)
+        except Exception as ex:
+            _logger.exception(ex)
+            return False
+    else:
+        _logger.error("Function '%s' not found in plugin %s.", "sendData", "wsServer")
         return False
 
 

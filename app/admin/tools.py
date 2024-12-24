@@ -1,4 +1,6 @@
 import sys, os, subprocess
+import ctypes
+from settings import Config 
 from app.extensions import bcrypt
 from app.core.main.PluginsHelper import stop_plugins
 from app.core.main.ObjectsStorage import init_objects
@@ -6,17 +8,37 @@ from app.core.lib.object import getObjectsByClass, getObject, addObject, setProp
 
 some_queue = None
 
+def is_admin():
+    """Проверяет, запущен ли скрипт с правами администратора."""
+    try:
+        return ctypes.windll.shell32.IsUserAnAdmin()
+    except:
+        return False
+    
 def restart_system():
-    
-    stop_plugins()
-    os.execv(sys.executable, [sys.executable] + sys.argv)
-    
-    ##shutdown_server()
-    # try:
-    #     subprocess.run(['sudo', 'systemctl', 'restart', 'smh'], check=True)
-    #     return "osysHome is restarting...", 200
-    # except subprocess.CalledProcessError as e:
-    #     return f"Error: {e}", 500
+    service_restart = Config.SERVICE_RESTART
+    if service_restart:
+        # Завершаем скрипт
+        print("Exiting with error to trigger systemd restart...")
+        os._exit(1)
+        return
+    service_name = Config.SERVICE_NAME
+    if service_name:
+        try:
+            if os.name == 'nt':  # Для Windows
+                if not is_admin():
+                    raise PermissionError("Script must be run as administrator to restart a service.")
+                subprocess.run(["sc", "stop", service_name], check=True)
+                subprocess.run(["sc", "start", service_name], check=True)
+            else:  # Для Unix
+                if os.geteuid() != 0:
+                    raise PermissionError("Script must be run as root to restart a systemd service.")
+                subprocess.run(["/usr/bin/systemctl", "restart", service_name], check=True)
+            return f"Service {service_name} restarted successfully."
+        except subprocess.CalledProcessError as e:
+            return f"Failed to restart service {service_name}: {e}"
+        except PermissionError as e:
+            return e
 
 def create_user(username, password):
     init_objects()

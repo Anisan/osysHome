@@ -6,9 +6,11 @@ from threading import Thread, Event
 from flask import Blueprint, request, render_template
 from settings import Config
 from app.core.models.Plugins import Plugin
+from app.core.lib.common import sendDataToWebsocket
 from app.database import session_scope
 from app.authentication.handlers import handle_admin_required
 from app.logging_config import getLogger
+from app.core.utils import CustomJSONEncoder
 
 class BasePlugin:
     def __init__(self, app, name):
@@ -123,3 +125,15 @@ class BasePlugin:
             if rec:
                 rec.config = json.dumps(self.config)
                 session.commit()
+
+    def sendDataToWebsocket(self, operation:str, data:dict):
+        """ Send data to websocket """
+        if isinstance(data, dict):
+            for key in data.keys():
+                if isinstance(data[key], datetime.datetime):
+                    data[key] = str(data[key])
+        payload = {
+            "operation": operation,
+            "data": data
+        }
+        sendDataToWebsocket(self.name, payload)
