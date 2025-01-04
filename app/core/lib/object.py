@@ -119,7 +119,7 @@ def addObject(name:str, class_name:str, description='') -> ObjectManager:
             obj.description = description
             session.add(obj)
             session.commit()
-            objects[name] = ObjectManager(obj)  # TODO  use method for ObjectsStorage
+            reload_object(obj.id)
         return objects[name]
 
 def addObjectProperty(name:str, object_name:str, description:str='', history:int=0, type:PropertyType=PropertyType.Empty, method_name:str=None) -> bool:
