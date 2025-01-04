@@ -90,6 +90,24 @@ def getJob(name: str) -> dict:
             return row2dict(job)
         return None
 
+def getJobs(query: str) -> list:
+    """Get jobs by name contain query
+
+    Args:
+        query (str): Query
+
+    Returns:
+        list: Jobs
+    """
+    with session_scope() as session:
+        result = session.query(Task).filter(Task.name.like(query)).all()
+        if result:
+            jobs = []
+            for task in result:
+                jobs.append(row2dict(task))
+            return jobs
+        return []
+
 
 def clearScheduledJob(name: str):
     """Clear jobs contains name

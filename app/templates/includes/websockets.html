@@ -172,6 +172,10 @@
     socket.emit('callMethod', name);
   }
 
+  function callMethodWithResult(name){
+    socket.emit('callMethod', name, "WS", true);
+  }
+
   function subscribe(){
       var elements = document.querySelectorAll('[id^="prop:"]');
       var propList = [];

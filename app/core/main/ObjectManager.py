@@ -53,7 +53,7 @@ class PropertyManager():
                     converted_value = value
             elif self.type == "dict":
                 converted_value = json.loads(value)
-            elif self.type == "object":
+            elif self.type == "list":
                 converted_value = json.loads(value)
             else:
                 converted_value = value
@@ -78,7 +78,7 @@ class PropertyManager():
                 return value.strftime("%Y-%m-%d %H:%M:%S")
             elif self.type == "dict":
                 return json.dumps(value)
-            elif self.type == "object":
+            elif self.type == "list":
                 return json.dumps(value)
             else:
                 return value
@@ -357,9 +357,13 @@ class ObjectManager:
         Returns:
             str: html view object
         """
-        if self.template:
-            return render_template_string(self.template, object=self)
-        return ''
+        try:
+            if self.template:
+                return render_template_string(self.template, object=self)
+            return ''
+        except Exception as ex:
+            _logger.error(ex, exc_info=True)
+            return str(ex)
 
     def setPropertyTimeout(self, propName:str, value, timeout:int, source=''):
         """Set the value of a Property with a Timeout

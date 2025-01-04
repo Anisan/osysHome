@@ -5,7 +5,7 @@ from sqlalchemy import delete
 from app.core.main.ObjectsStorage import objects, reload_objects_by_class, reload_object
 from app.logging_config import getLogger
 from app.database import session_scope
-from ..models.Clasess import Class, Object, Property, Value, Method, db
+from ..models.Clasess import Class, Object, Property, Value, Method
 from ..main.ObjectManager import ObjectManager, PropertyManager
 from .constants import PropertyType
 
@@ -22,15 +22,16 @@ def addClass(name:str, description:str='', parentId:int=None) -> Class:
     Returns:
         Class: Class row in DB
     """
-    cls = Class.query.filter(Class.name == name).one_or_none()
-    if not cls:
-        cls = Class()
-        cls.name = name
-        cls.description = description
-        cls.parent_id = parentId
-        db.session.add(cls)
-        db.session.commit()
-    return cls
+    with session_scope() as session:
+        cls = session.query(Class).filter(Class.name == name).one_or_none()
+        if not cls:
+            cls = Class()
+            cls.name = name
+            cls.description = description
+            cls.parent_id = parentId
+            session.add(cls)
+            session.commit()
+        return cls
 
 def addClassProperty(name:str, class_name:str, description:str='', history:int=0, type:PropertyType=PropertyType.Empty, method_name:str=None) -> Property:
     """Add a property class to the database
@@ -46,25 +47,26 @@ def addClassProperty(name:str, class_name:str, description:str='', history:int=0
     Returns:
         Property: Property row in DB
     """
-    cls = Class.query.filter(Class.name == class_name).one_or_none()
-    if not cls:
-        return None
-    prop = Property.query.filter(Property.name == name, Property.class_id == cls.id).one_or_none()
-    if not prop:
-        prop = Property()
-        prop.name = name
-        prop.description = description
-        prop.class_id = cls.id
-        prop.history = history
-        prop.type = type.value
-        if method_name:
-            method = Method.query.filter(Method.name == method_name, Method.class_id == cls.id).one_or_none()
-            if method:
-                prop.method_id = method.id
-        db.session.add(prop)
-        db.session.commit()
-        reload_objects_by_class(cls.id)
-    return prop
+    with session_scope() as session:
+        cls = session.query(Class).filter(Class.name == class_name).one_or_none()
+        if not cls:
+            return None
+        prop = session.query(Property).filter(Property.name == name, Property.class_id == cls.id).one_or_none()
+        if not prop:
+            prop = Property()
+            prop.name = name
+            prop.description = description
+            prop.class_id = cls.id
+            prop.history = history
+            prop.type = type.value
+            if method_name:
+                method = session.query(Method).filter(Method.name == method_name, Method.class_id == cls.id).one_or_none()
+                if method:
+                    prop.method_id = method.id
+            session.add(prop)
+            session.commit()
+            reload_objects_by_class(cls.id)
+        return prop
 
 def addClassMethod(name:str, class_name:str, description:str='', code:str='', call_parent:int=0) -> Method:
     """Add a method class to the database
@@ -79,21 +81,22 @@ def addClassMethod(name:str, class_name:str, description:str='', code:str='', ca
     Returns:
         Method: Method row in DB
     """
-    cls = Class.query.filter(Class.name == class_name).one_or_none()
-    if not cls:
-        return None
-    method = Method.query.filter(Method.name == name, Method.class_id == cls.id).one_or_none()
-    if not method:
-        method = Method()
-        method.name = name
-        method.class_id = cls.id
-        method.description = description
-        method.code = code
-        method.call_parent = call_parent
-        db.session.add(method)
-        db.session.commit()
-        reload_objects_by_class(cls.id)
-    return method
+    with session_scope() as session:
+        cls = session.query(Class).filter(Class.name == class_name).one_or_none()
+        if not cls:
+            return None
+        method = session.query(Method).filter(Method.name == name, Method.class_id == cls.id).one_or_none()
+        if not method:
+            method = Method()
+            method.name = name
+            method.class_id = cls.id
+            method.description = description
+            method.code = code
+            method.call_parent = call_parent
+            session.add(method)
+            session.commit()
+            reload_objects_by_class(cls.id)
+        return method
 
 def addObject(name:str, class_name:str, description='') -> ObjectManager:
     """Add a object to the database
@@ -106,17 +109,18 @@ def addObject(name:str, class_name:str, description='') -> ObjectManager:
     Returns:
         ObjectManager: Object
     """
-    obj = Object.query.filter(Object.name == name).one_or_none()
-    if not obj:
-        cls = Class.query.filter(Class.name == class_name).one_or_none()
-        obj = Object()
-        obj.name = name
-        obj.class_id = cls.id if cls else None
-        obj.description = description
-        db.session.add(obj)
-        db.session.commit()
-        objects[name] = ObjectManager(obj)  # TODO  use method for ObjectsStorage
-    return objects[name]
+    with session_scope() as session:
+        obj = session.query(Object).filter(Object.name == name).one_or_none()
+        if not obj:
+            cls = session.query(Class).filter(Class.name == class_name).one_or_none()
+            obj = Object()
+            obj.name = name
+            obj.class_id = cls.id if cls else None
+            obj.description = description
+            session.add(obj)
+            session.commit()
+            objects[name] = ObjectManager(obj)  # TODO  use method for ObjectsStorage
+        return objects[name]
 
 def addObjectProperty(name:str, object_name:str, description:str='', history:int=0, type:PropertyType=PropertyType.Empty, method_name:str=None) -> bool:
     """Add a property object to the database
@@ -132,31 +136,32 @@ def addObjectProperty(name:str, object_name:str, description:str='', history:int
     Returns:
         bool: Success add property
     """
-    obj = Object.query.filter(Object.name == object_name).one_or_none()
-    if not obj:
-        return False
-    prop = Property.query.filter(Property.name == name, Property.object_id == obj.id).one_or_none()
-    if not prop:
-        prop = Property()
-        prop.name = name
-        prop.description = description
-        prop.object_id = obj.id
-        prop.history = history
-        prop.type = type.value
-        if method_name:
-            method = Method.query.filter(Method.name == method_name, Method.object_id == obj.id).one_or_none()
-            if method:
-                prop.method_id = method.id
-            else:
-                cls = Class.query.filter(Class.id == obj.class_id).one_or_none
-                if cls:
-                    method = Method.query.filter(Method.name == method_name, Method.class_id == cls.id).one_or_none()
-                    if method:
-                        prop.method_id = method.id
-        db.session.add(prop)
-        db.session.commit()
-        reload_object(obj.id)
-    return True
+    with session_scope() as session:
+        obj = session.query(Object).filter(Object.name == object_name).one_or_none()
+        if not obj:
+            return False
+        prop = session.query(Property).filter(Property.name == name, Property.object_id == obj.id).one_or_none()
+        if not prop:
+            prop = Property()
+            prop.name = name
+            prop.description = description
+            prop.object_id = obj.id
+            prop.history = history
+            prop.type = type.value
+            if method_name:
+                method = session.query(Method).filter(Method.name == method_name, Method.object_id == obj.id).one_or_none()
+                if method:
+                    prop.method_id = method.id
+                else:
+                    cls = session.query(Class).filter(Class.id == obj.class_id).one_or_none
+                    if cls:
+                        method = session.query(Method).filter(Method.name == method_name, Method.class_id == cls.id).one_or_none()
+                        if method:
+                            prop.method_id = method.id
+            session.add(prop)
+            session.commit()
+            reload_object(obj.id)
+        return True
 
 
 def addObjectMethod(name:str, object_name:str, description:str='', code:str='', call_parent:int=0) -> bool:
@@ -172,24 +177,25 @@ def addObjectMethod(name:str, object_name:str, description:str='', code:str='', 
     Returns:
         bool: Success add method
     """
-    obj = Object.query.filter(Object.name == object_name).one_or_none()
-    if not obj:
-        return False
-    method = Method.query.filter(Method.name == name, Method.object_id == obj.id).one_or_none()
-    if not method:
-        if obj.class_id:
-            method = Method.query.filter(Method.name == name, Method.class_id == obj.class_id).one_or_none()
-    if not method:
-        method = Method()
-        method.name = name
-        method.object_id = obj.id
-        method.description = description
-        method.code = code
-        method.call_parent = call_parent
-        db.session.add(method)
-        db.session.commit()
-        reload_object(obj.id)
-    return True
+    with session_scope() as session:
+        obj = session.query(Object).filter(Object.name == object_name).one_or_none()
+        if not obj:
+            return False
+        method = session.query(Method).filter(Method.name == name, Method.object_id == obj.id).one_or_none()
+        if not method:
+            if obj.class_id:
+                method = session.query(Method).filter(Method.name == name, Method.class_id == obj.class_id).one_or_none()
+        if not method:
+            method = Method()
+            method.name = name
+            method.object_id = obj.id
+            method.description = description
+            method.code = code
+            method.call_parent = call_parent
+            session.add(method)
+            session.commit()
+            reload_object(obj.id)
+        return True
 
 def getObject(name:str) -> ObjectManager:
     """Get an object by its name
@@ -490,16 +496,17 @@ def deleteObject(name: str):
     Args:
         name (str): Name object
     """
-    obj = Object.query.filter(Object.name == name).one_or_404()
-    sql = delete(Value).where(Value.object_id == obj.id)
-    db.session.execute(sql)
-    sql = delete(Property).where(Property.object_id == obj.id)
-    db.session.execute(sql)
-    sql = delete(Method).where(Method.object_id == obj.id)
-    db.session.execute(sql)
-    db.session.delete(obj)
-    db.session.commit()
-    del objects[name]
+    with session_scope() as session:
+        obj = session.query(Object).filter(Object.name == name).one_or_404()
+        sql = delete(Value).where(Value.object_id == obj.id)
+        session.execute(sql)
+        sql = delete(Property).where(Property.object_id == obj.id)
+        session.execute(sql)
+        sql = delete(Method).where(Method.object_id == obj.id)
+        session.execute(sql)
+        session.delete(obj)
+        session.commit()
+        del objects[name]
 
 def setLinkToObject(object_name:str, property_name:str, link:str) -> bool:
     """Set link for value
