@@ -1,4 +1,4 @@
-from app.database import row2dict
+from app.database import row2dict, session_scope
 from app.core.main.ObjectManager import ObjectManager, PropertyManager, MethodManager
 from app.core.models.Clasess import Class, Property, Method, Object, Value
 
@@ -25,14 +25,14 @@ def methodsSort(methods):
     return result
 
 
-def createObjectManager(obj):
+def createObjectManager(session, obj):
     om = ObjectManager(obj)
     # load properties
-    properties = getPropertiesClassFromCache(obj.class_id)
-    property_obj = Property.query.filter(Property.object_id == obj.id).all()
+    properties = getPropertiesClass(session, obj.class_id, [])
+    property_obj = session.query(Property).filter(Property.object_id == obj.id).all()
     properties = properties + property_obj
     for prop in properties:
-        value = Value.query.filter(Value.object_id == obj.id, Value.name == prop.name).first()
+        value = session.query(Value).filter(Value.object_id == obj.id, Value.name == prop.name).first()
         # value = values[0]
         # if len(values) > 1:
         #   logger.warning("Warning! More than one value with same name and object id")
@@ -41,12 +41,12 @@ def createObjectManager(obj):
 
         pm = PropertyManager(prop, value)
         if prop.method_id:
-            method = Method.query.filter(Method.id == prop.method_id).one_or_none()
+            method = session.query(Method).filter(Method.id == prop.method_id).one_or_none()
             pm.bindMethod(method.name)
         om._addProperty(pm)
     # load methods
-    methods = getMethodsClassFromCache(obj.class_id)
-    methods = methods + Method.query.filter(Method.object_id == obj.id).all()
+    methods = getMethodsClass(session, obj.class_id, [])
+    methods = methods + session.query(Method).filter(Method.object_id == obj.id).all()
     group_methods = {}
     for method in methods:
         if method.name not in group_methods:
@@ -58,7 +58,7 @@ def createObjectManager(obj):
         group = [row2dict(item) for item in group]
         for item in group:
             if item['class_id']:
-                cls = Class.get_by_id(item['class_id'])
+                cls = session.query(Class).filter(Class.id == item['class_id']).one_or_none()
                 if cls:
                     item['owner'] = cls.name
             else:
@@ -72,54 +72,32 @@ def createObjectManager(obj):
 
     return om
 
-
-cachePropertiesClasses = {}
-cacheMethodsClasses = {}
-
-def getPropertiesClass(id, properties):
+def getPropertiesClass(session, id, properties):
     if id:
-        props = Property.query.filter(Property.class_id == id).all()
+        props = session.query(Property).filter(Property.class_id == id).all()
         properties = properties + props
-        cls = Class.get_by_id(id)
+        cls = session.query(Class).filter(Class.id == id).one_or_none()
         if cls and cls.parent_id:
-            return getPropertiesClass(cls.parent_id, properties)
+            return getPropertiesClass(session, cls.parent_id, properties)
     return properties
 
-def getPropertiesClassFromCache(id):
-    global cachePropertiesClasses
-    # if id in cachePropertiesClasses:
-    #    return cachePropertiesClasses[id]
-    properties = []
-    properties = getPropertiesClass(id, properties)
-    cachePropertiesClasses[id] = properties
-    return properties
-
-def getMethodsClass(id, methods):
+def getMethodsClass(session, id, methods):
     if id:
-        meth = Method.query.filter(Method.class_id == id).all()
+        meth = session.query(Method).filter(Method.class_id == id).all()
         methods = meth + methods
-        cls = Class.get_by_id(id)
+        cls = session.query(Class).filter(Class.id == id).one_or_none()
         if cls and cls.parent_id:
-            return getMethodsClass(cls.parent_id, methods)
-    return methods
-
-def getMethodsClassFromCache(id):
-    global cacheMethodsClasses
-    # if id in cacheMethodsClasses:
-    #     return cacheMethodsClasses[id]
-    methods = []
-    methods = getMethodsClass(id, methods)
-    cacheMethodsClasses[id] = methods
+            return getMethodsClass(session, cls.parent_id, methods)
     return methods
 
 def getTemplateClass(class_id):
-    cls = Class.get_by_id(class_id)
-    if cls and cls.template:
-        return cls.template
-    if cls and cls.parent_id:
-        return getTemplateClass(cls.parent_id)
-    return None
-
+    with session_scope() as session:
+        cls = session.query(Class).filter(Class.id == class_id).one_or_none()
+        if cls and cls.template:
+            return cls.template
+        if cls and cls.parent_id:
+            return getTemplateClass(cls.parent_id)
+        return None
 
 # remove object
 def remove_object(object_name):
@@ -129,38 +107,30 @@ def remove_object(object_name):
 
 def remove_objects_by_class(class_id):
     global objects
-    global cachePropertiesClasses
-    global cacheMethodsClasses
-    if class_id in cachePropertiesClasses:
-        del cachePropertiesClasses[class_id]
-    if class_id in cacheMethodsClasses:
-        del cacheMethodsClasses[class_id]
-    objs = Object.query.filter(Object.class_id == class_id).all()
-    for obj in objs:
-        del objects[obj.name]
+    with session_scope() as session:
+        objs = session.query(Object).filter(Object.class_id == class_id).all()
+        for obj in objs:
+            del objects[obj.name]
 
 # reload object
 def reload_object(object_id):
     global objects
-    obj = Object.get_by_id(object_id)
-    if obj:
-        objects[obj.name] = createObjectManager(obj)
+    with session_scope() as session:
+        obj = session.query(Object).filter(Object.id == object_id).one_or_none()
+        if obj:
+            objects[obj.name] = createObjectManager(session, obj)
 
 def reload_objects_by_class(class_id):
     global objects
-    global cachePropertiesClasses
-    global cacheMethodsClasses
-    if class_id in cachePropertiesClasses:
-        del cachePropertiesClasses[class_id]
-    if class_id in cacheMethodsClasses:
-        del cacheMethodsClasses[class_id]
-    objs = Object.query.filter(Object.class_id == class_id).order_by(Object.name).all()
-    for obj in objs:
-        objects[obj.name] = createObjectManager(obj)
+    with session_scope() as session:
+        objs = session.query(Object).filter(Object.class_id == class_id).order_by(Object.name).all()
+        for obj in objs:
+            objects[obj.name] = createObjectManager(session, obj)
 
 # init storage objects
 def init_objects():
     global objects
-    objs = Object.query.order_by(Object.name).all()
-    for obj in objs:
-        objects[obj.name] = createObjectManager(obj)
+    with session_scope() as session:
+        objs = session.query(Object).order_by(Object.name).all()
+        for obj in objs:
+            objects[obj.name] = createObjectManager(session, obj)

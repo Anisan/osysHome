@@ -255,7 +255,7 @@ def getProperty(name:str, data:str = 'value'):
             return obj.getProperty(prop, data)
         else:
             _logger.error('Object %s not found', obj)
-            return False
+            return None
     except Exception as e:
         _logger.exception('getProperty %s: %s',name,e)
     return None
