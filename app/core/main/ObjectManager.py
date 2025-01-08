@@ -14,7 +14,7 @@ _logger = getLogger('object')
 
 class PropertyManager():
     def __init__(self, property: Property, value: Value):
-        self.__property_id = property.id
+        self.property_id = property.id
         self.value_id = value.id if value else None
         self.name = property.name
         self.description = property.description
@@ -162,7 +162,7 @@ class ObjectManager:
         Contain properties and methods
     """
     def __init__(self, obj: Object):
-        self.__object = obj
+        self.object_id = obj.id
         self.name = obj.name
         self.description = obj.description
         self.template = obj.template
@@ -170,7 +170,7 @@ class ObjectManager:
         self.methods = {}
 
     def _addProperty(self, property: PropertyManager) -> None:
-        property.object_id = self.__object.id
+        property.object_id = self.object_id
         if property.value_id is None:
             with session_scope() as session:
                 valRec = Value()
@@ -195,7 +195,7 @@ class ObjectManager:
             if name not in self.properties:
                 with session_scope() as session:
                     property_db = Property()
-                    property_db.object_id = self.__object.id
+                    property_db.object_id = self.object_id
                     property_db.name = name
                     session.add(property_db)
                     session.commit()
