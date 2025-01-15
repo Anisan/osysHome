@@ -3,7 +3,6 @@ import ctypes
 from settings import Config 
 from app.extensions import bcrypt
 from app.core.main.PluginsHelper import stop_plugins
-from app.core.main.ObjectsStorage import init_objects
 from app.core.lib.object import getObjectsByClass, getObject, addObject, setProperty
 
 some_queue = None
@@ -41,7 +40,6 @@ def restart_system():
             return e
 
 def create_user(username, password):
-    init_objects()
     users = getObjectsByClass('Users')
 
     if users is None:

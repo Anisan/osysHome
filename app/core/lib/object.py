@@ -2,7 +2,7 @@
 import threading
 import datetime
 from sqlalchemy import delete
-from app.core.main.ObjectsStorage import objects, reload_objects_by_class, reload_object
+from app.core.main.ObjectsStorage import objects_storage
 from app.logging_config import getLogger
 from app.database import session_scope
 from ..models.Clasess import Class, Object, Property, Value, Method
@@ -65,7 +65,7 @@ def addClassProperty(name:str, class_name:str, description:str='', history:int=0
                     prop.method_id = method.id
             session.add(prop)
             session.commit()
-            reload_objects_by_class(cls.id)
+            objects_storage.reload_objects_by_class(cls.id)
         return prop
 
 def addClassMethod(name:str, class_name:str, description:str='', code:str='', call_parent:int=0) -> Method:
@@ -95,7 +95,7 @@ def addClassMethod(name:str, class_name:str, description:str='', code:str='', ca
             method.call_parent = call_parent
             session.add(method)
             session.commit()
-            reload_objects_by_class(cls.id)
+            objects_storage.reload_objects_by_class(cls.id)
         return method
 
 def addObject(name:str, class_name:str, description='') -> ObjectManager:
@@ -119,8 +119,8 @@ def addObject(name:str, class_name:str, description='') -> ObjectManager:
             obj.description = description
             session.add(obj)
             session.commit()
-            reload_object(obj.id)
-        return objects[name]
+            objects_storage.reload_object(obj.id)
+        return objects_storage.getObjectByName(name)
 
 def addObjectProperty(name:str, object_name:str, description:str='', history:int=0, type:PropertyType=PropertyType.Empty, method_name:str=None) -> bool:
     """Add a property object to the database
@@ -160,7 +160,7 @@ def addObjectProperty(name:str, object_name:str, description:str='', history:int
                             prop.method_id = method.id
             session.add(prop)
             session.commit()
-            reload_object(obj.id)
+            objects_storage.reload_object(obj.id)
         return True
 
 
@@ -194,7 +194,7 @@ def addObjectMethod(name:str, object_name:str, description:str='', code:str='', 
             method.call_parent = call_parent
             session.add(method)
             session.commit()
-            reload_object(obj.id)
+            objects_storage.reload_object(obj.id)
         return True
 
 def getObject(name:str) -> ObjectManager:
@@ -207,17 +207,16 @@ def getObject(name:str) -> ObjectManager:
         ObjectManager: Object
     """
     try:
-        if name in objects:
-            return objects[name]
-        return None
+        return objects_storage.getObjectByName(name)
     except Exception as e:
         _logger.exception('getObject %s: %s',name,e)
 
-def getObjectsByClass(class_name:str) -> list[ObjectManager]:
+def getObjectsByClass(class_name:str, subclasses:bool=True) -> list[ObjectManager]:
     """get list object by class
 
     Args:
         class_name (str): Class name
+        subclasses (bool, optional): Subclasses. Defaults to True.
 
     Returns:
         list[ObjectManager]: List objects
@@ -230,6 +229,12 @@ def getObjectsByClass(class_name:str) -> list[ObjectManager]:
                 objs = session.query(Object).filter(Object.class_id == cls.id).all()
                 for obj in objs:
                     objects.append(getObject(obj.name))
+                if subclasses:
+                    res = session.query(Class).filter(Class.parent_id == cls.id).all()
+                    for subclass in res:
+                        childs = getObjectsByClass(subclass.name,subclasses)
+                        if childs:
+                            objects += childs
                 return objects
             else:
                 return None
@@ -250,8 +255,8 @@ def getProperty(name:str, data:str = 'value'):
     try:
         obj = name.split(".")[0]
         prop = name.split(".")[1]
-        if obj in objects:
-            obj = objects[obj]
+        obj = objects_storage.getObjectByName(obj)
+        if obj:
             return obj.getProperty(prop, data)
         else:
             _logger.error('Object %s not found', obj)
@@ -275,8 +280,8 @@ def setProperty(name:str, value, source:str='') -> bool:
         _logger.debug('setProperty %s %s %s', name, value, source)
         obj = name.split(".")[0]
         prop = name.split(".")[1]
-        if obj in objects:
-            obj = objects[obj]
+        obj = objects_storage.getObjectByName(obj)
+        if obj:
             obj.setProperty(prop, value, source)
             return True
         else:
@@ -301,8 +306,8 @@ def setPropertyThread(name:str, value, source:str=''):
         _logger.debug('setProperty %s %s %s', name, value, source)
         obj = name.split(".")[0]
         prop = name.split(".")[1]
-        if obj in objects:
-            obj = objects[obj]
+        obj = objects_storage.getObjectByName(obj)
+        if obj:
 
             def wrapper():
                 obj.setProperty(prop, value, source)
@@ -330,8 +335,8 @@ def setPropertyTimeout(name: str, value, timeout: int, source:str=""):
         _logger.debug('setPropertyTimeout %s %s timeout:%s %s', name, value, timeout, source)
         obj = name.split(".")[0]
         prop = name.split(".")[1]
-        if obj in objects:
-            obj:ObjectManager = objects[obj]
+        obj = objects_storage.getObjectByName(obj)
+        if obj:
             obj.setPropertyTimeout(prop, value, timeout, source)
             return True
         else:
@@ -356,8 +361,8 @@ def updateProperty(name:str, value, source:str='') -> bool:
         _logger.debug('updateProperty %s %s %s', name, value, source)
         obj = name.split(".")[0]
         prop = name.split(".")[1]
-        if obj in objects:
-            obj:ObjectManager = objects[obj]
+        obj = objects_storage.getObjectByName(obj)
+        if obj:
             return obj.updateProperty(prop, value, source)
         else:
             _logger.error('Object %s not found', obj)
@@ -381,8 +386,8 @@ def updatePropertyThread(name:str, value, source:str='') -> bool:
         _logger.debug('updatePropertyThread %s %s %s', name, value, source)
         obj = name.split(".")[0]
         prop = name.split(".")[1]
-        if obj in objects:
-            obj = objects[obj]
+        obj = objects_storage.getObjectByName(obj)
+        if obj:
 
             def wrapper():
                 obj.updateProperty(prop, value, source)
@@ -413,8 +418,8 @@ def updatePropertyTimeout(name:str, value, timeout:int, source:str='') -> bool:
         _logger.debug('updatePropertyTimeout %s %s timeout:%s %s', name, value, timeout, source)
         obj = name.split(".")[0]
         prop = name.split(".")[1]
-        if obj in objects:
-            obj:ObjectManager = objects[obj]
+        obj = objects_storage.getObjectByName(obj)
+        if obj:
             obj.updatePropertyTimeout(prop, value, timeout, source)
         else:
             _logger.error('Object %s not found', obj)
@@ -435,8 +440,8 @@ def callMethod(name:str, args={}, source:str='') -> str:
         _logger.debug('callMethod %s', name)
         obj = name.split(".")[0]
         method = name.split(".")[1]
-        if obj in objects:
-            obj = objects[obj]
+        obj = objects_storage.getObjectByName(obj)
+        if obj:
             return obj.callMethod(method, args, source)
         else:
             _logger.error('Object %s not found', obj)
@@ -457,8 +462,8 @@ def callMethodThread(name: str, args={}, source:str=''):
         _logger.debug('callMethodThread %s source:%s', name, source)
         object_name = name.split(".")[0]
         method = name.split(".")[1]
-        if object_name in objects:
-            obj = objects[object_name]
+        obj = objects_storage.getObjectByName(object_name)
+        if obj:
 
             def wrapper():
                 obj.callMethod(method, args, source)
@@ -482,8 +487,8 @@ def callMethodTimeout(name:str, timeout:int, source:str=''):
         _logger.debug('callMethodTimeout %s timeout:%s source:%s', name, timeout, source)
         obj = name.split(".")[0]
         method = name.split(".")[1]
-        if obj in objects:
-            obj:ObjectManager = objects[obj]
+        obj = objects_storage.getObjectByName(obj)
+        if obj:
             obj.callMethodTimeout(method, timeout, source)
         else:
             _logger.error('Object %s not found', name)
@@ -506,7 +511,7 @@ def deleteObject(name: str):
         session.execute(sql)
         session.delete(obj)
         session.commit()
-        del objects[name]
+        objects_storage.delObjectByName[name]
 
 def setLinkToObject(object_name:str, property_name:str, link:str) -> bool:
     """Set link for value
@@ -519,8 +524,8 @@ def setLinkToObject(object_name:str, property_name:str, link:str) -> bool:
     Returns:
         bool: Success set link
     """
-    if object_name in objects:
-        obj: ObjectManager = objects[object_name]
+    obj = objects_storage.getObjectByName(object_name)
+    if obj:
         if property_name in obj.properties:
             prop: PropertyManager = obj.properties[property_name]
             if not prop.linked:
@@ -549,8 +554,8 @@ def removeLinkFromObject(object_name:str, property_name:str, link:str) -> bool:
     Returns:
         bool: Success set link
     """
-    if object_name in objects:
-        obj: ObjectManager = objects[object_name]
+    obj = objects_storage.getObjectByName(object_name)
+    if obj:
         if property_name in obj.properties:
             prop: PropertyManager = obj.properties[property_name]
             if prop.linked and link in prop.linked:
@@ -573,7 +578,7 @@ def clearLinkedObjects(link:str):
         link (str): Name module
     """
     with session_scope() as session:
-        for _, obj in objects.items():
+        for obj in objects_storage.values():
             for _, prop in obj.properties:
                 if prop.linked and link in prop.linked:
                     prop.linked.remove(link)
@@ -603,8 +608,8 @@ def getHistory(name:str, dt_begin:datetime = None, dt_end:datetime = None, limit
         _logger.debug('getHistory %s', name)
         obj = name.split(".")[0]
         prop = name.split(".")[1]
-        if obj in objects:
-            obj:ObjectManager = objects[obj]
+        obj = objects_storage.getObjectByName(obj)
+        if obj:
             return obj.getHistory(prop, dt_begin, dt_end, limit, order_desc, func)
         else:
             _logger.error('Object %s not found', obj)
@@ -629,8 +634,8 @@ def getHistoryAggregate(name:str, dt_begin:datetime = None, dt_end:datetime = No
         _logger.debug('getHistoryAggregate %s', name)
         obj = name.split(".")[0]
         prop = name.split(".")[1]
-        if obj in objects:
-            obj:ObjectManager = objects[obj]
+        obj = objects_storage.getObjectByName(obj)
+        if obj:
             return obj.getHistoryAggregate(prop, dt_begin, dt_end, func)
         else:
             _logger.error('Object %s not found', obj)

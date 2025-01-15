@@ -4,7 +4,6 @@ from settings import Config
 from app import createApp
 from app.core.migrate import perform_migrations
 from app.utils import initSystemVar
-from app.core.main.ObjectsStorage import init_objects
 from app.core.main.PluginsHelper import start_plugins, stop_plugins
 from app.logging_config import getLogger
 
@@ -15,10 +14,6 @@ app = createApp(Config)
 if __name__ == '__main__':
 
     # perform_migrations()
-
-    _logger.info("Load objects")
-    with app.app_context():
-        init_objects()
 
     _logger.info("Start plugins")
     start_plugins()

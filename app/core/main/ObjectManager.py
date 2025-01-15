@@ -31,6 +31,9 @@ class PropertyManager():
         self.type = property.type
         if value:
             self.__value = self._decodeValue(value.value)
+        self.count_read = 0
+        self.count_write = 0
+        self.readed = datetime.datetime.now()
 
     def _decodeValue(self, value):
         if value is None:
@@ -118,7 +121,7 @@ class PropertyManager():
             _logger.exception(ex, exc_info=True)
 
     def setValue(self, value, source='', changed=None):
-
+        
         self.__value = self._decodeValue(value)
         self.source = source
         if changed is not None:
@@ -131,8 +134,11 @@ class PropertyManager():
         # self.saveValue()
         thread = threading.Thread(target=self.saveValue)
         thread.start()
+        self.count_write = self.count_write + 1
 
     def getValue(self):
+        self.readed = datetime.datetime.now()
+        self.count_read = self.count_read + 1
         return self.__value
 
     @property
@@ -153,6 +159,7 @@ class MethodManager():
         self.name = methods[0]["name"]
         self.description = methods[0]["description"]
         self.source = None
+        self.count_executed = 0
         self.executed = None
         self.exec_params = None
         self.exec_result = None
@@ -340,6 +347,7 @@ class ObjectManager:
             self.methods[name].executed = datetime.datetime.now()
             self.methods[name].exec_params = args
             self.methods[name].exec_result = output
+            self.methods[name].count_executed = self.methods[name].count_executed + 1
 
             # send event to proxy
             for _,plugin in plugins.items():
@@ -472,3 +480,32 @@ class ObjectManager:
                     "avg": sum(data) / len(data) if data else 0
                 }
             return result
+        
+    def getStats(self):
+        stat_props = {}
+        stat_methods = {}
+        for name, prop in self.properties.items():
+            from app.core.utils import truncate_string
+            value = truncate_string(str(prop.value), 30)
+            stat_props[name] = {
+                'id': prop.property_id,
+                'description': prop.description,
+                'value': value,
+                'source': prop.source,
+                'count_read': prop.count_read,
+                'count_write': prop.count_write,
+                'last_read': prop.readed,
+                'last_write': prop.changed,
+            }
+        for name, method in self.methods.items():
+            stat_methods[name] = {
+                'count_executed': method.count_executed,
+                'last_executed': method.executed,
+                'source': method.source,
+                'params': method.exec_params,
+            }
+        return {
+            "stat_properties": stat_props,
+            "stat_methods": stat_methods,
+        }
+

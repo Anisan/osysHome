@@ -2,7 +2,7 @@ from flask import request, abort
 from flask_restx import Namespace, Resource, fields
 from app.api.decorators import api_key_required, role_required
 from app.api.models import model_result, model_404
-from app.core.main.ObjectsStorage import objects
+from app.core.main.ObjectsStorage import objects_storage
 
 methods_ns = Namespace(name="methods",description="Methods namespace",validate=True)
 
@@ -21,13 +21,15 @@ class MethodsList(Resource):
         Get methods of object.
         '''
         result = {}
-        if object_name not in objects:
+        obj = objects_storage.getObjectByName(object_name)
+        if obj is None:
             return {"success": False,
                     "msg": "Object not found."}, 404
-        for key,m in objects[object_name].methods.items():
+        for key,m in obj.methods.items():
             result[key] = m.description
-        return {"success" : True,
-                "result" : result}, 200
+        return {"success": True,
+                "result": result}, 200
+
 
 response_call = methods_ns.model('ResultCallMethod', {
     'success': fields.Boolean(description='Indicates success of the operation'),
@@ -53,15 +55,16 @@ class CallMethod(Resource):
         method_name = request.args.get("method",None)
         if not object_name or not method_name:
             abort(404, 'Missing required parameters')
-        if object_name not in objects:
+        obj = objects_storage.getObjectByName(object_name)
+        if obj is None:
             return {"success": False,
                     "msg": "Object not found."}, 404
-        if method_name not in objects[object_name].methods:
+        if method_name not in obj.methods:
             return {"success": False,
                     "msg": "Method not found."}, 404
-        result = objects[object_name].callMethod(method_name,request.args, 'api')
-        return {"success" : True,
-                "args" : request.args,
-                "result" : result}, 200
+        result = obj.callMethod(method_name,request.args, 'api')
+        return {"success": True,
+                "args": request.args,
+                "result": result}, 200
 
 

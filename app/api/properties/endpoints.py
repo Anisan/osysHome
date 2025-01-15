@@ -4,7 +4,7 @@ from flask_restx import Namespace, Resource
 from app.database import session_scope
 from app.api.decorators import api_key_required, role_required
 from app.api.models import model_result, model_404
-from app.core.main.ObjectsStorage import objects
+from app.core.main.ObjectsStorage import objects_storage
 
 props_ns = Namespace(name="property", description="Property namespace", validate=True)
 
@@ -23,10 +23,11 @@ class PropertiesList(Resource):
         Get properties of object.
         '''
         result = {}
-        if object_name not in objects:
+        obj = objects_storage.getObjectByName(object_name)
+        if obj is None:
             return {"success": False,
                     "msg": "Object not found."}, 404
-        for key,prop in objects[object_name].properties.items():
+        for key,prop in obj.properties.items():
             result[key] = prop.description
         return {"success": True,
                 "result": result}, 200
@@ -49,15 +50,16 @@ class GetProperty(Resource):
         property_name = request.args.get("property",None)
         if not object_name or not property_name:
             abort(404, 'Missing required parameters')
-        if object_name not in objects:
+        obj = objects_storage.getObjectByName(object_name)
+        if obj is None:
             return {"success": False,
                     "msg": "Object not found."}, 404
         if property_name == "description":
-            result = objects[object_name].description
+            result = obj.description
         elif property_name == "template":
-            result = objects[object_name].template
+            result = obj.template
         else:
-            result = objects[object_name].getProperty(property_name)
+            result = obj.getProperty(property_name)
         return {"success": True,
                 "result": result}, 200
 
@@ -80,10 +82,11 @@ class SetProperty(Resource):
         value = request.args.get("value",None)
         if not object_name or not property_name or not value:
             abort(404, 'Missing required parameters')
-        if object_name not in objects:
+        obj = objects_storage.getObjectByName(object_name)
+        if obj is None:
             return {"success": False,
                     "msg": "Object not found."}, 404
-        result = objects[object_name].setProperty(property_name, value, "api")
+        result = obj.setProperty(property_name, value, "api")
         return {"success": True,
                 "result": result}, 200
 
@@ -111,7 +114,8 @@ class GetHistory(Resource):
         property_name = request.args.get("property",None)
         if not object_name or not property_name:
             abort(404, 'Missing required parameters')
-        if object_name not in objects:
+        obj = objects_storage.getObjectByName(object_name)
+        if obj is None:
             return {"success": False,
                     "msg": "Object not found."}, 404
 
@@ -125,7 +129,7 @@ class GetHistory(Resource):
         dt_begin = datetime.datetime.fromisoformat(dt_begin_str) if dt_begin_str else None
         dt_end = datetime.datetime.fromisoformat(dt_end_str) if dt_end_str else None
 
-        result = objects[object_name].getHistory(property_name, dt_begin, dt_end, limit, order_desc)
+        result = obj.getHistory(property_name, dt_begin, dt_end, limit, order_desc)
 
         return {"success": True,
                 "result": result}, 200
@@ -166,7 +170,8 @@ class GetAggregateHistory(Resource):
         property_name = request.args.get("property",None)
         if not object_name or not property_name:
             abort(404, 'Missing required parameters')
-        if object_name not in objects:
+        obj = objects_storage.getObjectByName(object_name)
+        if obj is None:
             return {"success": False,
                     "msg": "Object not found."}, 404
 
@@ -176,7 +181,7 @@ class GetAggregateHistory(Resource):
         dt_begin = datetime.datetime.fromisoformat(dt_begin_str) if dt_begin_str else None
         dt_end = datetime.datetime.fromisoformat(dt_begin_str) if dt_end_str else None
 
-        result = objects[object_name].getHistoryAggregate(property_name, dt_begin, dt_end)
+        result = obj.getHistoryAggregate(property_name, dt_begin, dt_end)
 
         return {"success": True,
                 "result": result}, 200

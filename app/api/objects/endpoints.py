@@ -2,7 +2,7 @@ from flask import request
 from flask_restx import Namespace, Resource
 from app.api.models import model_result, model_404
 from app.api.decorators import api_key_required, role_required
-from app.core.main.ObjectsStorage import objects
+from app.core.main.ObjectsStorage import objects_storage
 
 objects_ns = Namespace(name="objects",description="Objects namespace",validate=True)
 
@@ -20,9 +20,9 @@ class GetObject(Resource):
         '''
         Get object.
         '''
-        if object_name in objects:
+        item = objects_storage.getObjectByName(object_name)
+        if item:
             obj = {}
-            item = objects[object_name]
             obj['description'] = item.description
             obj['properties'] = {}
             for key,prop in item.properties.items():
@@ -48,9 +48,9 @@ class GetObjectData(Resource):
         '''
         Get object.
         '''
-        if object_name in objects:
+        item = objects_storage.getObjectByName(object_name)
+        if item:
             obj = {}
-            item = objects[object_name]
             obj['name'] = object_name
             obj['description'] = item.description
             for key,prop in item.properties.items():
@@ -62,9 +62,9 @@ class GetObjectData(Resource):
             'success': False,
             'message': 'Object not found'}, 404
     def post(self, object_name):
-        if object_name in objects:
+        item = objects_storage.getObjectByName(object_name)
+        if item:
             payload = request.get_json()
-            item = objects[object_name]
             for key,value in payload.items():
                 item.setProperty(key,value,'api')
             return {'success': True}, 200
@@ -84,11 +84,11 @@ class ObjectList(Resource):
         Get dictionary of objects description.
         """
         result = {}
-        for key,obj in objects.items():
+        objects_storage.preload_objects()
+        for key,obj in objects_storage.items():
             result[key] = obj.description
-        return {
-                'success': True,
-                'result':result }, 200
+        return {'success': True,
+                'result': result}, 200
     
 @objects_ns.route("/list/details", endpoint="objects_list_details")
 class ObjectListDetails(Resource):
@@ -102,7 +102,8 @@ class ObjectListDetails(Resource):
         Get dictionary objects with properties and methods descriptions
         """
         result = {}
-        for name,item in objects.items():
+        objects_storage.preload_objects()
+        for name,item in objects_storage.items():
             obj = {}
             obj['description'] = item.description
             obj['properties'] = {}
@@ -112,6 +113,5 @@ class ObjectListDetails(Resource):
             for key,m in item.methods.items():
                 obj['methods'][key] = m.description
             result[name] = obj
-        return {
-                'success': True,
-                'result':result }, 200
+        return {'success': True,
+                'result': result}, 200

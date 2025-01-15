@@ -117,10 +117,6 @@ class ImportObjects(Resource):
                     
                     db.session.commit()
                         
-                    #reload objects
-                    from app.core.main.ObjectsStorage import init_objects
-                    init_objects()
-
                     return jsonify({"message": "File imported successfully"})
                 except json.JSONDecodeError:
                     return jsonify({"message": "Invalid JSON file"})
