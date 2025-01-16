@@ -23,7 +23,8 @@ class ObjectStorage():
             return None
         
     def delObjectByName(self, name: str):
-        del self.objects[name]
+        if name in self.objects:
+            del self.objects[name]
 
     def items(self):
         return self.objects.items()
@@ -172,7 +173,8 @@ class ObjectStorage():
         with session_scope() as session:
             objs = session.query(Object).filter(Object.class_id == class_id).all()
             for obj in objs:
-                del self.objects[obj.name]
+                if obj.name in self.objects:
+                    del self.objects[obj.name]
             childs = session.query(Class).filter(Class.parent_id == class_id).all()
             for child in childs:
                 self.remove_objects_by_class(child.id)
@@ -182,13 +184,15 @@ class ObjectStorage():
         with session_scope() as session:
             obj = session.query(Object).filter(Object.id == object_id).one_or_none()
             if obj:
-                del self.objects[obj.name]
+                if obj.name in self.objects:
+                    del self.objects[obj.name]
 
     def reload_objects_by_class(self, class_id):
         with session_scope() as session:
             objs = session.query(Object).filter(Object.class_id == class_id).order_by(Object.name).all()
             for obj in objs:
-                del self.objects[obj.name]
+                if obj.name in self.objects:
+                    del self.objects[obj.name]
             childs = session.query(Class).filter(Class.parent_id == class_id).all()
             for child in childs:
                 self.reload_objects_by_class(child.id)
