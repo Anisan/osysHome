@@ -2,6 +2,11 @@ from sqlalchemy import Table, MetaData
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.sql import text
 from app.database import session_scope
+from app.logging_config import getLogger
+
+_logger = getLogger("sql")
+
+
 
 def SqlExec(sql: str):
     """
@@ -81,6 +86,22 @@ def SqlInsert(table: str, data: dict):
         # Reflect the table from the database
         table_obj = Table(table, meta, autoload_with=session.bind)
 
+        # Fetch the columns for the table
+        table_columns = table_obj.columns
+
+        # Exclude auto-increment columns and fill missing values
+        for column in table_columns:
+            # If the column is auto-increment, skip it
+            if column.autoincrement:
+                if column.name in data:
+                    del data[column.name]
+            elif column.name not in data:
+                # If the column is missing from data, try to fill it with default or None if nullable
+                if column.default is not None:
+                    data[column.name] = column.default.arg
+                elif column.nullable:
+                    data[column.name] = None
+
         try:
             # Create an insert statement
             insert_stmt = table_obj.insert()
@@ -92,7 +113,8 @@ def SqlInsert(table: str, data: dict):
             session.commit()
 
             return result.rowcount == 1
-        except IntegrityError:
+        except IntegrityError as ex:
+            _logger.error(ex)
             # Handle duplicate key errors
             session.rollback()
             return False
@@ -129,7 +151,8 @@ def SqlUpdate(table: str, data: dict, id_column: str):
             session.commit()
 
             return result.rowcount == 1
-        except IntegrityError:
+        except IntegrityError as ex:
+            _logger.error(ex)
             # Handle duplicate key errors
             session.rollback()
             return False

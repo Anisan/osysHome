@@ -252,6 +252,7 @@ def addNotify(
             notify.description = description
             notify.category = category
             notify.source = source
+            notify.created = datetime.datetime.now()
             session.add(notify)
     # todo send to websocket
     # callPluginFunction()

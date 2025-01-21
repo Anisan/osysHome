@@ -12,7 +12,7 @@ class Plugin(SurrogatePK, db.Model):
     active = Column(db.Boolean, default=True)
     config = Column(db.Text)
     url = Column(db.String(512))
-    updated = Column(db.DateTime, default=datetime.datetime.now())
+    updated = Column(db.DateTime)
 
 class Notify(SurrogatePK, db.Model):
     __tablename__ = 'notify'
@@ -20,6 +20,6 @@ class Notify(SurrogatePK, db.Model):
     description = Column(db.String(255))
     category: Mapped[CategoryNotify] = mapped_column(default=CategoryNotify.Info)
     source = Column(db.String(255), default=False)
-    created = Column(db.DateTime, default=datetime.datetime.now())
+    created = Column(db.DateTime)
     read = Column(db.Boolean, default=False)
     count = Column(db.Integer(), default=1)
