@@ -1,9 +1,10 @@
 import datetime
 from flask import request, abort
-from flask_restx import Namespace, Resource
+from flask_restx import Namespace, Resource, fields
 from app.database import session_scope
 from app.api.decorators import api_key_required, role_required
 from app.api.models import model_result, model_404
+from app.core.lib.object import getProperty
 from app.core.main.ObjectsStorage import objects_storage
 
 props_ns = Namespace(name="property", description="Property namespace", validate=True)
@@ -41,15 +42,23 @@ class GetProperty(Resource):
     @props_ns.param('property', 'Property name')
     @props_ns.response(200, "Result", response_result)
     @props_ns.response(404, 'Not Found', response_404)
-    def get(self):
+    def get(self, object_property):
         '''
         Get value of object property.
         '''
         result = ''
-        object_name = request.args.get("object",None)
-        property_name = request.args.get("property",None)
-        if not object_name or not property_name:
-            abort(404, 'Missing required parameters')
+        # Если object_property передан в path, разбираем его
+        if object_property:
+            if '.' not in object_property:
+                abort(400, 'Invalid format. Expected "object.property"')
+            object_name, property_name = object_property.split('.', 1)
+        else:
+            # Иначе берем параметры из query string
+            object_name = request.args.get("object")
+            property_name = request.args.get("property")
+            if not object_name or not property_name:
+                abort(400, 'Missing required parameters: object and property')
+        
         obj = objects_storage.getObjectByName(object_name)
         if obj is None:
             return {"success": False,
@@ -60,6 +69,75 @@ class GetProperty(Resource):
             result = obj.template
         else:
             result = obj.getProperty(property_name)
+        return {"success": True,
+                "result": result}, 200
+ 
+    @api_key_required
+    @role_required('admin')
+    @props_ns.doc(security="apikey")
+    @props_ns.expect(props_ns.model('PropertiesList', {
+        'properties': fields.List(fields.String, required=True, description='List of properties to get')
+    }))
+    @props_ns.response(200, "Result", response_result)
+    @props_ns.response(404, 'Not Found', response_404)
+    def post(self):
+        '''
+        Get values of multiple object properties.
+        '''
+        data = request.json
+        properties = data.get('properties', [])
+
+        result = {}
+        for object_property in properties:
+            object_name, property_name = object_property.split('.', 1)
+            obj = objects_storage.getObjectByName(object_name)
+            if obj:
+                data = {}
+                if property_name in obj.properties:
+                    prop = obj.properties[property_name]
+                    data['value'] = prop.value
+                    data['source'] = prop.source
+                    data['changed'] = prop.changed
+                    result[object_property] = data
+        return {"success": True,
+                "result": result}, 200
+
+@props_ns.route("/get/<path:object_property>", endpoint="property_get_with_path")
+class GetPropertyWithPath(Resource):
+    @api_key_required
+    @role_required('admin')
+    @props_ns.doc(security="apikey")
+    @props_ns.param('object_property', 'Object and property name in format "object.property"', _in='path')
+    @props_ns.response(200, "Result", response_result)
+    @props_ns.response(404, 'Not Found', response_404)
+    def get(self, object_property):
+        '''
+        Get value of object property.
+        '''
+        result = ''
+        # Если object_property передан в path, разбираем его
+        if object_property:
+            if '.' not in object_property:
+                abort(400, 'Invalid format. Expected "object.property"')
+            object_name, property_name = object_property.split('.', 1)
+        else:
+            abort(400, 'Missing required parameters: object.property')
+        
+        obj = objects_storage.getObjectByName(object_name)
+        if obj is None:
+            return {"success": False,
+                    "msg": "Object not found."}, 404
+        if property_name == "description":
+            result = obj.description
+        elif property_name == "template":
+            result = obj.template
+        else:
+            result = {}
+            if property_name in obj.properties:
+                prop = obj.properties[property_name]
+                result['value'] = prop.value
+                result['source'] = prop.source
+                result['changed'] = prop.changed
         return {"success": True,
                 "result": result}, 200
 

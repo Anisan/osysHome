@@ -9,6 +9,7 @@ from app.api.methods.endpoints import methods_ns
 from app.api.utils.endpoints import utils_ns
 from app.api.export.endpoints import export_ns
 from app.api.import_.endpoints import import_ns
+from app.api.sql.endpoints import sql_ns
 
 _logger = getLogger("api")
 
@@ -59,9 +60,11 @@ class CurrentUserResource(Resource):
             'success':True,
             'result': user.to_dict()}
 
+
 api.add_namespace(objects_ns, path="/object")
 api.add_namespace(props_ns, path="/property")
 api.add_namespace(methods_ns, path="/method")
 api.add_namespace(utils_ns, path="/utils")
 api.add_namespace(export_ns, path="/export")
 api.add_namespace(import_ns, path="/import")
+api.add_namespace(sql_ns, path="/sql")

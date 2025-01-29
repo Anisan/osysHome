@@ -23,7 +23,10 @@ def role_required(role):
     def decorator(f):
         @wraps(f)
         def decorated(*args, **kwargs):
-            user = g.get('current_user')
+            if current_user.is_authenticated:
+                user = current_user
+            else:
+                user = g.get('current_user')
             if not user:
                 abort(401, 'Authorization required')
             if user.role != role and user.role != 'admin':
