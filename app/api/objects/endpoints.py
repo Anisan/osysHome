@@ -12,7 +12,7 @@ response_404 = objects_ns.model('Error', model_404)
 @objects_ns.route("/<object_name>", endpoint="object")
 class GetObject(Resource):
     @api_key_required
-    @role_required('admin')
+    @role_required('user')
     @objects_ns.doc(security="apikey")
     @objects_ns.response(200, "Retrieved object.", response_result)
     @objects_ns.response(404, 'Not Found', response_404)
@@ -61,6 +61,9 @@ class GetObjectData(Resource):
         return {
             'success': False,
             'message': 'Object not found'}, 404
+    @api_key_required
+    @role_required('user')
+    @objects_ns.doc(security="apikey")
     def post(self, object_name):
         item = objects_storage.getObjectByName(object_name)
         if item:
@@ -76,7 +79,7 @@ class GetObjectData(Resource):
 class ObjectList(Resource):
     """Handles HTTP requests to URL: /objects."""
     @api_key_required
-    @role_required('admin')
+    @role_required('user')
     @objects_ns.doc(security="apikey")
     @objects_ns.response(200, "Retrieved objects dict.", response_result)
     def get(self):
@@ -94,7 +97,7 @@ class ObjectList(Resource):
 class ObjectListDetails(Resource):
     """Handles HTTP requests to URL: /objects/details."""
     @api_key_required
-    @role_required('admin')
+    @role_required('user')
     @objects_ns.doc(security="apikey")
     @objects_ns.response(200, "Retrieved objects dict.", response_result)
     def get(self):

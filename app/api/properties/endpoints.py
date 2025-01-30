@@ -15,7 +15,7 @@ response_404 = props_ns.model('Error', model_404)
 @props_ns.route("/list/<object_name>", endpoint="properties_list")
 class PropertiesList(Resource):
     @api_key_required
-    @role_required('admin')
+    @role_required('user')
     @props_ns.doc(security="apikey")
     @props_ns.response(200, "Retrieved list properties of object.", response_result)
     @props_ns.response(404, 'Not Found', response_404)
@@ -36,7 +36,7 @@ class PropertiesList(Resource):
 @props_ns.route("/get", endpoint="property_get")
 class GetProperty(Resource):
     @api_key_required
-    @role_required('admin')
+    @role_required('user')
     @props_ns.doc(security="apikey")
     @props_ns.param('object', 'Object name')
     @props_ns.param('property', 'Property name')
@@ -73,7 +73,7 @@ class GetProperty(Resource):
                 "result": result}, 200
  
     @api_key_required
-    @role_required('admin')
+    @role_required('user')
     @props_ns.doc(security="apikey")
     @props_ns.expect(props_ns.model('PropertiesList', {
         'properties': fields.List(fields.String, required=True, description='List of properties to get')
@@ -105,7 +105,7 @@ class GetProperty(Resource):
 @props_ns.route("/get/<path:object_property>", endpoint="property_get_with_path")
 class GetPropertyWithPath(Resource):
     @api_key_required
-    @role_required('admin')
+    @role_required('user')
     @props_ns.doc(security="apikey")
     @props_ns.param('object_property', 'Object and property name in format "object.property"', _in='path')
     @props_ns.response(200, "Result", response_result)
@@ -144,7 +144,7 @@ class GetPropertyWithPath(Resource):
 @props_ns.route("/set", endpoint="property_set")
 class SetProperty(Resource):
     @api_key_required
-    @role_required('admin')
+    @role_required('user')
     @props_ns.doc(security="apikey")
     @props_ns.param('object', 'Object name')
     @props_ns.param('property', 'Property name')
@@ -171,7 +171,7 @@ class SetProperty(Resource):
 @props_ns.route("/history", endpoint="property_history")
 class GetHistory(Resource):
     @api_key_required
-    @role_required('admin')
+    @role_required('user')
     @props_ns.doc(security="apikey")
     @props_ns.doc(params={
         'object': {'description': 'The object name (source)', 'type': 'string', 'required': True},
@@ -229,7 +229,7 @@ class GetHistory(Resource):
 @props_ns.route("/history/aggregate")
 class GetAggregateHistory(Resource):
     @api_key_required
-    @role_required('admin')
+    @role_required('user')
     @props_ns.doc(security="apikey")
     @props_ns.doc(params={
         'object': {'description': 'The object name (source)', 'type': 'string', 'required': True},

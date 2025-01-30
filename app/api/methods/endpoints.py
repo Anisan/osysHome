@@ -12,7 +12,7 @@ response_404 = methods_ns.model('Error', model_404)
 @methods_ns.route("/list/<object_name>", endpoint="methods_list")
 class MethodsList(Resource):
     @api_key_required
-    @role_required('admin')
+    @role_required('user')
     @methods_ns.doc(security="apikey")
     @methods_ns.response(200, "Retrieved list methods of object.", response_result)
     @methods_ns.response(404, 'Not Found', response_404)
@@ -40,7 +40,7 @@ response_call = methods_ns.model('ResultCallMethod', {
 @methods_ns.route("/call", endpoint="method_call")
 class CallMethod(Resource):
     @api_key_required
-    @role_required('admin')
+    @role_required('user')
     @methods_ns.doc(security="apikey")
     @methods_ns.param('object', 'Object name')
     @methods_ns.param('method', 'Method name')
