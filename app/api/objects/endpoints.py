@@ -118,3 +118,29 @@ class ObjectListDetails(Resource):
             result[name] = obj
         return {'success': True,
                 'result': result}, 200
+    
+@objects_ns.route("/class/<class_name>", endpoint="objects_list_by_class")
+class ObjectByClass(Resource):
+    """Handles HTTP requests to URL: /class/<class_name>."""
+    @api_key_required
+    @role_required('user')
+    @objects_ns.doc(security="apikey")
+    @objects_ns.response(200, "Retrieved objects dict.", response_result)
+    def get(self, class_name):
+        """
+        Get dictionary objects with properties
+        """
+        result = {}
+        from app.core.lib.object import getObjectsByClass
+        objs = getObjectsByClass(class_name)
+        
+        for item in objs:
+            obj = {}
+            obj['name'] = item.name
+            obj['description'] = item.description
+            obj['properties'] = {}
+            for key,prop in item.properties.items():
+                obj['properties'][key] = prop.value
+            result[item.name] = obj
+        return {'success': True,
+                'result': result}, 200

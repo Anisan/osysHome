@@ -20,11 +20,13 @@
 <div class="pcoded-main-container">
     <div class="row mx-1">
         {% for key,template in widgets.items()%}
-        <div class="col-sm-12 col-md-6 col-lg-4 mb-2 px-1">
-          <div class="card p-2" style="height:100%;" id="widget_{{key}}">
-            {{template|safe}}
-          </div>
-        </div>
+          {% if template %}
+            <div class="col-sm-12 col-md-6 col-lg-4 mb-2 px-1">
+              <div class="card p-2" style="height:100%;" id="widget_{{key}}">
+                {{template|safe}}
+              </div>
+            </div>
+          {%endif%}
         {%endfor%}
     </div>
 </div>  
