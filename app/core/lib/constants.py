@@ -17,4 +17,6 @@ class PropertyType(Enum):
     Float = 'float'
     Datetime = 'datetime'
     Dictionary = 'dict'
-    Object = 'object'
+    List = 'list'
+    Bool = 'bool'
+    

@@ -63,6 +63,11 @@ def createApp(config_object):
     return app
 
 def registerExtensions(app):
+
+    from app.core.lib.object import getProperty
+    # Добавляем функцию в контекст шаблона
+    app.jinja_env.globals['getProperty'] = getProperty
+
     """Register Flask extensions."""
     bcrypt.init_app(app)
     cache.init_app(app)

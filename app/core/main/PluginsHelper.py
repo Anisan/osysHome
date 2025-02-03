@@ -52,30 +52,6 @@ def register_plugins(app):
                     except Exception as ex:
                         _logger.critical(ex, exc_info=True)
 
-    # Функция для перезагрузки плагина
-    def reload_plugin(plugin):
-        # Находим исходный файл плагина
-        plugin_file = plugin["file_path"]
-        # Перезагружаем модуль
-        spec = importlib.util.spec_from_file_location(plugin["name"], plugin_file)
-        plugin_module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(plugin_module)
-        # Получаем класс плагина
-        plugin_class = getattr(plugin_module, plugin["name"])
-        plugin_instance = plugin_class(app)  # Создаем экземпляр плагина
-        # Обновляем информацию о плагине
-        plugin["instance"] = plugin_instance
-
-    # Маршрут для перезагрузки плагина
-    @app.route("/reload-plugin/<plugin_name>")
-    @handle_admin_required
-    def reload_plugin_route(plugin_name):
-        for key, plugin in plugins.items():
-            if plugin["name"] == plugin_name:
-                Thread(target=reload_plugin, args=(plugin,)).start()
-                return f"Reloading plugin {plugin_name}..."
-        return "Plugin not found"
-
     # Маршрут для перезагрузки плагина
     @app.route("/restart-plugin/<plugin_name>")
     @handle_admin_required

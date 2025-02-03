@@ -58,6 +58,16 @@ class PropertyManager():
                 converted_value = json.loads(value)
             elif self.type == "list":
                 converted_value = json.loads(value)
+            elif self.type == "bool":
+                if isinstance(value, str):
+                    if value.lower() in ['true', '1', 't', 'y', 'yes', 'on']:
+                        converted_value = True
+                    elif value.lower() in ['false', '0', 'f', 'n', 'no', 'off']:
+                        converted_value = False
+                    else:
+                        raise ValueError(f"Invalid boolean value: {value}")
+                else:
+                    converted_value = bool(value)
             else:
                 converted_value = value
         except Exception as ex:

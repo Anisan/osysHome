@@ -20,6 +20,9 @@
           <a class="nav-link" href="/api"><i class="fas fa-info me-2"></i>API</a>
         </li>
       </ul>
+      {%if getProperty("SystemVar.NeedRestart") == True %}
+      <h4 class="mt-1 me-3"><span class=" blink badge bg-warning text-black">Need restart osysHome</span></h4>
+      {%endif%}
       {% if 'admin' in request.path %}
       <button class="btn btn-outline-secondary me-3" data-bs-toggle="modal" data-bs-target="#consoleModal"><i class="fa-solid fa-terminal me-2"></i>Console</button>
       <button class="btn btn-outline-success me-3" data-bs-toggle="modal" data-bs-target="#searchModal"><i class="fa-solid fa-magnifying-glass me-2"></i>Search</button>
