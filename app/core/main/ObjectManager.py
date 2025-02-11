@@ -162,6 +162,29 @@ class PropertyManager():
     def bindMethod(self, name):
         self.method = name
 
+    def to_dict(self):
+        return {
+            "property_id": self.property_id,
+            "value_id": self.value_id,
+            "name": self.name,
+            "description": self.description,
+            "history": self.history,
+            "changed": str(self.changed) if self.changed else None,
+            "method": self.method,
+            "linked": self.linked,
+            "source": self.source,
+            "type": self.type,
+            "value": self.value if self.type != 'datetime' else str(self.value),
+            #"count_read": self.count_read,
+            #"count_write": self.count_write,
+            #"readed": str(self.readed)
+        }
+    
+    def __str__(self):
+        return f"PropertyManager(name='{self.name}', description='{self.description}', value='{self.value}')"
+
+    def __repr__(self):
+        return self.__str__()
 
 class MethodManager():
     def __init__(self, methods):
@@ -173,6 +196,23 @@ class MethodManager():
         self.executed = None
         self.exec_params = None
         self.exec_result = None
+    
+    def to_dict(self):
+        return {
+            "name": self.name,
+            "description": self.description,
+            #"source": self.source,
+            #"count_executed": self.count_executed,
+            #"executed": str(self.executed) if self.executed else None,
+            #"exec_params": self.exec_params,
+            #"exec_result": self.exec_result
+        }
+    
+    def __str__(self):
+        return f"MethodManager(name='{self.name}', description='{self.description}')"
+
+    def __repr__(self):
+        return self.__str__()
 
 class ObjectManager:
     """ Object manager
@@ -214,6 +254,7 @@ class ObjectManager:
                     property_db = Property()
                     property_db.object_id = self.object_id
                     property_db.name = name
+                    property_db.type = type(value).__name__
                     session.add(property_db)
                     session.commit()
                     prop = PropertyManager(property_db,None)
@@ -519,3 +560,21 @@ class ObjectManager:
             "stat_methods": stat_methods,
         }
 
+    def to_dict(self):
+        properties_dict = {name: prop.to_dict() for name, prop in self.properties.items()}
+        methods_dict = {name: method.to_dict() for name, method in self.methods.items()}
+        
+        return {
+            "name": self.name,
+            "id": self.object_id,
+            "description": self.description,
+            "template": self.template,
+            "properties": properties_dict,
+            "methods": methods_dict
+        }
+
+    def __str__(self):
+        return f"ObjectManager(name='{self.name}', description='{self.description}')"
+
+    def __repr__(self):
+        return self.__str__()

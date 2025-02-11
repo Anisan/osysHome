@@ -4,28 +4,37 @@
 
 <div>
     <label for="{{ field_object.name }}">{{ field_object.label }}</label><br>
+    <div class="input-group">
     <select id="{{ field_object.name }}" name="{{ field_object.name }}" class="select2" aria-label="{{label}}">
     </select>
+    <button class="btn btn-outline-secondary" type="button" id="reset-{{ field_object.name }}"><i class="fa-solid fa-broom"></i></button>
+    </div>
 </div>
 {% if field_property %}
 <div>
     <label for="{{ field_property.name }}">{{ field_property.label }}</label><br>
-    <select id="{{ field_property.name }}" name="{{ field_property.name }}" class="select2" aria-label="{{label}}">
-    </select>
+    <div class="input-group">
+        <select id="{{ field_property.name }}" name="{{ field_property.name }}" class="select2" aria-label="{{label}}">
+        </select>
+        <button class="btn btn-outline-secondary" type="button" id="reset-{{ field_property.name }}"><i class="fa-solid fa-broom"></i></button>
+    </div>
 </div>
 {% endif %}
 {% if field_method %}
 <div>
     <label for="{{ field_method.name }}">{{ field_method.label }}</label><br>
-    <select id="{{ field_method.name }}" name="{{ field_method.name }}" class="select2" aria-label="{{label}}">
-    </select>
+    <div class="input-group">
+        <select id="{{ field_method.name }}" name="{{ field_method.name }}" class="select2" aria-label="{{label}}">
+        </select>
+        <button class="btn btn-outline-secondary" type="button" id="reset-{{ field_method.name }}"><i class="fa-solid fa-broom"></i></button>
+    </div>
 </div>
 {% endif %}
 <script>
 $(document).ready(function() {
     $('.select2').select2({
         theme: "bootstrap-5",
-        allowClear: true,
+        allowClear: false,
         width: $( this ).data( 'width' ) ? $( this ).data( 'width' ) : $( this ).hasClass( 'w-100' ) ? '100%' : 'style',
         placeholder: {
             id: null,
@@ -72,18 +81,55 @@ $(document).ready(function() {
             Object.keys(data.result).forEach(function(key) {
                 object_select.append(new Option(key +" - "+ data.result[key], key));
             })
+            
             object_select.val('{{field_object.data}}');
             updateProps('{{field_object.data}}','{{field_property.data}}')
             updateMethods('{{field_object.data}}','{{field_method.data}}')
         }
     });
+    // Добавляем обработчик для кнопки сброса
+    $(document).on('click', '#reset-{{ field_object.name }}', function() {
+        var object_select = $('#{{ field_object.name }}');
+        object_select.val('null').trigger('change');
+        {% if field_property %}
+        var prop_select = $('#{{ field_property.name }}');
+        prop_select.val('null').trigger('change');
+        {% endif %}
+        {% if field_method %}
+        var method_select = $('#{{ field_method.name }}');
+        method_select.val('null').trigger('change');
+        {% endif %}
+    });
+    {% if field_property %}
+    $(document).on('click', '#reset-{{ field_property.name }}', function() {
+        var prop_select = $('#{{ field_property.name }}');
+        prop_select.val('null').trigger('change');
+    });
+    {% endif %}
+    {% if field_method %}
+    $(document).on('click', '#reset-{{ field_method.name }}', function() {
+        var method_select = $('#{{ field_method.name }}');
+        method_select.val('null').trigger('change');
+    });
+    {% endif %}
+
     // Load properties based on selected country
     $('#{{field_object.name}}').change(function() {
         var object_name = $(this).val();
-        console.log("change object",object_name)
-        updateProps(object_name,"")
-        updateMethods(object_name,"")
+        console.log("Selected object:", object_name);
+        // Обновление свойств и методов
+        updateProps(object_name, "");
+        updateMethods(object_name, "");
+
+        // Очистка значений в объекте формы
+        {% if field_property %}
+        $('#{{ field_property.name }}').val(null);
+        {% endif %}
+        {% if field_method %}
+        $('#{{ field_method.name }}').val(null);
+        {% endif %}
     });
+
 
     {% if field_property %}
     // Preselect object if form was pre-filled

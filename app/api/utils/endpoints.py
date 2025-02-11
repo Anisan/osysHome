@@ -80,12 +80,16 @@ class RunCode(Resource):
         '''
         Run code
         '''
-        payload = request.get_json()
-        code = payload['code']
-        from app.core.lib.common import runCode
-        result, success = runCode(code)
-        return {"success": success,
-                "result": result}, 200
+        try:
+            payload = request.get_json()
+            code = payload['code']
+            from app.core.lib.common import runCode
+            result, success = runCode(code)
+            return {"success": success,
+                    "result": result}, 200
+        except Exception as ex:
+            return {"success": False,
+                    "result": ex}, 200
     
 
 cron_task_model = utils_ns.model('CodeTextModel', {

@@ -34,7 +34,6 @@ def docs_file(filename):
 
 # Маршруты для отображения файлов
 @blueprint.route('/files/public/<path:filename>')
-@handle_user_required
 def public_file(filename):
     return send_from_directory(os.path.join(Config.FILES_DIR,"public"), filename)
 

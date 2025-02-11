@@ -5,7 +5,7 @@ from sqlalchemy import delete
 from app.core.main.ObjectsStorage import objects_storage
 from app.logging_config import getLogger
 from app.database import session_scope
-from ..models.Clasess import Class, Object, Property, Value, Method
+from ..models.Clasess import Class, Object, Property, Value, Method, History
 from ..main.ObjectManager import ObjectManager, PropertyManager
 from .constants import PropertyType
 
@@ -163,6 +163,36 @@ def addObjectProperty(name:str, object_name:str, description:str='', history:int
             objects_storage.reload_object(obj.id)
         return True
 
+def deleteObjectProperty(object_property: str) -> bool:
+    """
+    Delete a property object from the database using the format 'object_name.property_name'
+
+    Args:
+        object_property (str): String in the format 'object_name.property_name'
+
+    Returns:
+        bool: Success of deleting the property
+    """
+    try:
+        object_name, property_name = object_property.split('.', 1)
+    except ValueError:
+        return False
+
+    with session_scope() as session:
+        obj = session.query(Object).filter(Object.name == object_name).one_or_none()
+        if not obj:
+            return False
+        prop = session.query(Property).filter(Property.name == property_name, Property.object_id == obj.id).one_or_none()
+        if not prop:
+            return False
+        values = session.query(Value).filter(Value.object_id == obj.id,Value.name == property_name).all()
+        for value in values:
+            session.query(History).filter(History.value_id == value.id).delete(synchronize_session=False)
+            session.delete(values)
+        session.delete(prop)
+        session.commit()
+        objects_storage.reload_object(obj.id)
+        return True
 
 def addObjectMethod(name:str, object_name:str, description:str='', code:str='', call_parent:int=0) -> bool:
     """Add a method object to the database
@@ -195,6 +225,32 @@ def addObjectMethod(name:str, object_name:str, description:str='', code:str='', 
             session.add(method)
             session.commit()
             objects_storage.reload_object(obj.id)
+        return True
+    
+def deleteObjectMethod(object_method: str) -> bool:
+    """
+    Delete a method object from the database using the format 'object_name.method_name'
+
+    Args:
+        object_method (str): String in the format 'object_name.method_name'
+
+    Returns:
+        bool: Success of deleting the method
+    """
+    try:
+        object_name, method_name = object_method.split('.', 1)
+    except ValueError:
+        return False
+    with session_scope() as session:
+        obj = session.query(Object).filter(Object.name == object_name).one_or_none()
+        if not obj:
+            return False  # Объект не найден
+        method = session.query(Method).filter(Method.name == method_name, Method.object_id == obj.id).one_or_none()
+        if not method:
+            return False
+        session.delete(method)
+        session.commit()
+        objects_storage.reload_object(obj.id)
         return True
 
 def getObject(name:str) -> ObjectManager:

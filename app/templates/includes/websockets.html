@@ -75,7 +75,7 @@
       var elements = document.querySelectorAll(`[id^="prop:${msg.property}"]`);
       elements.forEach(element => {
         if (element.id === `prop:${msg.property}`)
-          element.textContent = msg.value;
+          element.textContent = typeof msg.value === "object" ? JSON.stringify(msg.value) : msg.value;
       });
       elements = document.querySelectorAll(`[id^="prop_changed:${msg.property}"]`);
       elements.forEach(element => {
