@@ -321,13 +321,14 @@ def getProperty(name:str, data:str = 'value'):
         _logger.exception('getProperty %s: %s',name,e)
     return None
 
-def setProperty(name:str, value, source:str='') -> bool:
+def setProperty(name:str, value, source:str='', save_history:bool=None) -> bool:
     """Set value property by its name.
 
     Args:
         name (str): Name property. Syntax: Object.Property
         value (Any): Value
         source (str, optional): Source changing value. Defaults to ''.
+        save_history (bool, optional): Save history of changing value. Defaults to None.
 
     Returns:
         bool: Success set value
@@ -338,7 +339,7 @@ def setProperty(name:str, value, source:str='') -> bool:
         prop = name.split(".")[1]
         obj = objects_storage.getObjectByName(obj)
         if obj:
-            obj.setProperty(prop, value, source)
+            obj.setProperty(prop, value, source, save_history)
             return True
         else:
             _logger.error('Object %s not found', obj)
@@ -347,13 +348,14 @@ def setProperty(name:str, value, source:str='') -> bool:
         _logger.exception('setProperty %s: %s',name,e)
     return False
 
-def setPropertyThread(name:str, value, source:str=''):
+def setPropertyThread(name:str, value, source:str='', save_history:bool=None):
     """Set value property by its name in thread.
 
     Args:
         name (str): Name property. Syntax: Object.Property
         value (Any): Value
         source (str, optional): Source changing value. Defaults to ''.
+        save_history (bool, optional): Save history of changing value. Defaults to None.
 
     Returns:
         bool: Success set value
@@ -366,7 +368,7 @@ def setPropertyThread(name:str, value, source:str=''):
         if obj:
 
             def wrapper():
-                obj.setProperty(prop, value, source)
+                obj.setProperty(prop, value, source, save_history)
 
             thread = threading.Thread(name="Thread_setProperty_" + name, target=wrapper)
             thread.start()

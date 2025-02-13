@@ -99,7 +99,7 @@ class PropertyManager():
             _logger.exception(ex, exc_info=True)
         return str(self.__value)
 
-    def saveValue(self):
+    def saveValue(self, save_history:bool=None):
         try:
             with session_scope() as session:    # todo maybe use one session ??
                 if self.value_id is None:
@@ -118,7 +118,7 @@ class PropertyManager():
                 session.execute(sql)
 
                 # save history
-                if self.history > 0:
+                if (self.history > 0 and (save_history is None or save_history)) or (self.history < 0 and save_history is not None and save_history):
                     hist = History()
                     hist.value_id = self.value_id
                     hist.added = self.changed
@@ -130,7 +130,7 @@ class PropertyManager():
         except Exception as ex:
             _logger.exception(ex, exc_info=True)
 
-    def setValue(self, value, source='', changed=None):
+    def setValue(self, value, source='', changed=None, save_history:bool=None):
         
         self.__value = self._decodeValue(value)
         self.source = source
@@ -142,7 +142,10 @@ class PropertyManager():
 
         # save Value To DB
         # self.saveValue()
-        thread = threading.Thread(target=self.saveValue)
+        def wrapper():
+            self.saveValue(save_history)
+
+        thread = threading.Thread(name="Thread_saveValue_" + self.name, target=wrapper)
         thread.start()
         self.count_write = self.count_write + 1
 
@@ -238,13 +241,14 @@ class ObjectManager:
                 property.value_id = valRec.id
         self.properties[property.name] = property
 
-    def setProperty(self, name:str, value, source:str=''):
+    def setProperty(self, name:str, value, source:str='', save_history:bool=None):
         """ Set property value
 
         Args:
             name (str): property name
             value (str): property value
             source (str): source of the value
+            save_history (bool): save history of the value (default is None)
 
         """
         try:
@@ -261,7 +265,7 @@ class ObjectManager:
                     self._addProperty(prop)
             prop = self.properties[name]
             old = prop.getValue()
-            prop.setValue(value, source)
+            prop.setValue(value, source, save_history=save_history)
             value = prop.getValue()
             if prop.method:
                 args = {
