@@ -117,16 +117,19 @@ class ObjectStorage():
         properties = properties + property_obj
         for prop in properties:
             values = session.query(Value).filter(Value.object_id == obj.id, Value.name == prop.name).all()
-            value = values[0]
-            if len(values) > 1:
-                self.logger.warning(f"Warning! More than one value with same name and object id. {obj.name}.{prop.name}")
-                for item in values[1:]:
-                    # move history
-                    session.query(History).filter(History.value_id == item.id).update({History.value_id: value.id}, synchronize_session='fetch')
-                    # delete clone
-                    session.query(Value).filter(Value.id == item.id).delete()
-                session.commit()
-                self.logger.info(f"Fixed! Remove dublicate {obj.name}.{prop.name}")
+            if values:
+                value = values[0]
+                if len(values) > 1:
+                    self.logger.warning(f"Warning! More than one value with same name and object id. {obj.name}.{prop.name}")
+                    for item in values[1:]:
+                        # move history
+                        session.query(History).filter(History.value_id == item.id).update({History.value_id: value.id}, synchronize_session='fetch')
+                        # delete clone
+                        session.query(Value).filter(Value.id == item.id).delete()
+                    session.commit()
+                    self.logger.info(f"Fixed! Remove dublicate {obj.name}.{prop.name}")
+            else:
+                value = None
 
             pm = PropertyManager(prop, value)
             if prop.method_id:
