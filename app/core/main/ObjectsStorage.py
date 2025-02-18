@@ -1,14 +1,22 @@
+import threading
 import datetime
 from app.database import row2dict, session_scope
 from app.core.main.ObjectManager import ObjectManager, PropertyManager, MethodManager
-from app.core.models.Clasess import Class, Property, Method, Object, Value
+from app.core.models.Clasess import Class, Property, Method, Object, Value, History
+from app.logging_config import getLogger
 
 class ObjectStorage():
     def __init__(self):
+        self.logger = getLogger('object_storage')
         self.objects = {}
         self.stats = {}
+        self.name_lock = {}
 
     def getObjectByName(self, name: str) -> ObjectManager:
+        # Проверяем, занят ли ресурс (имя)
+        while name in self.name_lock and self.name_lock[name]._is_owned():
+            self.name_lock[name].wait()  # Ждем, пока имя станет доступным
+
         if name in self.objects:
             self.stats[name]['count_get'] = self.stats[name]['count_get'] + 1
             self.stats[name]['last_get'] = datetime.datetime.now()
@@ -16,16 +24,19 @@ class ObjectStorage():
         with session_scope() as session:
             obj = session.query(Object).filter_by(name=name).one_or_none()
             if obj:
-                self.objects[obj.name] = self.createObjectManager(session, obj)
-                self.stats[obj.name] = {'count_get':1, 'last_get': datetime.datetime.now()}
+                if obj.name not in self.name_lock:
+                    self.name_lock[name] = threading.Condition()
+                with self.name_lock[name]:
+                    self.objects[obj.name] = self._createObjectManager(session, obj)
+                    self.stats[obj.name] = {'count_get':1, 'last_get': datetime.datetime.now()}
+
+                    self.name_lock[name].notify_all()
+
                 return self.objects[name]
-            # TODO warning
+            # warning
+            self.logger.warning(f'Object "{name}" not found')
             return None
         
-    def delObjectByName(self, name: str):
-        if name in self.objects:
-            del self.objects[name]
-
     def items(self):
         return self.objects.items()
     
@@ -90,19 +101,32 @@ class ObjectStorage():
                 result.insert(-1, method)
         return result
 
-    def createObjectManager(self, session, obj):
+    def _createObjectManager(self, session, obj):
+        """Create object manager for given object
+        Args:
+        session (Session): Session object
+        obj (Object): Object to create object manager for
+        Returns:
+        ObjectManager: Object manager for given object
+        """
+        self.logger.debug(f"Create object manager - {obj.name}")
         om = ObjectManager(obj)
         # load properties
-        properties = self.getPropertiesClass(session, obj.class_id, [])
+        properties = self._getPropertiesClass(session, obj.class_id, [])
         property_obj = session.query(Property).filter(Property.object_id == obj.id).all()
         properties = properties + property_obj
         for prop in properties:
-            value = session.query(Value).filter(Value.object_id == obj.id, Value.name == prop.name).first()
-            # value = values[0]
-            # if len(values) > 1:
-            #   logger.warning("Warning! More than one value with same name and object id")
-            #   db.session.query(Value).filter(Value.object_id == obj.id, Value.name == property.name).filter(Value.id != value.id).delete()
-            #   db.session.commit()
+            values = session.query(Value).filter(Value.object_id == obj.id, Value.name == prop.name).all()
+            value = values[0]
+            if len(values) > 1:
+                self.logger.warning(f"Warning! More than one value with same name and object id. {obj.name}.{prop.name}")
+                for item in values[1:]:
+                    # move history
+                    session.query(History).filter(History.value_id == item.id).update({History.value_id: value.id}, synchronize_session='fetch')
+                    # delete clone
+                    session.query(Value).filter(Value.id == item.id).delete()
+                session.commit()
+                self.logger.info(f"Fixed! Remove dublicate {obj.name}.{prop.name}")
 
             pm = PropertyManager(prop, value)
             if prop.method_id:
@@ -110,7 +134,7 @@ class ObjectStorage():
                 pm.bindMethod(method.name)
             om._addProperty(pm)
         # load methods
-        methods = self.getMethodsClass(session, obj.class_id, [])
+        methods = self._getMethodsClass(session, obj.class_id, [])
         methods = methods + session.query(Method).filter(Method.object_id == obj.id).all()
         group_methods = {}
         for method in methods:
@@ -133,43 +157,45 @@ class ObjectStorage():
 
         # get template from class
         if not obj.template:
-            om.template = self.getTemplateClass(obj.class_id)
+            om.template = self._getTemplateClass(obj.class_id)
 
         return om
 
-    def getPropertiesClass(self, session, id, properties):
+    def _getPropertiesClass(self, session, id, properties):
         if id:
             props = session.query(Property).filter(Property.class_id == id).all()
             properties = properties + props
             cls = session.query(Class).filter(Class.id == id).one_or_none()
             if cls and cls.parent_id:
-                return self.getPropertiesClass(session, cls.parent_id, properties)
+                return self._getPropertiesClass(session, cls.parent_id, properties)
         return properties
 
-    def getMethodsClass(self, session, id, methods):
+    def _getMethodsClass(self, session, id, methods):
         if id:
             meth = session.query(Method).filter(Method.class_id == id).all()
             methods = meth + methods
             cls = session.query(Class).filter(Class.id == id).one_or_none()
             if cls and cls.parent_id:
-                return self.getMethodsClass(session, cls.parent_id, methods)
+                return self._getMethodsClass(session, cls.parent_id, methods)
         return methods
 
-    def getTemplateClass(self, class_id):
+    def _getTemplateClass(self, class_id):
         with session_scope() as session:
             cls = session.query(Class).filter(Class.id == class_id).one_or_none()
             if cls and cls.template:
                 return cls.template
             if cls and cls.parent_id:
-                return self.getTemplateClass(cls.parent_id)
+                return self._getTemplateClass(cls.parent_id)
             return None
 
     # remove object
     def remove_object(self, object_name):
+        self.logger.debug(f"Remove object - name:{object_name}")
         if object_name in self.objects:
             del self.objects[object_name]
 
     def remove_objects_by_class(self, class_id):
+        self.logger.debug(f"Remove objects by class - id:{class_id}")
         with session_scope() as session:
             objs = session.query(Object).filter(Object.class_id == class_id).all()
             for obj in objs:
@@ -181,6 +207,7 @@ class ObjectStorage():
 
     # reload object
     def reload_object(self, object_id):
+        self.logger.debug(f"Reload object - id:{object_id}")
         with session_scope() as session:
             obj = session.query(Object).filter(Object.id == object_id).one_or_none()
             if obj:
@@ -188,6 +215,7 @@ class ObjectStorage():
                     del self.objects[obj.name]
 
     def reload_objects_by_class(self, class_id):
+        self.logger.debug(f"Reload objects by class - id:{class_id}")
         with session_scope() as session:
             objs = session.query(Object).filter(Object.class_id == class_id).order_by(Object.name).all()
             for obj in objs:
@@ -198,16 +226,17 @@ class ObjectStorage():
                 self.reload_objects_by_class(child.id)
 
     # preload all storage objects
-    def preload_objects(self, ):
+    def preload_objects(self):
         with session_scope() as session:
             objs = session.query(Object).order_by(Object.name).all()
             for obj in objs:
                 if obj.name not in self.objects:
-                    self.objects[obj.name] = self.createObjectManager(session, obj)
+                    self.objects[obj.name] = self._createObjectManager(session, obj)
                     if obj.name not in self.stats:
                         self.stats[obj.name] = {'count_get':1, 'last_get': datetime.datetime.now()}
 
     def clear(self):
+        self.logger.info("Clear storage")
         self.objects.clear()
         self.stats.clear()
 

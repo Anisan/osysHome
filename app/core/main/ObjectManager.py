@@ -44,9 +44,15 @@ class PropertyManager():
             if value == 'None':
                 converted_value = None
             elif self.type == "int":
-                converted_value = int(value)
+                if value != '':
+                    converted_value = int(value)
+                else:
+                    converted_value = None
             elif self.type == "float":
-                converted_value = float(value)
+                if value != '':
+                    converted_value = float(value)
+                else:
+                    converted_value = None
             elif self.type == "str":
                 converted_value = value
             elif self.type == "datetime":
@@ -55,9 +61,15 @@ class PropertyManager():
                 else:
                     converted_value = value
             elif self.type == "dict":
-                converted_value = json.loads(value)
+                if isinstance(value, dict):
+                    converted_value = value
+                else:
+                    converted_value = json.loads(value)
             elif self.type == "list":
-                converted_value = json.loads(value)
+                if isinstance(value, list):
+                    converted_value = value
+                else:
+                    converted_value = json.loads(value)
             elif self.type == "bool":
                 if isinstance(value, str):
                     if value.lower() in ['true', '1', 't', 'y', 'yes', 'on']:
@@ -71,7 +83,7 @@ class PropertyManager():
             else:
                 converted_value = value
         except Exception as ex:
-            _logger.exception(ex, exc_info=True)
+            _logger.exception(ex, exc_info=True, extra={'object_id': self.object_id, 'name': self.name, 'value': value},)
             converted_value = value
         return converted_value
 
@@ -88,7 +100,7 @@ class PropertyManager():
             elif self.type == "str":
                 return str(value)
             elif self.type == "datetime":
-                return value.strftime("%Y-%m-%d %H:%M:%S")
+                return value.strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
             elif self.type == "dict":
                 return json.dumps(value)
             elif self.type == "list":
@@ -145,7 +157,7 @@ class PropertyManager():
         def wrapper():
             self.saveValue(save_history)
 
-        thread = threading.Thread(name="Thread_saveValue_" + self.name, target=wrapper)
+        thread = threading.Thread(name=f"Thread_saveValue_{self.object_id}_{self.name}", target=wrapper)
         thread.start()
         self.count_write = self.count_write + 1
 
@@ -178,9 +190,9 @@ class PropertyManager():
             "source": self.source,
             "type": self.type,
             "value": self.value if self.type != 'datetime' else str(self.value),
-            #"count_read": self.count_read,
-            #"count_write": self.count_write,
-            #"readed": str(self.readed)
+            # "count_read": self.count_read,
+            # "count_write": self.count_write,
+            # "readed": str(self.readed)
         }
     
     def __str__(self):
@@ -204,11 +216,11 @@ class MethodManager():
         return {
             "name": self.name,
             "description": self.description,
-            #"source": self.source,
-            #"count_executed": self.count_executed,
-            #"executed": str(self.executed) if self.executed else None,
-            #"exec_params": self.exec_params,
-            #"exec_result": self.exec_result
+            # "source": self.source,
+            # "count_executed": self.count_executed,
+            # "executed": str(self.executed) if self.executed else None,
+            # "exec_params": self.exec_params,
+            # "exec_result": self.exec_result
         }
     
     def __str__(self):

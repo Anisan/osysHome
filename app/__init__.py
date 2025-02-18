@@ -11,6 +11,7 @@ from app.core.utils import CustomJSONEncoder
 
 from .logging_config import getLogger
 _logger = getLogger('flask')
+_logger_error_http = getLogger('404')
 
 def createApp(config_object):
     """An application factory, as explained here:
@@ -107,6 +108,7 @@ def registerBlueprints(app):
 def registerErrorhandlers(app):
 
     def errorhandler(error):
+        _logger.warning(error)
         response = error.to_json()
         response.status_code = error.status_code
         return response
@@ -116,10 +118,12 @@ def registerErrorhandlers(app):
     # Обработчик ошибки 404
     @app.errorhandler(404)
     def page_not_found(error):
+        _logger_error_http.info(f"404 error from {request.remote_addr}: {request.url}")
         return render_template('errors/page-404.html'), 404
     
     @app.errorhandler(403)
     def forbidden_error(error):
+        _logger_error_http.warning(error)
         return render_template('errors/page-403.html'), 403
     
     @app.route('/forbidden')

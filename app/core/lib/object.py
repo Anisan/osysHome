@@ -309,6 +309,9 @@ def getProperty(name:str, data:str = 'value'):
         Any Value property
     """
     try:
+        if not isinstance(name, str) or '.' not in name:
+            _logger.error('Invalid property name format: %s', name)
+            return False
         obj = name.split(".")[0]
         prop = name.split(".")[1]
         obj = objects_storage.getObjectByName(obj)
@@ -335,6 +338,9 @@ def setProperty(name:str, value, source:str='', save_history:bool=None) -> bool:
     """
     try:
         _logger.debug('setProperty %s %s %s', name, value, source)
+        if not isinstance(name, str) or '.' not in name:
+            _logger.error('Invalid property name format: %s', name)
+            return False
         obj = name.split(".")[0]
         prop = name.split(".")[1]
         obj = objects_storage.getObjectByName(obj)
@@ -362,6 +368,9 @@ def setPropertyThread(name:str, value, source:str='', save_history:bool=None):
     """
     try:
         _logger.debug('setProperty %s %s %s', name, value, source)
+        if not isinstance(name, str) or '.' not in name:
+            _logger.error('Invalid property name format: %s', name)
+            return False
         obj = name.split(".")[0]
         prop = name.split(".")[1]
         obj = objects_storage.getObjectByName(obj)
@@ -391,6 +400,9 @@ def setPropertyTimeout(name: str, value, timeout: int, source:str=""):
     """
     try:
         _logger.debug('setPropertyTimeout %s %s timeout:%s %s', name, value, timeout, source)
+        if not isinstance(name, str) or '.' not in name:
+            _logger.error('Invalid property name format: %s', name)
+            return False
         obj = name.split(".")[0]
         prop = name.split(".")[1]
         obj = objects_storage.getObjectByName(obj)
@@ -417,6 +429,9 @@ def updateProperty(name:str, value, source:str='') -> bool:
     """
     try:
         _logger.debug('updateProperty %s %s %s', name, value, source)
+        if not isinstance(name, str) or '.' not in name:
+            _logger.error('Invalid property name format: %s', name)
+            return False
         obj = name.split(".")[0]
         prop = name.split(".")[1]
         obj = objects_storage.getObjectByName(obj)
@@ -442,6 +457,9 @@ def updatePropertyThread(name:str, value, source:str='') -> bool:
     """
     try:
         _logger.debug('updatePropertyThread %s %s %s', name, value, source)
+        if not isinstance(name, str) or '.' not in name:
+            _logger.error('Invalid property name format: %s', name)
+            return False
         obj = name.split(".")[0]
         prop = name.split(".")[1]
         obj = objects_storage.getObjectByName(obj)
@@ -474,6 +492,9 @@ def updatePropertyTimeout(name:str, value, timeout:int, source:str='') -> bool:
     """
     try:
         _logger.debug('updatePropertyTimeout %s %s timeout:%s %s', name, value, timeout, source)
+        if not isinstance(name, str) or '.' not in name:
+            _logger.error('Invalid property name format: %s', name)
+            return False
         obj = name.split(".")[0]
         prop = name.split(".")[1]
         obj = objects_storage.getObjectByName(obj)
@@ -496,6 +517,9 @@ def callMethod(name:str, args={}, source:str='') -> str:
     """
     try:
         _logger.debug('callMethod %s', name)
+        if not isinstance(name, str) or '.' not in name:
+            _logger.error('Invalid method name format: %s', name)
+            return False
         obj = name.split(".")[0]
         method = name.split(".")[1]
         obj = objects_storage.getObjectByName(obj)
@@ -518,6 +542,9 @@ def callMethodThread(name: str, args={}, source:str=''):
     """
     try:
         _logger.debug('callMethodThread %s source:%s', name, source)
+        if not isinstance(name, str) or '.' not in name:
+            _logger.error('Invalid method name format: %s', name)
+            return False
         object_name = name.split(".")[0]
         method = name.split(".")[1]
         obj = objects_storage.getObjectByName(object_name)
@@ -543,6 +570,9 @@ def callMethodTimeout(name:str, timeout:int, source:str=''):
     """
     try:
         _logger.debug('callMethodTimeout %s timeout:%s source:%s', name, timeout, source)
+        if not isinstance(name, str) or '.' not in name:
+            _logger.error('Invalid method name format: %s', name)
+            return False
         obj = name.split(".")[0]
         method = name.split(".")[1]
         obj = objects_storage.getObjectByName(obj)
@@ -569,7 +599,7 @@ def deleteObject(name: str):
         session.execute(sql)
         session.delete(obj)
         session.commit()
-        objects_storage.delObjectByName[name]
+        objects_storage.remove_object[name]
 
 def setLinkToObject(object_name:str, property_name:str, link:str) -> bool:
     """Set link for value
@@ -664,6 +694,9 @@ def getHistory(name:str, dt_begin:datetime = None, dt_end:datetime = None, limit
     """
     try:
         _logger.debug('getHistory %s', name)
+        if not isinstance(name, str) or '.' not in name:
+            _logger.error('Invalid property name format: %s', name)
+            return None
         obj = name.split(".")[0]
         prop = name.split(".")[1]
         obj = objects_storage.getObjectByName(obj)
@@ -690,6 +723,9 @@ def getHistoryAggregate(name:str, dt_begin:datetime = None, dt_end:datetime = No
     """
     try:
         _logger.debug('getHistoryAggregate %s', name)
+        if not isinstance(name, str) or '.' not in name:
+            _logger.error('Invalid property name format: %s', name)
+            return None
         obj = name.split(".")[0]
         prop = name.split(".")[1]
         obj = objects_storage.getObjectByName(obj)

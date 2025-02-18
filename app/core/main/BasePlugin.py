@@ -10,7 +10,6 @@ from app.core.lib.common import sendDataToWebsocket
 from app.database import session_scope
 from app.authentication.handlers import handle_admin_required
 from app.logging_config import getLogger
-from app.core.utils import CustomJSONEncoder
 
 class BasePlugin:
     def __init__(self, app, name):
@@ -84,12 +83,12 @@ class BasePlugin:
 
     def stop_cycle(self):
         """ Stop cycle """
-        self.logger.info("Stoping cycle...")
+        self.logger.info("Stopping cycle...")
         self.event.set()
         if self.thread:
             self.thread.join()
             self.thread = None
-        self.logger.info("Stoped cycle")
+        self.logger.info("Stopped cycle")
 
     def _cyclic_task(self):
         while True:
