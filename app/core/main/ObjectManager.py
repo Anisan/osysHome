@@ -83,7 +83,7 @@ class PropertyManager():
             else:
                 converted_value = value
         except Exception as ex:
-            _logger.exception(ex, exc_info=True, extra={'object_id': self.object_id, 'name': self.name, 'value': value},)
+            _logger.error(ex, exc_info=True, extra={'object_id': self.object_id, 'name': self.name, 'value': value})
             converted_value = value
         return converted_value
 
