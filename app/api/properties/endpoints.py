@@ -127,17 +127,15 @@ class PropertyWithPath(Resource):
         if obj is None:
             return {"success": False,
                     "msg": "Object not found."}, 404
-        if property_name == "description":
-            result = obj.description
-        elif property_name == "template":
-            result = obj.template
-        else:
-            result = {}
-            if property_name in obj.properties:
-                prop = obj.properties[property_name]
-                result['value'] = prop.value
-                result['source'] = prop.source
-                result['changed'] = prop.changed
+        if property_name not in obj.properties:
+            return {"success": False,
+                    "msg": "Property not found."}, 404
+        
+        prop = obj.properties[property_name]
+        result = {}
+        result['value'] = prop.value
+        result['source'] = prop.source
+        result['changed'] = prop.changed
         return {"success": True,
                 "result": result}, 200
 
@@ -164,6 +162,52 @@ class PropertyWithPath(Resource):
         return {
             'success': False,
             'message': 'Object not found'}, 404
+
+@props_ns.route("/info/<path:object_property>", endpoint="property_info")
+class PropertyInfo(Resource):
+    @api_key_required
+    @role_required('user')
+    @props_ns.doc(security="apikey")
+    @props_ns.param('object_property', 'Object and property name in format "object.property"', _in='path')
+    @props_ns.response(200, "Result", response_result)
+    @props_ns.response(404, 'Not Found', response_404)
+    def get(self, object_property):
+        '''
+        Get info of object property.
+        '''
+        result = ''
+        # Если object_property передан в path, разбираем его
+        if object_property:
+            if '.' not in object_property:
+                abort(400, 'Invalid format. Expected "object.property"')
+            object_name, property_name = object_property.split('.', 1)
+        else:
+            abort(400, 'Missing required parameters: object.property')
+        
+        obj = objects_storage.getObjectByName(object_name)
+        if obj is None:
+            return {"success": False,
+                    "msg": "Object not found."}, 404
+        if property_name not in obj.properties:
+            return {"success": False,
+                    "msg": "Property not found."}, 404
+        
+        prop = obj.properties[property_name]
+        result = {}
+        result['id'] = prop.property_id
+        result['name'] = prop.name
+        result['description'] = prop.description
+        result['type'] = prop.type
+        result['object_id'] = prop.object_id
+        result['object_name'] = obj.name
+        result['object_description'] = obj.description
+        result['value_id'] = prop.value_id
+        result['history'] = prop.history
+        result['linked'] = prop.linked
+        result['method'] = prop.method
+        
+        return {"success": True,
+                "result": result}, 200
 
 @props_ns.route("/set", endpoint="property_set")
 class SetProperty(Resource):
