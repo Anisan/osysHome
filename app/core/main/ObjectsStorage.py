@@ -131,7 +131,7 @@ class ObjectStorage():
             else:
                 value = None
 
-            pm = PropertyManager(prop, value)
+            pm = PropertyManager(obj.id, prop, value)
             if prop.method_id:
                 method = session.query(Method).filter(Method.id == prop.method_id).one_or_none()
                 pm.bindMethod(method.name)

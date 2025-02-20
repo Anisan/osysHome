@@ -13,12 +13,12 @@ from app.logging_config import getLogger
 _logger = getLogger('object')
 
 class PropertyManager():
-    def __init__(self, property: Property, value: Value):
+    def __init__(self, object_id:int, property: Property, value: Value):
         self.property_id = property.id
         self.value_id = value.id if value else None
         self.name = property.name
         self.description = property.description
-        self.object_id = None
+        self.object_id = object_id
         self.history = property.history or 0
         self.changed = value.changed if value else None
         self.method = None
@@ -83,7 +83,10 @@ class PropertyManager():
             else:
                 converted_value = value
         except Exception as ex:
-            _logger.error(ex, exc_info=True, extra={'object_id': self.object_id, 'name': self.name, 'value': value})
+            _logger.error(
+                f"Error in object (object_id={self.object_id}, name={self.name}, value={value}): {str(ex)}",
+                exc_info=True
+            )
             converted_value = value
         return converted_value
 
@@ -113,7 +116,7 @@ class PropertyManager():
 
     def saveValue(self, save_history:bool=None):
         try:
-            with session_scope() as session:    # todo maybe use one session ??
+            with session_scope() as session:
                 if self.value_id is None:
                     valRec = Value()
                     valRec.object_id = self.object_id
@@ -242,7 +245,6 @@ class ObjectManager:
         self.methods = {}
 
     def _addProperty(self, property: PropertyManager) -> None:
-        property.object_id = self.object_id
         if property.value_id is None:
             with session_scope() as session:
                 valRec = Value()
@@ -273,7 +275,7 @@ class ObjectManager:
                     property_db.type = type(value).__name__
                     session.add(property_db)
                     session.commit()
-                    prop = PropertyManager(property_db,None)
+                    prop = PropertyManager(self.object_id, property_db, None)
                     self._addProperty(prop)
             prop = self.properties[name]
             old = prop.getValue()
