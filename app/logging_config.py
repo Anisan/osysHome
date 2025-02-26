@@ -32,11 +32,11 @@ def getLogger(moduleName, level=None, logDirectory='logs'):
         'disable_existing_loggers': False,
         'formatters': {
             'standard': {
-                'format': '%(asctime)s[%(levelname)s] %(message)s',
+                'format': '%(asctime)s.%(msecs)03d[%(levelname)s] %(message)s',
                 'datefmt': '%H:%M:%S'
             },
             'console_formatter': {
-                'format': '%(asctime)s[%(levelname)s] %(name)s: %(message)s',
+                'format': '%(asctime)s.%(msecs)03d[%(levelname)s] %(name)s: %(message)s',
                 'datefmt': '%H:%M:%S'
             },
         },

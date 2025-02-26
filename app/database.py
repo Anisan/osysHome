@@ -5,10 +5,11 @@ import random
 from sqlalchemy.orm import relationship
 from sqlalchemy.orm import sessionmaker, scoped_session
 from contextlib import contextmanager
-from sqlalchemy import create_engine, exc
+from sqlalchemy import create_engine, exc, event
 from settings import Config
 from .extensions import db
 from .logging_config import getLogger
+import logging
 
 try:
     # the declarative API is a part of the ORM layer since SQLAlchemy 1.4
@@ -65,6 +66,16 @@ Base.metadata.bind = engine
 DBSession = sessionmaker(bind=engine)
 
 logger = getLogger('session')
+
+# Функция для логирования SQL-запросов
+def log_sql_statement(conn, cursor, statement, parameters, context, executemany):
+    if Config.SQLALCHEMY_ECHO:
+        logger.debug(f"Executing SQL: {statement} with params: {parameters}")
+
+# Подключаем обработчик к движку SQLAlchemy
+@event.listens_for(engine, 'before_cursor_execute')
+def before_cursor_execute(conn, cursor, statement, parameters, context, executemany):
+    log_sql_statement(conn, cursor, statement, parameters, context, executemany)
 
 def model_exists(model_class):
     # The recommended way to check for existence

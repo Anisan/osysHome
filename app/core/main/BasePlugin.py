@@ -29,10 +29,9 @@ class BasePlugin:
 
         self.event = None
 
-        self.loadConfig()
+        self.logger = getLogger(name)
 
-        level = self.config.get("level_logging", None)
-        self.logger = getLogger(name, level)
+        self.loadConfig()
 
         self.blueprint = Blueprint(name,
                                    __name__,
@@ -99,7 +98,7 @@ class BasePlugin:
             try:
                 self.cyclic_task()
             except Exception as ex:
-                self.logger.error(f"Error in cyclic task: {ex}")
+                self.logger.error(f"Error in cyclic task: {ex}", exc_info=True)
 
             self.dtUpdated = datetime.datetime.now()
 
@@ -113,9 +112,18 @@ class BasePlugin:
         """ Load plugin configuration """
         with session_scope() as session:
             rec = session.query(Plugin).filter_by(name=self.name).one_or_none()
-            if rec:
-                if rec.config:
-                    self.config = json.loads(rec.config)
+            if rec and rec.config:
+                self.config = json.loads(rec.config)
+
+                level = self.config.get("level_logging", None)
+                if level is None or level == 'None':
+                    level = 'INFO'
+                    if Config.DEBUG:
+                        level = 'DEBUG'
+                import logging
+                log_level = logging.getLevelName(level)
+                self.logger.setLevel(log_level)
+                self.logger.info(f"Logger level: {level}")
 
     def saveConfig(self):
         """ Save plugin configuration """
@@ -124,6 +132,16 @@ class BasePlugin:
             if rec:
                 rec.config = json.dumps(self.config)
                 session.commit()
+
+                level = self.config.get("level_logging", None)
+                if level is None or level == 'None':
+                    level = 'INFO'
+                    if Config.DEBUG:
+                        level = 'DEBUG'
+                import logging
+                log_level = logging.getLevelName(level)
+                self.logger.setLevel(log_level)
+                self.logger.info(f"Logger level: {level}")
 
     def sendDataToWebsocket(self, operation:str, data:dict):
         """ Send data to websocket """

@@ -41,8 +41,8 @@ def createApp(config_object):
         app.config['DEBUG_TB_INTERCEPT_REDIRECTS'] =False
         app.config['SQLALCHEMY_RECORD_QUERIES'] = True
     
-    #from werkzeug.middleware.profiler import ProfilerMiddleware
-    #app.wsgi_app = ProfilerMiddleware(app.wsgi_app, restrictions=[5], profile_dir='.')
+    # from werkzeug.middleware.profiler import ProfilerMiddleware
+    # app.wsgi_app = ProfilerMiddleware(app.wsgi_app, restrictions=[5], profile_dir='.')
    
     registerExtensions(app)
     registerBlueprints(app)
