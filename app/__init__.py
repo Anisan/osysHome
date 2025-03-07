@@ -111,8 +111,11 @@ from app.core.lib.object import getProperty
 def check_page_access(request):
     _logger.debug(request)
 
+    username = getattr(current_user, 'username', None)
+    role = getattr(current_user, 'role', None)
+
     # TODO убрать открыто для admin ???
-    if current_user.role == 'admin':
+    if role == 'admin':
         return True
     
     # Извлекаем имя blueprint из endpoint
@@ -138,16 +141,16 @@ def check_page_access(request):
 
     if permissions:
         denied_users = permissions.get("denied_users",None) 
-        if denied_users and current_user.username in denied_users:
+        if denied_users and username in denied_users:
             return False
         access_users = permissions.get("access_users",None) 
-        if access_users and current_user.username in access_users:
+        if access_users and username in access_users:
             return True
         denied_roles = permissions.get("denied_roles",None) 
-        if denied_roles and current_user.role in denied_roles:
+        if denied_roles and role in denied_roles:
             return False
         access_roles = permissions.get("access_roles",None) 
-        if access_roles and current_user.role in access_roles:
+        if access_roles and role in access_roles:
             return True
 
     # Получаем функцию-обработчик для текущего маршрута
@@ -162,16 +165,15 @@ def check_page_access(request):
 
     # Пропускаем системные маршруты (например, /login, /static)
     if request.endpoint in ['static', 'login', 'logout']:
-        return
-    
+        return True
+
     # Проверяем, авторизован ли пользователь
     if not current_user.is_authenticated:
         _logger.warning(f"Unauthorized access attempt from {request.remote_addr} to {request.url}")
-        flash('You need to log in first.', 'error')
-        return redirect(url_for('auth.login'))
+        return None
 
     # Проверяем роль пользователя
-    if current_user.role in required_roles:
+    if role in required_roles:
         return True
 
     return False
@@ -180,6 +182,10 @@ def registerErrorhandlers(app):
 
     @app.before_request
     def check_access():
+
+        if request.endpoint is None:
+            return
+        
         if request.blueprint in ['auth']:
             return
 
@@ -187,13 +193,12 @@ def registerErrorhandlers(app):
         if request.endpoint in ['static']:
             return
 
-        # Проверяем, авторизован ли пользователь
-        if not current_user.is_authenticated:
-            flash('Пожалуйста, войдите в систему', 'error')
-            return redirect(url_for('auth.login'))
-
         # Проверяем доступ к странице
-        if not check_page_access(request):
+        access = check_page_access(request)
+        if access is None:
+            flash('You need to log in first.', 'error')
+            return redirect(url_for('auth.login'))
+        if not access:
             abort(403)  # Возвращаем ошибку "Forbidden" если доступ запрещен
 
     def errorhandler(error):
