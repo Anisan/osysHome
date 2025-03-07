@@ -14,7 +14,7 @@ from app.core.lib.object import getObject, getObjectsByClass, addClass, addObjec
 
 @blueprint.route('/')
 def route_default():
-    return redirect(url_for('authentication_blueprint.login'))
+    return redirect(url_for('auth.login'))
 
 # Login & Registration
 
@@ -45,12 +45,12 @@ def login():
                 user = User(obj)
                 user.set_password(password)
                 user.role = 'admin'
-                setProperty(username+".password", user.password)
-                setProperty(username+".role", 'admin')
+                setProperty(username + ".password", user.password)
+                setProperty(username + ".role", 'admin')
 
         # Check the password
         if user and user.password and user.check_password(password):
-            setProperty(username+".lastLogin",datetime.datetime.now())
+            setProperty(username + ".lastLogin",datetime.datetime.now())
             login_user(user)
             return redirect("/")
 
@@ -80,7 +80,7 @@ def login():
 @blueprint.route('/logout')
 def logout():
     logout_user()
-    return redirect(url_for('authentication_blueprint.login'))
+    return redirect(url_for('auth.login'))
 
 # Errors
 

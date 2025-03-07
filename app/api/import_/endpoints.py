@@ -3,7 +3,9 @@ from flask import request, jsonify
 from flask_restx import Namespace, Resource
 import json
 from app.database import db
-from app.api.decorators import api_key_required, role_required
+from app.api.decorators import api_key_required
+from app.authentication.handlers import handle_admin_required
+
 from app.core.models.Clasess import Class, Object, Property, Method, Value
 
 import_ns = Namespace(name="import",description="Import namespace",validate=True)
@@ -11,7 +13,7 @@ import_ns = Namespace(name="import",description="Import namespace",validate=True
 @import_ns.route("", endpoint="import_objects")
 class ImportObjects(Resource):
     @api_key_required
-    @role_required('admin')
+    @handle_admin_required
     @import_ns.doc(security="apikey")
     @import_ns.doc(params={'file': 'The file to import'},)
     def post(self):

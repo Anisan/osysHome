@@ -52,7 +52,7 @@ class BasePlugin:
     def route_admin(self):
         @self.blueprint.route("/admin/" + self.name, methods=['GET','POST'])
         @handle_admin_required
-        def funcAdmin():
+        def module():
             return self.admin(request)
 
     def admin(self, request):
@@ -124,6 +124,7 @@ class BasePlugin:
                 log_level = logging.getLevelName(level)
                 self.logger.setLevel(log_level)
                 self.logger.info(f"Logger level: {level}")
+                self.logger.debug("Config: %s", rec.config)
 
     def saveConfig(self):
         """ Save plugin configuration """

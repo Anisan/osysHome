@@ -2,7 +2,8 @@ import datetime
 from flask import request, abort
 from flask_restx import Namespace, Resource, fields
 from app.database import session_scope
-from app.api.decorators import api_key_required, role_required
+from app.api.decorators import api_key_required
+from app.authentication.handlers import handle_user_required
 from app.api.models import model_result, model_404
 from app.core.lib.object import getProperty
 from app.core.main.ObjectsStorage import objects_storage
@@ -15,7 +16,7 @@ response_404 = props_ns.model('Error', model_404)
 @props_ns.route("/list/<object_name>", endpoint="properties_list")
 class PropertiesList(Resource):
     @api_key_required
-    @role_required('user')
+    @handle_user_required
     @props_ns.doc(security="apikey")
     @props_ns.response(200, "Retrieved list properties of object.", response_result)
     @props_ns.response(404, 'Not Found', response_404)
@@ -36,7 +37,7 @@ class PropertiesList(Resource):
 @props_ns.route("/get", endpoint="property_get")
 class GetProperty(Resource):
     @api_key_required
-    @role_required('user')
+    @handle_user_required
     @props_ns.doc(security="apikey")
     @props_ns.param('object', 'Object name')
     @props_ns.param('property', 'Property name')
@@ -73,7 +74,7 @@ class GetProperty(Resource):
                 "result": result}, 200
  
     @api_key_required
-    @role_required('user')
+    @handle_user_required
     @props_ns.doc(security="apikey")
     @props_ns.expect(props_ns.model('PropertiesList', {
         'properties': fields.List(fields.String, required=True, description='List of properties to get')
@@ -105,7 +106,7 @@ class GetProperty(Resource):
 @props_ns.route("/<path:object_property>", endpoint="property_get_with_path")
 class PropertyWithPath(Resource):
     @api_key_required
-    @role_required('user')
+    @handle_user_required
     @props_ns.doc(security="apikey")
     @props_ns.param('object_property', 'Object and property name in format "object.property"', _in='path')
     @props_ns.response(200, "Result", response_result)
@@ -140,7 +141,7 @@ class PropertyWithPath(Resource):
                 "result": result}, 200
 
     @api_key_required
-    @role_required('user')
+    @handle_user_required
     @props_ns.doc(security="apikey")
     def post(self, object_property):
         '''
@@ -149,7 +150,7 @@ class PropertyWithPath(Resource):
         if object_property:
             if '.' not in object_property:
                 abort(400, 'Invalid format. Expected "object.property"')
-            object_name, payload = object_property.split('.', 1)
+            object_name, property_name = object_property.split('.', 1)
         else:
             abort(400, 'Missing required parameters: object.property')
         item = objects_storage.getObjectByName(object_name)
@@ -157,7 +158,7 @@ class PropertyWithPath(Resource):
             payload = request.get_json()
             value = payload['data']
             source = payload.get('source', 'api')
-            item.setProperty(payload,value,source)
+            item.setProperty(property_name,value,source)
             return {'success': True}, 200
         return {
             'success': False,
@@ -166,7 +167,7 @@ class PropertyWithPath(Resource):
 @props_ns.route("/info/<path:object_property>", endpoint="property_info")
 class PropertyInfo(Resource):
     @api_key_required
-    @role_required('user')
+    @handle_user_required
     @props_ns.doc(security="apikey")
     @props_ns.param('object_property', 'Object and property name in format "object.property"', _in='path')
     @props_ns.response(200, "Result", response_result)
@@ -212,7 +213,7 @@ class PropertyInfo(Resource):
 @props_ns.route("/set", endpoint="property_set")
 class SetProperty(Resource):
     @api_key_required
-    @role_required('user')
+    @handle_user_required
     @props_ns.doc(security="apikey")
     @props_ns.param('object', 'Object name')
     @props_ns.param('property', 'Property name')
@@ -239,7 +240,7 @@ class SetProperty(Resource):
 @props_ns.route("/history", endpoint="property_history")
 class GetHistory(Resource):
     @api_key_required
-    @role_required('user')
+    @handle_user_required
     @props_ns.doc(security="apikey")
     @props_ns.doc(params={
         'object': {'description': 'The object name (source)', 'type': 'string', 'required': True},
@@ -280,6 +281,8 @@ class GetHistory(Resource):
         return {"success": True,
                 "result": result}, 200
 
+    @api_key_required
+    @handle_user_required
     @props_ns.doc(params={
         'id': {'description': 'The unique identifier of the history entry', 'type': 'integer', 'required': True},
     })
@@ -297,7 +300,7 @@ class GetHistory(Resource):
 @props_ns.route("/history/aggregate")
 class GetAggregateHistory(Resource):
     @api_key_required
-    @role_required('user')
+    @handle_user_required
     @props_ns.doc(security="apikey")
     @props_ns.doc(params={
         'object': {'description': 'The object name (source)', 'type': 'string', 'required': True},

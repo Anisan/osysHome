@@ -1,7 +1,8 @@
 import datetime
 from flask import request
 from flask_restx import Namespace, Resource, fields
-from app.api.decorators import api_key_required, role_required
+from app.api.decorators import api_key_required
+from app.authentication.handlers import handle_user_required, handle_admin_required
 from app.api.models import model_404, model_result
 from app.core.models.Plugins import Plugin
 from app.database import row2dict, session_scope
@@ -16,7 +17,7 @@ response_404 = plugins_ns.model("Error", model_404)
 @plugins_ns.route("/")
 class GetPlugins(Resource):
     @api_key_required
-    @role_required("user")
+    @handle_user_required
     @plugins_ns.doc(security="apikey")
     @plugins_ns.response(200, "List plugins", response_result)
     def get(self):
@@ -67,7 +68,7 @@ class GetPlugins(Resource):
 @plugins_ns.route("/<path:plugin_name>")
 class GetPluginInfo(Resource):
     @api_key_required
-    @role_required("user")
+    @handle_user_required
     @plugins_ns.doc(security="apikey")
     def get(self,plugin_name):
         """
@@ -104,7 +105,7 @@ class GetPluginInfo(Resource):
 @plugins_ns.route("/<path:plugin_name>/start")
 class StartCycle(Resource):
     @api_key_required
-    @role_required("admin")
+    @handle_admin_required
     @plugins_ns.doc(security="apikey")
     def get(self,plugin_name):
         """
@@ -123,7 +124,7 @@ class StartCycle(Resource):
 @plugins_ns.route("/<path:plugin_name>/stop")
 class StopCycle(Resource):
     @api_key_required
-    @role_required("admin")
+    @handle_admin_required
     @plugins_ns.doc(security="apikey")
     def get(self,plugin_name):
         """
@@ -141,7 +142,7 @@ class StopCycle(Resource):
 @plugins_ns.route("/<path:plugin_name>/restart")
 class RestartCycle(Resource):
     @api_key_required
-    @role_required("admin")
+    @handle_admin_required
     @plugins_ns.doc(security="apikey")
     def get(self,plugin_name):
         """

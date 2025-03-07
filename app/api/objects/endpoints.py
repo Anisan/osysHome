@@ -1,7 +1,8 @@
 from flask import request
 from flask_restx import Namespace, Resource
 from app.api.models import model_result, model_404
-from app.api.decorators import api_key_required, role_required
+from app.api.decorators import api_key_required
+from app.authentication.handlers import handle_user_required, handle_admin_required
 from app.core.main.ObjectsStorage import objects_storage
 
 objects_ns = Namespace(name="objects",description="Objects namespace",validate=True)
@@ -12,7 +13,7 @@ response_404 = objects_ns.model('Error', model_404)
 @objects_ns.route("/<object_name>", endpoint="object")
 class GetObject(Resource):
     @api_key_required
-    @role_required('user')
+    @handle_user_required
     @objects_ns.doc(security="apikey")
     @objects_ns.response(200, "Retrieved object.", response_result)
     @objects_ns.response(404, 'Not Found', response_404)
@@ -40,7 +41,7 @@ class GetObject(Resource):
 @objects_ns.route("/data/<object_name>", endpoint="object_data")
 class GetObjectData(Resource):
     @api_key_required
-    @role_required('user')
+    @handle_user_required
     @objects_ns.doc(security="apikey")
     @objects_ns.response(200, "Retrieved object data.", response_result)
     @objects_ns.response(404, 'Not Found', response_404)
@@ -62,7 +63,7 @@ class GetObjectData(Resource):
             'success': False,
             'message': 'Object not found'}, 404
     @api_key_required
-    @role_required('user')
+    @handle_user_required
     @objects_ns.doc(security="apikey")
     def post(self, object_name):
         item = objects_storage.getObjectByName(object_name)
@@ -79,7 +80,7 @@ class GetObjectData(Resource):
 class ObjectList(Resource):
     """Handles HTTP requests to URL: /objects."""
     @api_key_required
-    @role_required('user')
+    @handle_user_required
     @objects_ns.doc(security="apikey")
     @objects_ns.response(200, "Retrieved objects dict.", response_result)
     def get(self):
@@ -97,7 +98,7 @@ class ObjectList(Resource):
 class ObjectListDetails(Resource):
     """Handles HTTP requests to URL: /objects/details."""
     @api_key_required
-    @role_required('user')
+    @handle_user_required
     @objects_ns.doc(security="apikey")
     @objects_ns.response(200, "Retrieved objects dict.", response_result)
     def get(self):
@@ -123,7 +124,7 @@ class ObjectListDetails(Resource):
 class ObjectByClass(Resource):
     """Handles HTTP requests to URL: /class/<class_name>."""
     @api_key_required
-    @role_required('user')
+    @handle_user_required
     @objects_ns.doc(security="apikey")
     @objects_ns.response(200, "Retrieved objects dict.", response_result)
     def get(self, class_name):

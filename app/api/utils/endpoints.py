@@ -1,6 +1,7 @@
 from flask import request, render_template
 from flask_restx import Namespace, Resource, fields
-from app.api.decorators import api_key_required, role_required
+from app.api.decorators import api_key_required
+from app.authentication.handlers import handle_admin_required
 from app.logging_config import getLogger
 
 _logger = getLogger("api")
@@ -10,7 +11,7 @@ utils_ns = Namespace(name="utils",description="Utilites namespace",validate=True
 @utils_ns.route('/search')
 class GlobalSearch(Resource):
     @api_key_required
-    @role_required('admin')
+    @handle_admin_required
     @utils_ns.doc(security="apikey")
     @utils_ns.param('query', 'A query string parameter')
     def get(self):
@@ -37,7 +38,7 @@ class GlobalSearch(Resource):
 @utils_ns.route('/readnotify/<id>')
 class ReadNotify(Resource):
     @api_key_required
-    @role_required('admin')
+    @handle_admin_required
     @utils_ns.doc(security="apikey")
     def get(self, id):
         '''
@@ -50,7 +51,7 @@ class ReadNotify(Resource):
 @utils_ns.route('/readnotify/all')
 class ReadNotifyAll(Resource):
     @api_key_required
-    @role_required('admin')
+    @handle_admin_required
     @utils_ns.doc(security="apikey")
     @utils_ns.param('source', 'Source notify')
     def get(self):
@@ -73,7 +74,7 @@ run_model = utils_ns.model('CodeTextModel', {
 @utils_ns.route('/run')
 class RunCode(Resource):
     @api_key_required
-    @role_required('admin')
+    @handle_admin_required
     @utils_ns.expect(run_model, validate=True)
     @utils_ns.doc(security="apikey")
     def post(self):
@@ -100,7 +101,7 @@ cron_task_model = utils_ns.model('CodeTextModel', {
 @utils_ns.route('/crontask')
 class setCronTask(Resource):
     @api_key_required
-    @role_required('admin')
+    @handle_admin_required
     @utils_ns.expect(cron_task_model, validate=True)
     @utils_ns.doc(security="apikey")
     def post(self):

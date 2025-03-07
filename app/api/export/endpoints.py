@@ -3,7 +3,8 @@ from flask import request, jsonify, Response
 from flask_restx import Namespace, Resource
 import json
 from app.database import db
-from app.api.decorators import api_key_required, role_required
+from app.api.decorators import api_key_required
+from app.authentication.handlers import handle_admin_required
 from app.core.models.Clasess import Class, Object, Property, Method, Value
 from app.logging_config import getLogger
 
@@ -43,7 +44,7 @@ def getClassInfo(class_id):
         for p in properties:
             method = None
             class_method = None
-            if p.method_id != None:
+            if p.method_id is not None:
                 method = Method.get_by_id(p.method_id)
                 cl = Class.get_by_id(method.class_id)
                 method = method.name
@@ -64,10 +65,10 @@ def getObjectInfo(object_id):
     values = Value.query.filter(Value.object_id == object_id).all()
     # Преобразуем объект SQLAlchemy в словарь
     object_data = {
-            'name': obj.name,
-            'description': obj.description,
-            'template': obj.template,
-            'parent': None,
+        'name': obj.name,
+        'description': obj.description,
+        'template': obj.template,
+        'parent': None,
     }
     parent_class = Class.get_by_id(obj.class_id)
     object_data['class'] = parent_class.name
@@ -76,7 +77,7 @@ def getObjectInfo(object_id):
     properties_data = []
     for p in properties:
         prop = {'name': p.name, 'description':p.description, 'history':p.history, 'type':p.type, 'method': None, 'object':obj.name}
-        if p.method_id != None:
+        if p.method_id is not None:
             method = Method.get_by_id(p.method_id)
             prop['method'] = method.name
             if method.class_id:
@@ -94,12 +95,13 @@ def getObjectInfo(object_id):
     data['values'] = values_data
     return data
 
+
 export_ns = Namespace(name="export",description="Export namespace",validate=True)
 
 @export_ns.route("/class/<class_id>", endpoint="export_class")
 class ExportClass(Resource):
     @api_key_required
-    @role_required('admin')
+    @handle_admin_required
     @export_ns.doc(security="apikey")
     def get(self, class_id):
         '''
@@ -123,7 +125,7 @@ class ExportClass(Resource):
 @export_ns.route("/class_all/<class_id>", endpoint="export_all_class")
 class ExportAllClass(Resource):
     @api_key_required
-    @role_required('admin')
+    @handle_admin_required
     @export_ns.doc(security="apikey")
     def get(self, class_id):
         '''
@@ -158,7 +160,7 @@ class ExportAllClass(Resource):
 @export_ns.route("/object/<object_id>", endpoint="export_object")
 class ExportObject(Resource):
     @api_key_required
-    @role_required('admin')
+    @handle_admin_required
     @export_ns.doc(security="apikey")
     def get(self, object_id):
         obj = Object.get_by_id(object_id)

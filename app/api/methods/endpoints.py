@@ -1,6 +1,7 @@
 from flask import request, abort
 from flask_restx import Namespace, Resource, fields
-from app.api.decorators import api_key_required, role_required
+from app.api.decorators import api_key_required
+from app.authentication.handlers import handle_user_required
 from app.api.models import model_result, model_404
 from app.core.main.ObjectsStorage import objects_storage
 
@@ -12,7 +13,7 @@ response_404 = methods_ns.model('Error', model_404)
 @methods_ns.route("/list/<object_name>", endpoint="methods_list")
 class MethodsList(Resource):
     @api_key_required
-    @role_required('user')
+    @handle_user_required
     @methods_ns.doc(security="apikey")
     @methods_ns.response(200, "Retrieved list methods of object.", response_result)
     @methods_ns.response(404, 'Not Found', response_404)
@@ -40,7 +41,7 @@ response_call = methods_ns.model('ResultCallMethod', {
 @methods_ns.route("/call", endpoint="method_call")
 class CallMethod(Resource):
     @api_key_required
-    @role_required('user')
+    @handle_user_required
     @methods_ns.doc(security="apikey")
     @methods_ns.param('object', 'Object name')
     @methods_ns.param('method', 'Method name')

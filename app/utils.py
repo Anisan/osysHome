@@ -27,3 +27,5 @@ def initSystemVar():
     addObjectProperty('LastSay','SystemVar',"Last 'say' message",7,PropertyType.String)
     setProperty("SystemVar.Started",datetime.datetime.now(), "osysHome")
     setProperty("SystemVar.NeedRestart", False, "osysHome")
+
+    addObject("_permissions",None,"Permission settings")

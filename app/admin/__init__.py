@@ -2,7 +2,7 @@
 from flask import Blueprint
 
 blueprint = Blueprint(
-    'admin_blueprint',
+    'admin',
     __name__,
     url_prefix=''
 )

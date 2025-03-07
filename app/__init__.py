@@ -1,6 +1,6 @@
 """ Main module """
 from importlib import import_module
-from flask import Flask, request, render_template
+from flask import Flask, request, render_template, current_app
 import flask_monitoringdashboard as dashboard
 from . import commands
 from .exceptions import InvalidUsage
@@ -100,12 +100,101 @@ def registerBlueprints(app):
     #app.register_blueprint(profile.views.blueprint)
     #app.register_blueprint(articles.views.blueprint)
 
-    for moduleName in ('authentication','admin'):
+    for moduleName in ('authentication','admin','files'):
         module = import_module('app.{}.routes'.format(moduleName))
         app.register_blueprint(module.blueprint)
     
+from flask_login import current_user
+from flask import flash, redirect, url_for, abort
+from app.core.lib.object import getProperty
+
+def check_page_access(request):
+    _logger.debug(request)
+
+    # TODO убрать открыто для admin ???
+    if current_user.role == 'admin':
+        return True
+    
+    # Извлекаем имя blueprint из endpoint
+    parts = request.endpoint.split('.')
+    if len(parts) > 1:
+        blueprint_name = parts[0]  # Имя blueprint
+    else:
+        blueprint_name = "Core"  # Маршрут не принадлежит ни к одному blueprint
+
+    endpoint = request.endpoint.replace(".", ":")
+    permissions = None
+
+    blueprint_permissions = getProperty("_permissions.blueprint:" + blueprint_name)
+    if blueprint_permissions and isinstance(blueprint_permissions, dict):
+        permissions = blueprint_permissions
+
+    endpoint_permissions = getProperty("_permissions." + endpoint)
+    if endpoint_permissions and isinstance(endpoint_permissions, dict):
+        permissions = endpoint_permissions
+
+    if permissions:
+        permissions = permissions.get(request.method.lower(), None)
+
+    if permissions:
+        denied_users = permissions.get("denied_users",None) 
+        if denied_users and current_user.username in denied_users:
+            return False
+        access_users = permissions.get("access_users",None) 
+        if access_users and current_user.username in access_users:
+            return True
+        denied_roles = permissions.get("denied_roles",None) 
+        if denied_roles and current_user.role in denied_roles:
+            return False
+        access_roles = permissions.get("access_roles",None) 
+        if access_roles and current_user.role in access_roles:
+            return True
+
+    # Получаем функцию-обработчик для текущего маршрута
+    view_func = current_app.view_functions.get(request.endpoint)
+
+    # Проверяем, есть ли у функции атрибут required_role
+    required_roles = getattr(view_func, 'required_roles', None)
+
+    # для не заданных ролей считаем что открыто (FIXME потенциальная дыра в безопасности)
+    if required_roles is None:
+        return True
+
+    # Пропускаем системные маршруты (например, /login, /static)
+    if request.endpoint in ['static', 'login', 'logout']:
+        return
+    
+    # Проверяем, авторизован ли пользователь
+    if not current_user.is_authenticated:
+        _logger.warning(f"Unauthorized access attempt from {request.remote_addr} to {request.url}")
+        flash('You need to log in first.', 'error')
+        return redirect(url_for('auth.login'))
+
+    # Проверяем роль пользователя
+    if current_user.role in required_roles:
+        return True
+
+    return False
 
 def registerErrorhandlers(app):
+
+    @app.before_request
+    def check_access():
+        if request.blueprint in ['auth']:
+            return
+
+        # Пропускаем аутентификацию для определенных маршрутов
+        if request.endpoint in ['static']:
+            return
+
+        # Проверяем, авторизован ли пользователь
+        if not current_user.is_authenticated:
+            flash('Пожалуйста, войдите в систему', 'error')
+            return redirect(url_for('auth.login'))
+
+        # Проверяем доступ к странице
+        if not check_page_access(request):
+            abort(403)  # Возвращаем ошибку "Forbidden" если доступ запрещен
 
     def errorhandler(error):
         _logger.warning(error)

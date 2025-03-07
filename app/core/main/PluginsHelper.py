@@ -52,19 +52,6 @@ def register_plugins(app):
                     except Exception as ex:
                         _logger.critical(ex, exc_info=True)
 
-    # Маршрут для перезагрузки плагина
-    @app.route("/restart-plugin/<plugin_name>")
-    @handle_admin_required
-    def restart_plugin_route(plugin_name):
-        for key, plugin_info in plugins.items():
-            if plugin_info["name"] == plugin_name:
-                # Перезапускаем цикл плагина
-                plugin_instance = plugin_info["instance"]
-                plugin_instance.stop_cycle()
-                plugin_instance.start_cycle()
-                return "Plugin cycle restarted."
-        return "Plugin not found"
-
     # Регистрируем контекстный процессор
     @app.context_processor
     def inject_sidebar():
