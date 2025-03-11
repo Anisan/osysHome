@@ -531,6 +531,8 @@ class ObjectManager:
                 result = History.get_count(session, value_id, dt_begin,dt_end)
                 return result
             data = self.getHistory(name, dt_begin, dt_end)
+            if not data:
+                return None
             data = [item['value'] for item in data]
             if func == 'min':
                 result = min(data)
