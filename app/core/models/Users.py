@@ -11,18 +11,21 @@ class User(UserMixin):
     role: str = None
     home_page: str = None
     apikey: str = None
+    pages_access: list = []
+    pages_denied: list = []
 
-    def __init__(self, object):
-        self.username = object.name
-        if object.getProperty('password'):
-            self.password = object.password
-        if object.getProperty('image'):
-            self.image = object.image
-        if object.getProperty('role'):
-            self.role = object.role
-        if object.getProperty('home_page'):
-            self.home_page = object.home_page
-        self.apikey = object.getProperty('apikey')
+    def __init__(self, objectUser):
+        self.username = object.__getattribute__(objectUser, 'name')
+        if 'password' in objectUser.__dict__['properties']:
+            self.password = objectUser.__dict__['properties']["password"]._PropertyManager__value
+        if 'image' in objectUser.__dict__['properties']:
+            self.image = objectUser.__dict__['properties']["image"]._PropertyManager__value
+        if 'role' in objectUser.__dict__['properties']:
+            self.role = objectUser.__dict__['properties']["role"]._PropertyManager__value
+        if 'home_page' in objectUser.__dict__['properties']:
+            self.home_page = objectUser.__dict__['properties']["home_page"]._PropertyManager__value
+        if 'apikey' in objectUser.__dict__['properties']:
+            self.apikey = objectUser.__dict__['properties']["apikey"]._PropertyManager__value
 
     def set_password(self, password):
         """Set password."""

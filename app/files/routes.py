@@ -1,11 +1,9 @@
 import os
-from app.core.migrate import perform_migrations
-from flask import render_template, send_from_directory, jsonify
+from flask import send_from_directory
 from . import blueprint
 from settings import Config
 from app.logging_config import getLogger
 from app.authentication.handlers import handle_admin_required, handle_user_required
-from app.core.main.PluginsHelper import plugins
 
 _logger = getLogger("main")
 

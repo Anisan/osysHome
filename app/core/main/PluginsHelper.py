@@ -13,6 +13,7 @@ _logger = getLogger('plugin_helper')
 plugins = {}
 
 def register_plugins(app):
+    _logger.debug("Register plugins")
     # Папка, в которой находятся плагины
     plugin_folder = app.config.get("PLUGINS_FOLDER", "plugins")
 
@@ -22,6 +23,7 @@ def register_plugins(app):
         if os.path.isdir(plugin_path):
             plugin_files = [f for f in os.listdir(plugin_path) if f == "__init__.py"]
             plugin_name = os.path.basename(plugin_path)
+            _logger.debug(f"Register plugin  {plugin_name}")
             for plugin_file in plugin_files:
                 plugin_file_path = os.path.join(plugin_path, plugin_file)
                 spec = importlib.util.spec_from_file_location(

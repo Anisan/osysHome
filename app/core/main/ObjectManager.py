@@ -1,9 +1,11 @@
 import datetime
+from enum import Enum
 from dateutil import parser
 import threading
 import json
 from sqlalchemy import update
 from flask import render_template_string
+from flask_login import current_user
 from app.database import session_scope,row2dict
 from app.core.main.PluginsHelper import plugins
 from app.core.models.Clasess import Object, Property, Value, History
@@ -11,6 +13,13 @@ from app.core.lib.common import setTimeout
 from app.core.lib.execute import execute_and_capture_output
 from app.logging_config import getLogger
 _logger = getLogger('object')
+
+class TypeOperation(Enum):
+    """ Type operation """
+    Get = "get"
+    Set = "set"
+    Call = "call"
+    Edit = "edit"
 
 class PropertyManager():
     def __init__(self, object_id:int, property: Property, value: Value):
@@ -91,7 +100,7 @@ class PropertyManager():
         return converted_value
 
     def _encodeValue(self):
-        # TODO convert to string
+        # convert to string
         value = self.__value
         if value is None:
             return 'None'
@@ -146,9 +155,14 @@ class PropertyManager():
             _logger.exception(ex, exc_info=True)
 
     def setValue(self, value, source='', changed=None, save_history:bool=None):
-        
+
         self.__value = self._decodeValue(value)
         self.source = source
+        username = getattr(current_user, 'username', None)
+        if username:
+            if self.source != '':
+                self.source += ':'
+            self.source += username
         if changed is not None:
             self.changed = changed
         else:
@@ -197,7 +211,7 @@ class PropertyManager():
             # "count_write": self.count_write,
             # "readed": str(self.readed)
         }
-    
+
     def __str__(self):
         return f"PropertyManager(name='{self.name}', description='{self.description}', value='{self.value}')"
 
@@ -214,7 +228,7 @@ class MethodManager():
         self.executed = None
         self.exec_params = None
         self.exec_result = None
-    
+
     def to_dict(self):
         return {
             "name": self.name,
@@ -225,7 +239,7 @@ class MethodManager():
             # "exec_params": self.exec_params,
             # "exec_result": self.exec_result
         }
-    
+
     def __str__(self):
         return f"MethodManager(name='{self.name}', description='{self.description}')"
 
@@ -237,6 +251,8 @@ class ObjectManager:
         Contain properties and methods
     """
     def __init__(self, obj: Object):
+        object.__setattr__(self, "__inited", False)
+        object.__setattr__(self, "__permissions", None)
         self.object_id = obj.id
         self.name = obj.name
         self.description = obj.description
@@ -255,6 +271,72 @@ class ObjectManager:
                 property.value_id = valRec.id
         self.properties[property.name] = property
 
+    def set_permission(self, permissions):
+        object.__setattr__(self, "__permissions", permissions)
+        object.__setattr__(self, "__inited", True)
+
+    def _check_permissions(self, operation:TypeOperation, property_name:str=None, method_name:str=None):
+        if not object.__getattribute__(self, "__inited"):
+            return True
+
+        name = object.__getattribute__(self, "name")
+
+        if name == "_permission" and operation == TypeOperation.Get:
+            return True
+
+        # permissions check
+        username = getattr(current_user, 'username', None)
+        if username is None:
+            return True
+
+        role = getattr(current_user, 'role', None)
+
+        if role == 'root':
+            return True
+
+        _permissions = object.__getattribute__(self, "__permissions")
+        if _permissions is None:
+            return True
+
+        permissions = None
+
+        if "self" in _permissions:
+            permissions = _permissions["self"]
+
+        if property_name:
+            if "properties" in _permissions and property_name in _permissions["properties"]:
+                permissions = _permissions["properties"][property_name]
+
+        if method_name:
+            if "methods" in _permissions and method_name in _permissions["methods"]:
+                permissions = _permissions["methods"][method_name]
+
+        if permissions:
+            permissions = permissions.get(operation.value, None)
+
+        if permissions:
+            denied_users = permissions.get("denied_users",None)
+            if denied_users:
+                if username in denied_users or "*" in denied_users:
+                    raise PermissionError(f"User {username}({role}) don't have permission to {operation.value} obj:{name} property:{property_name} method:{method_name}")
+            access_users = permissions.get("access_users",None)
+            if access_users:
+                if username in access_users or "*" in access_users:
+                    return True
+            denied_roles = permissions.get("denied_roles",None)
+            if denied_roles:
+                if role in denied_roles or "*" in denied_roles:
+                    raise PermissionError(f"User {username}({role}) don't have permission to {operation.value} obj:{name} property:{property_name} method:{method_name}")
+            access_roles = permissions.get("access_roles",None)
+            if access_roles:
+                if role in access_roles or "*" in access_roles:
+                    return True
+
+        if role in ["user","editor","admin"]:
+            return True
+
+        raise PermissionError(f"User {username}({role}) don't have permission to {operation.value} obj:{name} property:{property_name} method:{method_name}")
+
     def setProperty(self, name:str, value, source:str='', save_history:bool=None):
         """ Set property value
 
@@ -267,6 +349,8 @@ class ObjectManager:
         """
         try:
             _logger.debug("ObjectManager::setProperty %s.%s - %s", self.name, name, str(value))
+            if not self._check_permissions(TypeOperation.Set, name, None):
+                raise PermissionError("You don't have permission to set property %s" % name)
             if name not in self.properties:
                 with session_scope() as session:
                     property_db = Property()
@@ -291,7 +375,7 @@ class ObjectManager:
                 for link in prop.linked:
                     if link == source:
                         continue
-                    # TODO get plugin
+                    # get plugin
                     if link in plugins:
                         plugin = plugins[link]
                         try:
@@ -342,6 +426,9 @@ class ObjectManager:
         Returns:
             any: Value
         """
+        if not self._check_permissions(TypeOperation.Get, name, None):
+            raise PermissionError("You don't have permission to get property %s" % name)
+
         if name in self.properties:
             prop = self.properties[name]
             return getattr(prop, data, None)
@@ -360,12 +447,18 @@ class ObjectManager:
 
     def __getattr__(self, name):
         if name in self.__dict__['properties']:
+            if not self._check_permissions(TypeOperation.Get, name, None):
+                raise PermissionError("You don't have permission to get property %s" % name)
             prop = self.__dict__['properties'][name]
             return prop.value
         else:
             raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{name}'")
 
     def __setattr__(self, name, value):
+        if name not in ['properties', 'template']:
+            if not self._check_permissions(TypeOperation.Set, name, None):
+                raise PermissionError("You don't have permission to get property %s" % name)
+
         if name == "properties":
             super().__setattr__(name, value)
         elif "properties" in self.__dict__ and name in self.properties:
@@ -394,6 +487,10 @@ class ObjectManager:
         if name not in self.methods:
             _logger.warning("Method %s does not exist.", name)
             return None
+
+        if not self._check_permissions(TypeOperation.Call, None, name):
+            raise PermissionError("You don't have permission to call method %s" % name)
+
         try:
             variables = {
                 'self': self,
@@ -412,6 +509,11 @@ class ObjectManager:
                 if res:
                     output += res + "\n"
 
+            username = getattr(current_user, 'username', None)
+            if username:
+                if source != '':
+                    source += ':'
+                source += username
             self.methods[name].source = source
             self.methods[name].executed = datetime.datetime.now()
             self.methods[name].exec_params = args
@@ -425,7 +527,7 @@ class ObjectManager:
 
             return output
         except Exception as ex:
-            _logger.critical(ex, exc_info=True)     # TODO write adv info
+            _logger.critical(ex, exc_info=True)
             return str(ex)
 
     def render(self) -> str:
@@ -451,6 +553,9 @@ class ObjectManager:
             timeout(int): Timeout in sec
             source(str): Source
         """
+        if not self._check_permissions(TypeOperation.Set, propName, None):
+            raise PermissionError("You don't have permission to get property %s" % propName)
+
         src = f',"{source}"' if source else ',"Scheduler"'
         code = f'setProperty("{self.name}.{propName}","{str(value)}"{src})'
         setTimeout(self.name + "_" + propName + "_timeout", code, timeout)
@@ -464,6 +569,9 @@ class ObjectManager:
             timeout(int): Timeout in sec
             source(str): Source
         """
+        if not self._check_permissions(TypeOperation.Set, propName, None):
+            raise PermissionError("You don't have permission to get property %s" % propName)
+
         src = f',"{source}"' if source else ',"Scheduler"'
         code = f'updateProperty("{self.name}.{propName}","{str(value)}"{src})'
         setTimeout(self.name + "_" + propName + "_timeout", code, timeout)
@@ -476,6 +584,9 @@ class ObjectManager:
             timeout (int): Timeout in sec
             source (str, optional): Source. Defaults to ''.
         """
+        if not self._check_permissions(TypeOperation.Call, None, methodName):
+            raise PermissionError("You don't have permission to call method %s" % methodName)
+
         src = f',"{source}"' if source else ',"Scheduler"'
         code = f'callMethod("{self.name}.{methodName}"{src})'
         setTimeout(self.name + "_" + methodName + "_timeout", code, timeout)
@@ -494,6 +605,8 @@ class ObjectManager:
         Returns:
             list: List of history
         """
+        if not self._check_permissions(TypeOperation.Get, name, None):
+            raise PermissionError("You don't have permission to get history of property %s" % name)
 
         if name not in self.properties:
             return None
@@ -521,6 +634,9 @@ class ObjectManager:
         Returns:
             any : Result function
         """
+        if not self._check_permissions(TypeOperation.Get, name, None):
+            raise PermissionError("You don't have permission to get history of property %s" % name)
+
         if name not in self.properties:
             return None
         prop:PropertyManager = self.properties[name]
@@ -551,7 +667,7 @@ class ObjectManager:
                     "avg": sum(data) / len(data) if data else 0
                 }
             return result
-        
+
     def getStats(self):
         stat_props = {}
         stat_methods = {}
@@ -583,7 +699,7 @@ class ObjectManager:
     def to_dict(self):
         properties_dict = {name: prop.to_dict() for name, prop in self.properties.items()}
         methods_dict = {name: method.to_dict() for name, method in self.methods.items()}
-        
+
         return {
             "name": self.name,
             "id": self.object_id,

@@ -1,12 +1,16 @@
 """ Main module """
+import os
 from importlib import import_module
 from flask import Flask, request, render_template, current_app
 import flask_monitoringdashboard as dashboard
-from . import commands
-from .exceptions import InvalidUsage
-from .constants import LANGUAGES
-from .extensions import db, migrate, login_manager, cors, bcrypt, babel, toolbar, cache
-from .core.main.PluginsHelper import *
+from flask_login import current_user
+from flask import flash, redirect, url_for, abort
+from app.core.lib.object import getProperty
+from app import commands
+from app.exceptions import InvalidUsage
+from app.constants import LANGUAGES
+from app.extensions import db, login_manager, cors, bcrypt, babel, toolbar, cache
+from app.core.main.PluginsHelper import register_plugins
 from app.core.utils import CustomJSONEncoder
 
 from .logging_config import getLogger
@@ -31,25 +35,28 @@ def createApp(config_object):
     _logger.info("DB: %s", config_object.SQLALCHEMY_DATABASE_URI)
     app.config['SQLALCHEMY_DATABASE_URI'] = config_object.SQLALCHEMY_DATABASE_URI
     app.config['SQLALCHEMY_POOL_SIZE'] = 20
-        
+
     app.config.update(RESTX_JSON={"cls": CustomJSONEncoder})
 
     if config_object.DEBUG:
         app.config['DEBUG_TB_TEMPLATE_EDITOR_ENABLED'] = True
         app.config['DEBUG_TB_PROFILER_ENABLED'] = True
         app.config['DEBUG_TB_PROFILER_DUMP_FILENAME'] = "dump.prof"
-        app.config['DEBUG_TB_INTERCEPT_REDIRECTS'] =False
+        app.config['DEBUG_TB_INTERCEPT_REDIRECTS'] = False
         app.config['SQLALCHEMY_RECORD_QUERIES'] = True
-    
+
     # from werkzeug.middleware.profiler import ProfilerMiddleware
     # app.wsgi_app = ProfilerMiddleware(app.wsgi_app, restrictions=[5], profile_dir='.')
-   
+
     registerExtensions(app)
     registerBlueprints(app)
-    registerErrorhandlers(app)
+    registerErrorHandlers(app)
     registerShellcontext(app)
     registerCommands(app)
     register_plugins(app)
+
+    from app.database import sync_db
+    sync_db(app)
 
     if config_object.DEBUG:
         dashboard.bind(app)
@@ -74,12 +81,11 @@ def registerExtensions(app):
     cache.init_app(app)
     db.init_app(app)
     cors.init_app(app)
-    migrate.init_app(app, db)
     login_manager.init_app(app)
     toolbar.init_app(app)
-    
+
     def locale():
-        #TODO get from user language
+        # TODO get from user language
         return request.accept_languages.best_match(LANGUAGES.keys())
 
     babel.init_app(app,locale_selector=locale)
@@ -88,42 +94,38 @@ def registerExtensions(app):
 
 def registerBlueprints(app):
     """Register Flask blueprints."""
-    origins = app.config.get('CORS_ORIGIN_WHITELIST', '*')
-    #cors.init_app(auth.views.blueprint, origins=origins)
-    #cors.init_app(user.views.blueprint, origins=origins)
-    #cors.init_app(profile.views.blueprint, origins=origins)
-    #cors.init_app(articles.views.blueprint, origins=origins)
-
     from app.api import api_blueprint
     app.register_blueprint(api_blueprint)
-    #app.register_blueprint(user.views.blueprint)
-    #app.register_blueprint(profile.views.blueprint)
-    #app.register_blueprint(articles.views.blueprint)
 
     for moduleName in ('authentication','admin','files'):
         module = import_module('app.{}.routes'.format(moduleName))
         app.register_blueprint(module.blueprint)
-    
-from flask_login import current_user
-from flask import flash, redirect, url_for, abort
-from app.core.lib.object import getProperty
 
 def check_page_access(request):
     _logger.debug(request)
 
-    username = getattr(current_user, 'username', None)
-    role = getattr(current_user, 'role', None)
-
-    # TODO убрать открыто для admin ???
-    if role == 'admin':
-        return True
-    
     # Извлекаем имя blueprint из endpoint
     parts = request.endpoint.split('.')
     if len(parts) > 1:
         blueprint_name = parts[0]  # Имя blueprint
     else:
         blueprint_name = "Core"  # Маршрут не принадлежит ни к одному blueprint
+
+    # check api key for api
+    if not current_user.is_authenticated and blueprint_name == 'api':
+        api_key = request.args.get('apikey')
+        if api_key:
+            from app.utils import get_user_by_api_key
+            user = get_user_by_api_key(api_key)
+            if user:
+                from flask_login import login_user
+                login_user(user)
+
+    username = getattr(current_user, 'username', None)
+    role = getattr(current_user, 'role', None)
+
+    if role == 'root':
+        return True
 
     endpoint = request.endpoint.replace(".", ":")
     permissions = None
@@ -140,18 +142,22 @@ def check_page_access(request):
         permissions = permissions.get(request.method.lower(), None)
 
     if permissions:
-        denied_users = permissions.get("denied_users",None) 
-        if denied_users and username in denied_users:
-            return False
-        access_users = permissions.get("access_users",None) 
-        if access_users and username in access_users:
-            return True
-        denied_roles = permissions.get("denied_roles",None) 
-        if denied_roles and role in denied_roles:
-            return False
-        access_roles = permissions.get("access_roles",None) 
-        if access_roles and role in access_roles:
-            return True
+        denied_users = permissions.get("denied_users",None)
+        if denied_users:
+            if username in denied_users or "*" in denied_users:
+                return False
+        access_users = permissions.get("access_users",None)
+        if access_users:
+            if username in access_users or "*" in access_users:
+                return True
+        denied_roles = permissions.get("denied_roles",None)
+        if denied_roles:
+            if role in denied_roles or "*" in denied_roles:
+                return False
+        access_roles = permissions.get("access_roles",None)
+        if access_roles:
+            if role in access_roles or "*" in access_roles:
+                return True
 
     # Получаем функцию-обработчик для текущего маршрута
     view_func = current_app.view_functions.get(request.endpoint)
@@ -160,7 +166,7 @@ def check_page_access(request):
     required_roles = getattr(view_func, 'required_roles', None)
 
     # для не заданных ролей считаем что открыто (FIXME потенциальная дыра в безопасности)
-    if required_roles is None:
+    if required_roles is None and not permissions:
         return True
 
     # Пропускаем системные маршруты (например, /login, /static)
@@ -173,19 +179,19 @@ def check_page_access(request):
         return None
 
     # Проверяем роль пользователя
-    if role in required_roles:
+    if required_roles and role in required_roles:
         return True
 
     return False
 
-def registerErrorhandlers(app):
+def registerErrorHandlers(app):
 
     @app.before_request
     def check_access():
 
         if request.endpoint is None:
             return
-        
+
         if request.blueprint in ['auth']:
             return
 
@@ -214,12 +220,12 @@ def registerErrorhandlers(app):
     def page_not_found(error):
         _logger_error_http.info(f"404 error from {request.remote_addr}: {request.url}")
         return render_template('errors/page-404.html'), 404
-    
+
     @app.errorhandler(403)
     def forbidden_error(error):
         _logger_error_http.warning(error)
         return render_template('errors/page-403.html'), 403
-    
+
     @app.route('/forbidden')
     def access_forbidden():
         return render_template('errors/page-403.html'), 403

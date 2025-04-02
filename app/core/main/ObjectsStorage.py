@@ -5,6 +5,7 @@ from app.core.main.ObjectManager import ObjectManager, PropertyManager, MethodMa
 from app.core.models.Clasess import Class, Property, Method, Object, Value, History
 from app.logging_config import getLogger
 
+
 class ObjectStorage():
     def __init__(self):
         self.logger = getLogger('object_storage')
@@ -100,7 +101,59 @@ class ObjectStorage():
             elif method.call_parent == 1:
                 result.insert(-1, method)
         return result
+    
+    def merge_dicts(self, dict1, dict2):
+        """
+        Рекурсивно объединяет два словаря.
+        При совпадении ключей значение берется из второго словаря.
+        Если значения являются словарями, они объединяются рекурсивно.
+        """
+        if dict1 is None:
+            return dict2
+        if dict2 is None:
+            return dict1
+        result = dict1.copy()  # Создаем копию первого словаря
+        for key, value in dict2.items():
+            if key in result and isinstance(result[key], dict) and isinstance(value, dict):
+                # Если ключ есть в обоих словарях и значения — это словари, объединяем рекурсивно
+                result[key] = self.merge_dicts(result[key], value)
+            else:
+                # Иначе берем значение из второго словаря
+                result[key] = value
+        return result
+    
+    def get_permissions(self, om:ObjectManager):
+        name = om.__dict__.get('name')
+        if '_permissions' not in self.objects:
+            return None
+        _objectPermissions = self.objects['_permissions']
+        if 'properties' not in _objectPermissions.__dict__:
+            return None
 
+        _permissions = None
+        properties_dict = _objectPermissions.__dict__.get('properties', {})
+        key = "object:*"
+        if key in properties_dict:
+            property_manager = properties_dict[key]
+            _permissions = property_manager.__dict__.get('_PropertyManager__value')
+        for className in om.__dict__.get('parents',[]):
+            _permissionsClass = None
+            key = "class:" + className
+            if key in properties_dict:
+                property_manager = properties_dict[key]
+                _permissionsClass = property_manager.__dict__.get('_PropertyManager__value')
+            if _permissionsClass:
+                _permissions = self.merge_dicts(_permissions, _permissionsClass)
+        _permissionsObject = None
+        key = "object:" + name
+        if key in properties_dict:
+            property_manager = properties_dict[key]
+            _permissionsObject = property_manager.__dict__.get('_PropertyManager__value')
+        if _permissionsObject:
+            _permissions = self.merge_dicts(_permissions, _permissionsObject)
+
+        return _permissions
+    
     def _createObjectManager(self, session, obj):
         """Create object manager for given object
         Args:
@@ -161,8 +214,20 @@ class ObjectStorage():
         # get template from class
         if not obj.template:
             om.template = self._getTemplateClass(obj.class_id)
-
+        parents = []
+        parents = self._getParents(session, obj.class_id, parents)
+        om.parents = parents
+        om.set_permission(self.get_permissions(om))
         return om
+
+    def _getParents(self, session, id, parents):
+        if id:
+            cls = session.query(Class).filter(Class.id == id).one_or_none()
+            if cls:
+                parents.append(cls.name)
+                if cls.parent_id:
+                    return self._getParents(session, cls.parent_id, parents)
+        return parents
 
     def _getPropertiesClass(self, session, id, properties):
         if id:

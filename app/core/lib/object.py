@@ -6,7 +6,7 @@ from app.core.main.ObjectsStorage import objects_storage
 from app.logging_config import getLogger
 from app.database import session_scope
 from ..models.Clasess import Class, Object, Property, Value, Method, History
-from ..main.ObjectManager import ObjectManager, PropertyManager
+from ..main.ObjectManager import ObjectManager, PropertyManager, TypeOperation
 from .constants import PropertyType
 
 _logger = getLogger('object')
@@ -263,9 +263,11 @@ def getObject(name:str) -> ObjectManager:
         ObjectManager: Object
     """
     try:
-        return objects_storage.getObjectByName(name)
+        obj = objects_storage.getObjectByName(name)
+        return obj
     except Exception as e:
         _logger.exception('getObject %s: %s',name,e)
+        return None
 
 def getObjectsByClass(class_name:str, subclasses:bool=True) -> list[ObjectManager]:
     """get list object by class
@@ -284,7 +286,9 @@ def getObjectsByClass(class_name:str, subclasses:bool=True) -> list[ObjectManage
             if cls:
                 objs = session.query(Object).filter(Object.class_id == cls.id).all()
                 for obj in objs:
-                    objects.append(getObject(obj.name))
+                    res = getObject(obj.name)
+                    if res:
+                        objects.append(res)
                 if subclasses:
                     res = session.query(Class).filter(Class.parent_id == cls.id).all()
                     for subclass in res:

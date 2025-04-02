@@ -1,5 +1,5 @@
 from flask import g, abort, request
-from flask_login import current_user
+from flask_login import current_user, login_user
 from app.utils import get_user_by_api_key
 from functools import wraps
 
@@ -16,5 +16,7 @@ def api_key_required(f):
         if not user:
             abort(401, 'Invalid API key')
         g.current_user = user  # Сохраняем пользователя в g для использования в маршруте
+        # Вручную авторизуем пользователя через Flask-Login
+        login_user(user)
         return f(*args, **kwargs)
     return decorated

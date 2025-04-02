@@ -5,11 +5,12 @@ import random
 from sqlalchemy.orm import relationship
 from sqlalchemy.orm import sessionmaker, scoped_session
 from contextlib import contextmanager
-from sqlalchemy import create_engine, exc, event
+from sqlalchemy import create_engine, exc, event, inspect, text, ForeignKey
+from sqlalchemy.exc import ProgrammingError
 from settings import Config
 from .extensions import db
 from .logging_config import getLogger
-import logging
+
 
 try:
     # the declarative API is a part of the ORM layer since SQLAlchemy 1.4
@@ -66,6 +67,136 @@ Base.metadata.bind = engine
 DBSession = sessionmaker(bind=engine)
 
 logger = getLogger('session')
+
+def normalize_column_type(column_type, dialect):
+    column_type_str = str(column_type).upper()
+
+    type_mappings = {
+        "mysql": {
+            "TINYINT(1)": "BOOLEAN",
+            "TINYINT": "BOOLEAN",
+            "MEDIUMINT": "INTEGER",
+            "BIGINT": "BIGINTEGER",
+            "VARCHAR": "STRING",
+            "TEXT": "TEXT"
+        },
+        "sqlite": {
+            "BOOLEAN": "INTEGER",
+            "BIGINTEGER": "INTEGER"
+        },
+        "postgresql": {
+            "BOOLEAN": "BOOLEAN",
+            "INTEGER": "INTEGER",
+            "BIGINT": "BIGINTEGER",
+            "TEXT": "TEXT",
+            "VARCHAR": "STRING",
+            "DATETIME": "TIMESTAMP",
+            "TIMESTAMP": "TIMESTAMP"
+        }
+    }
+
+    return type_mappings.get(dialect, {}).get(column_type_str, column_type_str)
+
+def sync_db(app):
+    with app.app_context():
+        engine = db.engine
+        inspector = inspect(engine)
+        dialect = engine.dialect.name  # Define DBMS (mysql, postgresql, sqlite)
+
+        for class_name, model in db.Model.registry._class_registry.items():
+            if hasattr(model, '__tablename__') and hasattr(model, '__table__'):
+                table_name = model.__tablename__
+                safe_table_name = f'"{table_name}"' if dialect == 'postgresql' else f'`{table_name}`'  
+
+                if not inspector.has_table(table_name):
+                    logger.info(f'✅ Create table: {table_name}')
+                    model.__table__.create(engine)
+                else:
+                    existing_columns = {col['name']: col for col in inspector.get_columns(table_name)}
+                    existing_foreign_keys = {fk['constrained_columns'][0] for fk in inspector.get_foreign_keys(table_name)}
+
+                    # Step 1: Add new columns
+                    for column in model.__table__.columns:
+                        if column.name not in existing_columns:
+                            safe_column_name = f'"{column.name}"' if dialect == 'postgresql' else f'`{column.name}`'
+                            column_type = str(column.type).upper()
+
+                            if dialect == 'sqlite':
+                                logger.info(f'⚠ SQLite: add column {column.name}')
+                                alter_stmt = text(f'ALTER TABLE {table_name} ADD COLUMN {column.name}')
+                            else:
+                                alter_stmt = text(f'ALTER TABLE {safe_table_name} ADD COLUMN {safe_column_name} {column_type}')
+
+                            with engine.connect() as conn:
+                                conn.execute(alter_stmt)
+                                conn.commit()
+                            logger.info(f'✅ Column {column.name} added in {table_name}')
+
+                    # Step 2: Check and change column types if necessary
+                    for column in model.__table__.columns:
+                        if column.name in existing_columns:
+                            db_column_type = existing_columns[column.name]['type']
+                            column_type = normalize_column_type(column.type, dialect)
+                            column_type = normalize_column_type(db_column_type, dialect)
+                            if normalize_column_type(db_column_type, dialect) != column_type:
+                                if dialect == 'sqlite':
+                                    logger.warning(f'⚠ SQLite: no change type in {table_name}.{column.name}')
+                                    continue  # It is not possible to change the column type in SQLite
+                                else:
+                                    # For MySQL and PostgreSQL you can use MODIFY COLUMN
+                                    safe_column_name = f'"{column.name}"' if dialect == 'postgresql' else f'`{column.name}`'
+                                    if dialect == 'postgresql':
+                                        alter_stmt = text(f'ALTER TABLE {safe_table_name} ALTER COLUMN {safe_column_name} TYPE {column_type}')
+                                    elif dialect == 'mysql':
+                                        alter_stmt = text(f'ALTER TABLE {safe_table_name} MODIFY COLUMN {safe_column_name} {column_type}')
+                                    with engine.connect() as conn:
+                                        conn.execute(alter_stmt)
+                                        conn.commit()
+                                    logger.info(f'✅ Changed type column {column.name} in {table_name} of {column_type}')
+
+                    # Step 3: Remove columns that are no longer present in the model
+                    for db_column in existing_columns.values():
+                        if db_column['name'] not in model.__table__.columns:
+                            try:
+                                alter_stmt = text(f'ALTER TABLE {safe_table_name} DROP COLUMN {db_column["name"]}')
+                                with engine.connect() as conn:
+                                    conn.execute(alter_stmt)
+                                    conn.commit()
+                                logger.info(f'✅ Deleted column {db_column["name"]} in {table_name}')
+                            except ProgrammingError as e:
+                                logger.error(f'❌ Error delete column {db_column["name"]} in {table_name}: {e}')
+
+                    # Step 4: Check and create/update foreign keys
+                    for column in model.__table__.columns:
+                        if isinstance(column.type, ForeignKey):
+                            fk_name = f'fk_{table_name}_{column.name}'
+                            referenced_table = column.type.target_fullname.split('.')[0]
+                            referenced_column = column.type.target_fullname.split('.')[1]
+
+                            if fk_name not in existing_foreign_keys:
+                                logger.info(f'🔗 Add foreignkey: {table_name}.{column.name} → {referenced_table}.{referenced_column}')
+                                alter_stmt = text(
+                                    f'ALTER TABLE {safe_table_name} ADD CONSTRAINT {fk_name} '
+                                    f'FOREIGN KEY ({column.name}) REFERENCES {referenced_table} ({referenced_column})'
+                                )
+                                with engine.connect() as conn:
+                                    conn.execute(alter_stmt)
+                                    conn.commit()
+                                logger.info(f'✅ Foreignkey {table_name}.{column.name} → {referenced_table}.{referenced_column} added')
+
+                    # Step 5: Remove unnecessary foreign keys
+                    if dialect != 'sqlite':
+                        for fk in inspector.get_foreign_keys(table_name):
+                            fk_name = fk['name']
+                            if fk_name not in [f'fk_{table_name}_{column.name}' for column in model.__table__.columns if isinstance(column.type, ForeignKey)]:
+                                try:
+                                    alter_stmt = text(f'ALTER TABLE {safe_table_name} DROP CONSTRAINT {fk_name}')
+                                    with engine.connect() as conn:
+                                        conn.execute(alter_stmt)
+                                        conn.commit()
+                                    logger.info(f'✅ Deleted foreignkey {fk_name} in {table_name}')
+                                except ProgrammingError as e:
+                                    logger.error(f'❌ Error delete foreignkey {fk_name} in {table_name}: {e}')
 
 # Функция для логирования SQL-запросов
 def log_sql_statement(conn, cursor, statement, parameters, context, executemany):

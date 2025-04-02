@@ -3,6 +3,7 @@ from flask import Blueprint, render_template
 from flask_restx import Api, Resource
 from app.logging_config import getLogger
 from app.api.decorators import *
+from app.api.classes.endpoints import classes_ns
 from app.api.objects.endpoints import objects_ns
 from app.api.properties.endpoints import props_ns
 from app.api.methods.endpoints import methods_ns
@@ -62,6 +63,7 @@ class CurrentUserResource(Resource):
             'result': user.to_dict()}
 
 
+api.add_namespace(classes_ns, path="/class")
 api.add_namespace(objects_ns, path="/object")
 api.add_namespace(props_ns, path="/property")
 api.add_namespace(methods_ns, path="/method")
