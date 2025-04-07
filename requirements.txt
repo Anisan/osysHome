@@ -1,7 +1,6 @@
 Flask
 SQLAlchemy
 Flask_SQLAlchemy
-Flask-Migrate
 Flask-Cors
 flask_apispec
 

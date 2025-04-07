@@ -44,14 +44,6 @@ osysHome (Object System smartHome) is smart home system developed in Python that
     * Windows: copy settings_sample.py settings.py
 * Change settings db in settings.py
 
-## Mirgrate DB
-* flask --app main.py db init
-* flask --app main.py db migrate
-* flask --app main.py db upgrade
-
-> [!IMPORTANT]
-> DO NOT DELETE migrations folder!!! Otherwise, problems will arise with updating the database structure.
-
 ## Start
 
 * Linux: python3 main.py
@@ -60,8 +52,6 @@ osysHome (Object System smartHome) is smart home system developed in Python that
 ## Update
 
 * git pull https://github.com/Anisan/osysHome.git
-* flask --app main.py db migrate
-* flask --app main.py db upgrade
 * Restart osysHome
 
 ## Install module
@@ -69,15 +59,11 @@ osysHome (Object System smartHome) is smart home system developed in Python that
 * Open directory plugins
 * Create directory module
 * Copy module in directory module
-* flask --app main.py db migrate
-* flask --app main.py db upgrade
 * Restart osysHome
 
 ## Update module
 
 * Copy module in directory module
-* flask --app main.py db migrate
-* flask --app main.py db upgrade
 * Restart osysHome
 
 ## Create docs

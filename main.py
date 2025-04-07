@@ -2,7 +2,6 @@
 """Main module for start system"""
 from settings import Config
 from app import createApp
-from app.core.migrate import perform_migrations
 from app.utils import initSystemVar
 from app.core.main.PluginsHelper import start_plugins, stop_plugins
 from app.logging_config import getLogger
@@ -12,8 +11,6 @@ _logger = getLogger('main')
 app = createApp(Config)
 
 if __name__ == '__main__':
-
-    # perform_migrations()
 
     _logger.info("Start plugins")
     start_plugins()
