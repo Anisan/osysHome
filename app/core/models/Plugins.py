@@ -1,4 +1,3 @@
-import datetime
 from sqlalchemy.orm import (Mapped, mapped_column,)
 from app.database import Column, SurrogatePK, db
 from app.core.lib.constants import CategoryNotify

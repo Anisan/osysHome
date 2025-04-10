@@ -1,9 +1,8 @@
 import os
 import importlib.util
-from threading import Thread
+import datetime
 from app.database import model_exists, row2dict
 from app.core.models.Plugins import Plugin, Notify
-from app.authentication.handlers import handle_admin_required
 from app.extensions import cache
 from app.core.lib.constants import CategoryNotify
 
@@ -41,6 +40,7 @@ def register_plugins(app):
                             if plugin_db is None:
                                 plugin_db = Plugin()
                                 plugin_db.name = plugin_name
+                                plugin_db.updated = datetime.datetime.now()
                                 plugin_db.save()
                             if plugin_db.active:
                                 plugin_instance = plugin_class(
