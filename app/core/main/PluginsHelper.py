@@ -60,7 +60,7 @@ def register_plugins(app):
         def get_sidebar():
             # cashed plugins for sidebar
             sidebar = cache.get('sidebar')
-            if sidebar is None:
+            if sidebar is None or len(sidebar) == 0:
                 sidebar = []
                 for _, plugin in plugins.items():
                     plugin_rec = Plugin.query.filter(

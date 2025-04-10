@@ -24,11 +24,4 @@ requests
 flask-debugtoolbar
 Flask-MonitoringDashboard
 
-#plugins
-paho-mqtt
-
-python-vlc
-
-pyTelegramBotAPI
-
 pycryptodome

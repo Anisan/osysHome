@@ -53,10 +53,11 @@ def createApp(config_object):
     registerErrorHandlers(app)
     registerShellcontext(app)
     registerCommands(app)
-    register_plugins(app)
-
+    
     from app.database import sync_db
     sync_db(app)
+
+    register_plugins(app)
 
     if config_object.DEBUG:
         dashboard.bind(app)

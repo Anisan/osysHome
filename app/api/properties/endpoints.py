@@ -155,11 +155,34 @@ class PropertyWithPath(Resource):
             abort(400, 'Missing required parameters: object.property')
         item = objects_storage.getObjectByName(object_name)
         if item:
-            payload = request.get_json()
-            value = payload['data']
-            source = payload.get('source', 'api')
-            item.setProperty(property_name,value,source)
-            return {'success': True}, 200
+            content_type = request.headers.get('Content-Type')
+            if content_type == 'application/json':
+                try:
+                    payload = request.get_json()
+                    if payload is None:
+                        return {'success': False,"error": "Invalid JSON data"}, 400
+                    
+                    payload = request.get_json()
+                    value = payload['data']
+                    source = payload.get('source', 'api')
+                    item.setProperty(property_name,value,source)
+                    return {'success': True}, 200
+
+                except Exception as e:
+                    return {'success': False,"error": f"Failed to parse JSON: {str(e)}"}, 400
+
+            elif content_type == 'text/plain':
+                # Если данные пришли в виде простого текста
+                try:
+                    payload = request.data.decode('utf-8')  # Декодируем байты в строку
+                    item.setProperty(property_name, payload, "api")
+                    return {'success': True}, 200
+                except Exception as e:
+                    return {'success': False,"error": f"Failed to process text data: {str(e)}"}, 400
+
+            else:
+                # Если Content-Type не поддерживается
+                abort(400,"Unsupported Content-Type. Use 'application/json' or 'text/plain'.")
         return {
             'success': False,
             'message': 'Object not found'}, 404

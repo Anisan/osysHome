@@ -10,7 +10,7 @@ from . import blueprint
 from .forms import LoginForm
 from app.extensions import login_manager
 from app.core.models.Users import User
-from app.core.lib.object import getObject, getObjectsByClass, addClass, addObject, setProperty, addClassProperty
+from app.core.lib.object import getObject, getObjectsByClass, addObject, setProperty
 
 @blueprint.route('/')
 def route_default():
@@ -35,11 +35,6 @@ def login():
             user = User(obj)
         else:
             if users is None or len(users) == 0:
-                # Create class users
-                addClass('Users')
-                addClassProperty('password', 'Users', 'Hash password')
-                addClassProperty('role', 'Users', 'Role user')
-                addClassProperty('home_page', 'Users', 'Home page for user (default: admin)')
                 # Create first admin user
                 obj = addObject(username,"Users","Administrator")
                 user = User(obj)
@@ -47,6 +42,9 @@ def login():
                 user.role = 'admin'
                 setProperty(username + ".password", user.password)
                 setProperty(username + ".role", 'admin')
+
+                from app.utils import initPermissions
+                initPermissions()
 
         # Check the password
         if user and user.password and user.check_password(password):
