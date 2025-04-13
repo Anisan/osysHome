@@ -5,7 +5,8 @@
 <div>
     <label for="{{ field_object.name }}">{{ field_object.label }}</label><br>
     <div class="input-group">
-    <select id="{{ field_object.name }}" name="{{ field_object.name }}" class="select2" aria-label="{{label}}">
+    <select id="{{ field_object.name }}" name="{{ field_object.name }}" class="select2" aria-label="{{label}}" data-placeholder="Select object">
+        <option></option>
     </select>
     <button class="btn btn-outline-secondary" type="button" id="reset-{{ field_object.name }}"><i class="fa-solid fa-broom"></i></button>
     </div>
@@ -14,7 +15,7 @@
 <div>
     <label for="{{ field_property.name }}">{{ field_property.label }}</label><br>
     <div class="input-group">
-        <select id="{{ field_property.name }}" name="{{ field_property.name }}" class="select2" aria-label="{{label}}">
+        <select id="{{ field_property.name }}" name="{{ field_property.name }}" class="select2" aria-label="{{label}}"  data-placeholder="Select property">
         </select>
         <button class="btn btn-outline-secondary" type="button" id="reset-{{ field_property.name }}"><i class="fa-solid fa-broom"></i></button>
     </div>
@@ -24,7 +25,7 @@
 <div>
     <label for="{{ field_method.name }}">{{ field_method.label }}</label><br>
     <div class="input-group">
-        <select id="{{ field_method.name }}" name="{{ field_method.name }}" class="select2" aria-label="{{label}}">
+        <select id="{{ field_method.name }}" name="{{ field_method.name }}" class="select2" aria-label="{{label}}"  data-placeholder="Select method">
         </select>
         <button class="btn btn-outline-secondary" type="button" id="reset-{{ field_method.name }}"><i class="fa-solid fa-broom"></i></button>
     </div>
@@ -36,10 +37,7 @@ $(document).ready(function() {
         theme: "bootstrap-5",
         allowClear: false,
         width: $( this ).data( 'width' ) ? $( this ).data( 'width' ) : $( this ).hasClass( 'w-100' ) ? '100%' : 'style',
-        placeholder: {
-            id: null,
-            text: $( this ).data( 'placeholder' )
-        },
+        placeholder: $(this).data('placeholder'),
         debug: true,
     });
     function updateProps(object_name, select){

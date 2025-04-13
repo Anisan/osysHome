@@ -257,7 +257,7 @@ class SetProperty(Resource):
             return {"success": False,
                     "msg": "Object not found."}, 404
         result = obj.setProperty(property_name, value, "api")
-        return {"success": True,
+        return {"success": result,
                 "result": result}, 200
 
 @props_ns.route("/history", endpoint="property_history")

@@ -278,12 +278,12 @@ class ObjectManager:
     def _check_permissions(self, operation:TypeOperation, property_name:str=None, method_name:str=None):
         if not object.__getattribute__(self, "__inited"):
             return True
-
+        
         name = object.__getattribute__(self, "name")
-
+        
         if name == "_permission" and operation == TypeOperation.Get:
             return True
-
+        
         # permissions check
         username = getattr(current_user, 'username', None)
         if username is None:
@@ -296,7 +296,10 @@ class ObjectManager:
 
         _permissions = object.__getattribute__(self, "__permissions")
         if _permissions is None:
-            return True
+            if role in ["user","editor","admin"]:
+                return True
+            else:
+                return False
 
         permissions = None
 
@@ -346,6 +349,8 @@ class ObjectManager:
             source (str): source of the value
             save_history (bool): save history of the value (default is None)
 
+        Returns:
+            bool: Result
         """
         try:
             _logger.debug("ObjectManager::setProperty %s.%s - %s", self.name, name, str(value))
@@ -387,9 +392,10 @@ class ObjectManager:
             for _,plugin in plugins.items():
                 if 'proxy' in plugin["instance"].actions:
                     plugin["instance"].changeProperty(self.name, name, value)
-
+            return True
         except Exception as ex:
             _logger.exception(ex, exc_info=True)
+            return False
 
     def updateProperty(self, name:str, value, source:str='') -> bool:
         """Update property
@@ -410,8 +416,8 @@ class ObjectManager:
                 value = prop._decodeValue(value)
             oldValue = self.getProperty(name)
             if oldValue != value:
-                self.setProperty(name, value, source)
-                return True
+                return self.setProperty(name, value, source)
+            return True
         except Exception as ex:
             _logger.exception(ex, exc_info=True)
         return False
