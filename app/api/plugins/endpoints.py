@@ -1,6 +1,7 @@
 import datetime
+import json
 from flask import request
-from flask_restx import Namespace, Resource, fields
+from flask_restx import Namespace, Resource
 from app.api.decorators import api_key_required
 from app.authentication.handlers import handle_user_required, handle_admin_required
 from app.api.models import model_404, model_result
@@ -8,6 +9,7 @@ from app.core.models.Plugins import Plugin
 from app.database import row2dict, session_scope
 from app.core.main.PluginsHelper import plugins
 from app.core.lib.object import getProperty
+from app.extensions import cache
 
 plugins_ns = Namespace(name="plugins", description="Plugins namespace", validate=True)
 
@@ -64,7 +66,7 @@ class GetPlugins(Resource):
                 "url":"https://github.com/Anisan/osysHome",
             }
             return {"success": True, "result": result, "osysHome":osysHome}, 200
-        
+
 @plugins_ns.route("/<path:plugin_name>")
 class GetPluginInfo(Resource):
     @api_key_required
@@ -155,3 +157,65 @@ class RestartCycle(Resource):
             return {"message": f"Cycle '{plugin_name}' stopped", "status": "ok"}, 200
         else:
             return {"message": f"Plugin '{plugin_name}' not found", "status": "error"}, 404
+
+@plugins_ns.route("/<path:plugin_name>/settings")
+class PluginSettings(Resource):
+    @api_key_required
+    @handle_admin_required
+    @plugins_ns.doc(security="apikey")
+    def get(self,plugin_name):
+        """
+        Get settings for plugin.
+        """
+        with session_scope() as session:
+            module = session.query(Plugin).filter(Plugin.name == plugin_name).one_or_none()
+            if module:
+                config = {}
+                if module.config:
+                    config = json.loads(module.config)
+                config['title'] = module.title
+                config['category'] = module.category
+                config['hidden'] = module.hidden
+                config['active'] = module.active
+                config['url'] = module.url
+                return config, 200
+            else:
+                return {"message": f"Plugin '{plugin_name}' not found", "status": "error"}, 404
+
+    @api_key_required
+    @handle_admin_required
+    @plugins_ns.doc(security="apikey")
+    def post(self,plugin_name):
+        """
+        Update settings for plugin.
+        """
+        with session_scope() as session:
+            module = session.query(Plugin).filter(Plugin.name == plugin_name).one_or_none()
+            if module:
+                config = request.get_json() 
+                if "title" in config:
+                    module.title = config['title']
+                    del config['title']
+                if "category" in config:
+                    module.category = config['category']
+                    del config['category']
+                if "hidden" in config:
+                    module.hidden = config['hidden']
+                    del config['hidden']
+                if "active" in config:
+                    module.active = config['active']
+                    del config['active']
+                if "url" in config:
+                    module.url = config['url']
+                    del config['url']
+
+                module.config = json.dumps(config)
+
+                session.commit()
+                cache.delete('sidebar')
+                if plugin_name in plugins:
+                    plugins[plugin_name]["instance"].loadConfig()
+
+                return {"message": f"Settings for plugin '{plugin_name}' updated", "status": "ok"}, 200
+            else:
+                return {"message": f"Plugin '{plugin_name}' not found", "status": "error"}, 404
