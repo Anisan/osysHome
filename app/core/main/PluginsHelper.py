@@ -11,7 +11,7 @@ _logger = getLogger('plugin_helper')
 
 plugins = {}
 
-def register_plugins(app):
+def registerPlugins(app):
     _logger.debug("Register plugins")
     # Папка, в которой находятся плагины
     plugin_folder = app.config.get("PLUGINS_FOLDER", "plugins")

@@ -10,7 +10,7 @@ from app import commands
 from app.exceptions import InvalidUsage
 from app.constants import LANGUAGES
 from app.extensions import db, login_manager, cors, bcrypt, babel, toolbar, cache
-from app.core.main.PluginsHelper import register_plugins
+from app.core.main.PluginsHelper import registerPlugins
 from app.core.utils import CustomJSONEncoder
 
 from .logging_config import getLogger
@@ -53,11 +53,10 @@ def createApp(config_object):
     registerErrorHandlers(app)
     registerShellcontext(app)
     registerCommands(app)
-    
     from app.database import sync_db
-    sync_db(app)
-
-    register_plugins(app)
+    sync_db(app)  # sync system tables
+    registerPlugins(app)
+    sync_db(app)  # sync plugins tables
 
     if config_object.DEBUG:
         dashboard.bind(app)
