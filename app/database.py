@@ -119,7 +119,8 @@ def sync_db(app):
                     for column in model.__table__.columns:
                         if column.name not in existing_columns:
                             safe_column_name = f'"{column.name}"' if dialect == 'postgresql' else f'`{column.name}`'
-                            column_type = str(column.type).upper()
+                            # Normalize the column type before using it in SQL
+                            column_type = normalize_column_type(column.type, dialect)
 
                             if dialect == 'sqlite':
                                 logger.info(f'⚠ SQLite: add column {column.name}')
@@ -136,8 +137,8 @@ def sync_db(app):
                     for column in model.__table__.columns:
                         if column.name in existing_columns:
                             db_column_type = existing_columns[column.name]['type']
+                            # Normalize the column type before using it in SQL
                             column_type = normalize_column_type(column.type, dialect)
-                            column_type = normalize_column_type(db_column_type, dialect)
                             if normalize_column_type(db_column_type, dialect) != column_type:
                                 if dialect == 'sqlite':
                                     logger.warning(f'⚠ SQLite: no change type in {table_name}.{column.name}')
