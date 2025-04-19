@@ -281,7 +281,7 @@ class ObjectManager:
         
         name = object.__getattribute__(self, "name")
         
-        if name == "_permission" and operation == TypeOperation.Get:
+        if name == "_permissions" and operation == TypeOperation.Get:
             return True
         
         # permissions check
@@ -299,7 +299,7 @@ class ObjectManager:
             if role in ["user","editor","admin"]:
                 return True
             else:
-                return False
+                raise PermissionError(f"User {username}({role}) don't have permission to {operation.name} obj:{name} property:{property_name} method:{method_name} permissions:None")
 
         permissions = None
 
@@ -321,7 +321,7 @@ class ObjectManager:
             denied_users = permissions.get("denied_users",None)
             if denied_users:
                 if username in denied_users or "*" in denied_users:
-                    raise PermissionError(f"User {username}({role}) don't have permission to {operation.value} obj:{name} property:{property_name} method:{method_name}")
+                    raise PermissionError(f"User {username}({role}) don't have permission to {operation.name} obj:{name} property:{property_name} method:{method_name} permissions:{json.dumps(permissions)}")
             access_users = permissions.get("access_users",None)
             if access_users:
                 if username in access_users or "*" in access_users:
@@ -329,7 +329,7 @@ class ObjectManager:
             denied_roles = permissions.get("denied_roles",None)
             if denied_roles:
                 if role in denied_roles or "*" in denied_roles:
-                    raise PermissionError(f"User {username}({role}) don't have permission to {operation.value} obj:{name} property:{property_name} method:{method_name}")
+                    raise PermissionError(f"User {username}({role}) don't have permission to {operation.name} obj:{name} property:{property_name} method:{method_name} permissions:{json.dumps(permissions)}")
             access_roles = permissions.get("access_roles",None)
             if access_roles:
                 if role in access_roles or "*" in access_roles:
@@ -338,7 +338,7 @@ class ObjectManager:
         if role in ["user","editor","admin"]:
             return True
 
-        raise PermissionError(f"User {username}({role}) don't have permission to {operation.value} obj:{name} property:{property_name} method:{method_name}")
+        raise PermissionError(f"User {username}({role}) don't have permission to {operation.name} obj:{name} property:{property_name} method:{method_name} permissions:{json.dumps(permissions)}")
 
     def setProperty(self, name:str, value, source:str='', save_history:bool=None):
         """ Set property value
@@ -354,8 +354,8 @@ class ObjectManager:
         """
         try:
             _logger.debug("ObjectManager::setProperty %s.%s - %s", self.name, name, str(value))
-            if not self._check_permissions(TypeOperation.Set, name, None):
-                raise PermissionError("You don't have permission to set property %s" % name)
+            self._check_permissions(TypeOperation.Set, name, None)
+                
             if name not in self.properties:
                 with session_scope() as session:
                     property_db = Property()
@@ -432,8 +432,7 @@ class ObjectManager:
         Returns:
             any: Value
         """
-        if not self._check_permissions(TypeOperation.Get, name, None):
-            raise PermissionError("You don't have permission to get property %s" % name)
+        self._check_permissions(TypeOperation.Get, name, None)
 
         if name in self.properties:
             prop = self.properties[name]
@@ -454,7 +453,7 @@ class ObjectManager:
     def __getattr__(self, name):
         if name in self.__dict__['properties']:
             if not self._check_permissions(TypeOperation.Get, name, None):
-                raise PermissionError("You don't have permission to get property %s" % name)
+                raise (f"You don't have permission to get property {name}")
             prop = self.__dict__['properties'][name]
             return prop.value
         else:
@@ -462,8 +461,7 @@ class ObjectManager:
 
     def __setattr__(self, name, value):
         if name not in ['properties', 'template']:
-            if not self._check_permissions(TypeOperation.Set, name, None):
-                raise PermissionError("You don't have permission to get property %s" % name)
+            self._check_permissions(TypeOperation.Set, name, None)
 
         if name == "properties":
             super().__setattr__(name, value)
@@ -494,8 +492,7 @@ class ObjectManager:
             _logger.warning("Method %s does not exist.", name)
             return None
 
-        if not self._check_permissions(TypeOperation.Call, None, name):
-            raise PermissionError("You don't have permission to call method %s" % name)
+        self._check_permissions(TypeOperation.Call, None, name)
 
         try:
             variables = {
@@ -559,8 +556,7 @@ class ObjectManager:
             timeout(int): Timeout in sec
             source(str): Source
         """
-        if not self._check_permissions(TypeOperation.Set, propName, None):
-            raise PermissionError("You don't have permission to get property %s" % propName)
+        self._check_permissions(TypeOperation.Set, propName, None)
 
         src = f',"{source}"' if source else ',"Scheduler"'
         code = f'setProperty("{self.name}.{propName}","{str(value)}"{src})'
@@ -575,8 +571,7 @@ class ObjectManager:
             timeout(int): Timeout in sec
             source(str): Source
         """
-        if not self._check_permissions(TypeOperation.Set, propName, None):
-            raise PermissionError("You don't have permission to get property %s" % propName)
+        self._check_permissions(TypeOperation.Set, propName, None)
 
         src = f',"{source}"' if source else ',"Scheduler"'
         code = f'updateProperty("{self.name}.{propName}","{str(value)}"{src})'
@@ -590,8 +585,7 @@ class ObjectManager:
             timeout (int): Timeout in sec
             source (str, optional): Source. Defaults to ''.
         """
-        if not self._check_permissions(TypeOperation.Call, None, methodName):
-            raise PermissionError("You don't have permission to call method %s" % methodName)
+        self._check_permissions(TypeOperation.Call, None, methodName)
 
         src = f',"{source}"' if source else ',"Scheduler"'
         code = f'callMethod("{self.name}.{methodName}"{src})'
@@ -611,8 +605,7 @@ class ObjectManager:
         Returns:
             list: List of history
         """
-        if not self._check_permissions(TypeOperation.Get, name, None):
-            raise PermissionError("You don't have permission to get history of property %s" % name)
+        self._check_permissions(TypeOperation.Get, name, None)
 
         if name not in self.properties:
             return None
@@ -640,8 +633,7 @@ class ObjectManager:
         Returns:
             any : Result function
         """
-        if not self._check_permissions(TypeOperation.Get, name, None):
-            raise PermissionError("You don't have permission to get history of property %s" % name)
+        self._check_permissions(TypeOperation.Get, name, None)
 
         if name not in self.properties:
             return None
