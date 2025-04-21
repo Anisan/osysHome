@@ -12,12 +12,12 @@ app = createApp(Config)
 
 if __name__ == '__main__':
 
-    _logger.info("Start plugins")
-    start_plugins()
-
     _logger.info("Init SystemVar")
     with app.app_context():
         initSystemVar()
+
+    _logger.info("Start plugins")
+    start_plugins()
 
     _logger.info("Run flask")
     app.run(

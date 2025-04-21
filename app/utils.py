@@ -22,7 +22,10 @@ def get_user_by_api_key(apikey):
 
 def initSystemVar():
 
-    from app.core.lib.object import addClass,addClassProperty, addObject, setProperty, addObjectProperty, addObjectMethod, getObjectsByClass
+    from app.core.lib.object import addClass,addClassProperty, addObject, getObject, setProperty, addObjectProperty, addObjectMethod, getObjectsByClass
+    # Create permissions
+    addObject("_permissions",None,"Permission settings")
+    getObject("_permissions")  # preload
 
     # Create class users
     addClass('Users')
@@ -43,11 +46,7 @@ def initSystemVar():
         initPermissions()
 
 def initPermissions():
-    from app.core.lib.object import addObject, setProperty, getObject, getProperty
-    # Create permissions
-    addObject("_permissions",None,"Permission settings")
-    getObject("_permissions")  # preload
-
+    from app.core.lib.object import setProperty, getProperty
     # set default permissions
     permissions_user = {"properties": {"role": {"get": {"access_roles": ["admin", "editor", "user"]},
                                                 "set": {"access_roles": ["admin"], "denied_roles": ["editor", "user"]},
