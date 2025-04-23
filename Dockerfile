@@ -15,6 +15,8 @@ RUN apt-get update && apt-get install -y \
 # Установите рабочую директорию в контейнере
 WORKDIR /app
 
+RUN mkdir -p /app/plugins
+
 # Копирование файла настройки
 COPY settings_sample.py /app/settings.py
 
