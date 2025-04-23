@@ -27,7 +27,18 @@ def login():
 
         # read form data
         username = request.form['username']
+        if not username:
+            return render_template('accounts/login.html',
+                                   msg='Username cannot be empty',
+                                   register=False,
+                                   form=login_form)
+
         password = request.form['password']
+        if not password:
+            return render_template('accounts/login.html',
+                                   msg='Password cannot be empty',
+                                   register=False,
+                                   form=login_form)
 
         user = None
         obj = getObject(username)

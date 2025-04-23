@@ -4,14 +4,14 @@ import datetime
 from sqlalchemy import delete
 from app.core.main.ObjectsStorage import objects_storage
 from app.logging_config import getLogger
-from app.database import session_scope
-from ..models.Clasess import Class, Object, Property, Value, Method, History
-from ..main.ObjectManager import ObjectManager, PropertyManager, TypeOperation
-from .constants import PropertyType
+from app.database import session_scope, row2dict
+from app.core.models.Clasess import Class, Object, Property, Value, Method, History
+from app.core.main.ObjectManager import ObjectManager, PropertyManager
+from app.core.lib.constants import PropertyType
 
 _logger = getLogger('object')
 
-def addClass(name:str, description:str='', parentId:int=None) -> Class:
+def addClass(name:str, description:str='', parentId:int=None) -> dict:
     """Add a class to the database.
 
     Args:
@@ -20,7 +20,7 @@ def addClass(name:str, description:str='', parentId:int=None) -> Class:
         parentId (int, optional): ID parent class. Defaults to None.
 
     Returns:
-        Class: Class row in DB
+        dict: Class row in DB
     """
     with session_scope() as session:
         cls = session.query(Class).filter(Class.name == name).one_or_none()
@@ -31,7 +31,44 @@ def addClass(name:str, description:str='', parentId:int=None) -> Class:
             cls.parent_id = parentId
             session.add(cls)
             session.commit()
-        return cls
+        return row2dict(cls)
+
+def getClass(name:str) -> dict:
+    """Get class from the database.
+
+    Args:
+        name (str): Name class
+
+    Returns:
+        dict: Class row in DB
+    """
+    with session_scope(True) as session:
+        cls = session.query(Class).filter(Class.name == name).one_or_none()
+        if cls:
+            return row2dict(cls)
+        return None
+
+def updateClass(cls:dict) -> bool:
+    """Update class in the database.
+
+    Args:
+        cls (Class): Class
+
+    Returns:
+        bool: Result
+    """
+    with session_scope() as session:
+        rec = session.query(Class).filter(Class.name == cls['name']).one_or_none()
+        if not rec:
+            return False
+        rec.name = cls['name']
+        rec.description = cls['description']
+        rec.parent_id = cls['parent_id']
+        rec.template = cls['template']
+        session.commit
+        objects_storage.reload_objects_by_class(rec.id)
+        return True
+
 
 def addClassProperty(name:str, class_name:str, description:str='', history:int=0, type:PropertyType=PropertyType.Empty, method_name:str=None) -> Property:
     """Add a property class to the database
@@ -226,7 +263,7 @@ def addObjectMethod(name:str, object_name:str, description:str='', code:str='', 
             session.commit()
             objects_storage.reload_object(obj.id)
         return True
-    
+
 def deleteObjectMethod(object_method: str) -> bool:
     """
     Delete a method object from the database using the format 'object_name.method_name'

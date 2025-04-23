@@ -37,13 +37,13 @@ class ObjectStorage():
             # warning
             self.logger.warning(f'Object "{name}" not found')
             return None
-        
+
     def items(self):
         return self.objects.items()
-    
+
     def values(self):
         return self.objects.values()
-    
+
     def getStats(self):
         stats = {}
         for name,obj in self.objects.items():
@@ -101,7 +101,7 @@ class ObjectStorage():
             elif method.call_parent == 1:
                 result.insert(-1, method)
         return result
-    
+
     def merge_dicts(self, dict1, dict2):
         """
         Рекурсивно объединяет два словаря.
@@ -121,7 +121,7 @@ class ObjectStorage():
                 # Иначе берем значение из второго словаря
                 result[key] = value
         return result
-    
+
     def get_permissions(self, om:ObjectManager):
         name = om.__dict__.get('name')
         if '_permissions' not in self.objects:
@@ -153,7 +153,7 @@ class ObjectStorage():
             _permissions = self.merge_dicts(_permissions, _permissionsObject)
 
         return _permissions
-    
+
     def _createObjectManager(self, session, obj):
         """Create object manager for given object
         Args:

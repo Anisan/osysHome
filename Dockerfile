@@ -15,6 +15,9 @@ RUN apt-get update && apt-get install -y \
 # Установите рабочую директорию в контейнере
 WORKDIR /app
 
+# Копирование файла настройки
+COPY settings_sample.py /app/settings.py
+
 # Скопируйте зависимости и установите их
 COPY requirements.txt /app/
 RUN pip install --no-cache-dir -r requirements.txt

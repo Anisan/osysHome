@@ -22,16 +22,33 @@ def get_user_by_api_key(apikey):
 
 def initSystemVar():
 
-    from app.core.lib.object import addClass,addClassProperty, addObject, getObject, setProperty, addObjectProperty, addObjectMethod, getObjectsByClass
+    from app.core.lib.object import addClass, updateClass, addClassProperty, addObject, getObject, setProperty, addObjectProperty, addObjectMethod, getObjectsByClass
     # Create permissions
     addObject("_permissions",None,"Permission settings")
     getObject("_permissions")  # preload
 
     # Create class users
-    addClass('Users')
-    addClassProperty('password', 'Users', 'Hash password')
-    addClassProperty('role', 'Users', 'Role user')
-    addClassProperty('home_page', 'Users', 'Home page for user (default: admin)')
+    cls_user = addClass('Users')
+    if not cls_user['template']:
+        # def template for Users
+        cls_user['template'] = '''<div class="row">
+    {% if object.image %}
+    <img class="col pe-0" src="{{object.image}}"  style="width:auto;height:auto;max-height: 80px;" alt="{{object.name}}">
+    {% endif %}
+    <div class="col-auto">
+        <h5 class="m-1">{{object.description}}</h5>
+        Role: <b>{{object.role}}</b><br>
+        Login: {{object.lastLogin}}
+    </div>
+</div>
+'''
+        updateClass(cls_user)
+    addClassProperty('password', 'Users', 'Hash password', 0, type=PropertyType.String)
+    addClassProperty('role', 'Users', 'Role user', 0, type=PropertyType.String)
+    addClassProperty('home_page', 'Users', 'Home page for user (default: admin)', 0, type=PropertyType.String)
+    addClassProperty('image', 'Users', 'User`s avatar', 0, type=PropertyType.String)
+    addClassProperty('lastLogin', 'Users', 'Last login', 7, type=PropertyType.Datetime)
+
     # Create SystemVar
     addObject("SystemVar",None,"System variable")
     addObjectMethod('isStarted',"SystemVar","Method for start",'say("System started");')
