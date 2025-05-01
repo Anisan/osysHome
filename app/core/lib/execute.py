@@ -12,16 +12,15 @@ module_names = [
 
 
 def execute_and_capture_output(code: str, variables: dict):
-    """Execute code with variables
+    """Execute code with variables and capture output.
 
     Args:
-        code (str): Python code
-        variables (dict): Dictionary variables
+        code (str): Python code to execute.
+        variables (dict): Dictionary of variables to include in the execution environment.
 
     Returns:
-        str: Output
-        bool: Error execute
-
+        str: Captured output or error message.
+        bool: True if an error occurred, False otherwise.
     """
     if code is None or code == '':
         return '', False
@@ -36,19 +35,22 @@ def execute_and_capture_output(code: str, variables: dict):
 
     # Захватываем стандартный вывод
     old_stdout = sys.stdout
-    sys.stdout = io.StringIO()
+    output_buffer = io.StringIO()
+    sys.stdout = output_buffer
 
     error = False
+    output = ''
     try:
         # Выполняем пользовательский код в окружении
         exec(code, environment)
         # Получаем результат из захваченного вывода
-        output = sys.stdout.getvalue()
+        output = output_buffer.getvalue()
     except Exception as e:
         output = f"Exception: {str(e)}\n\nTraceback:\n{traceback.format_exc()}"
         error = True
     finally:
         # Восстанавливаем стандартный вывод
         sys.stdout = old_stdout
+        output_buffer.close()
 
     return output, error

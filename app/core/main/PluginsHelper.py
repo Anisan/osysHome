@@ -40,7 +40,7 @@ def registerPlugins(app):
                             if plugin_db is None:
                                 plugin_db = Plugin()
                                 plugin_db.name = plugin_name
-                                plugin_db.updated = datetime.datetime.now()
+                                plugin_db.updated = datetime.datetime.now(datetime.timezone.utc)
                                 plugin_db.save()
                             if plugin_db.active:
                                 plugin_instance = plugin_class(

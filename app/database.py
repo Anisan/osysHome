@@ -2,6 +2,10 @@
 """Database module, including the SQLAlchemy database object and DB-related utilities."""
 import time
 import random
+from datetime import datetime
+from zoneinfo import ZoneInfo
+from tzlocal import get_localzone
+from flask_login import current_user
 from sqlalchemy.orm import relationship
 from sqlalchemy.orm import sessionmaker, scoped_session
 from contextlib import contextmanager
@@ -251,8 +255,47 @@ def row2dict(row):
     :param row: any object
     :return: dict
     """
+    timezone = getattr(current_user, 'timezone', None)
     d = {}
     for column in row.__table__.columns:
-        d[column.name] = getattr(row, column.name)
-
+        value = getattr(row, column.name)
+        # Если значение - это datetime и указан часовой пояс пользователя
+        if isinstance(value, datetime) and timezone:
+            # Преобразуем время из UTC в локальное время пользователя
+            utc_time = value.replace(tzinfo=ZoneInfo("UTC"))  # Добавляем временную зону UTC
+            local_time = utc_time.astimezone(ZoneInfo(timezone))  # Конвертируем в локальное время
+            d[column.name] = local_time.replace(tzinfo=None)
+        else:
+            d[column.name] = value
     return d
+
+def convert_utc_to_local(utc_time, timezone:str=None):
+    """
+    Convert UTC to local time user
+    """
+    if utc_time is None:
+        return None
+    if timezone is None:
+        timezone = getattr(current_user, 'timezone', None)
+    if utc_time.tzinfo is None:
+        utc_time = utc_time.replace(tzinfo=ZoneInfo("UTC"))
+    if timezone is None:
+        timezone = get_localzone().zone
+    local_timezone = ZoneInfo(timezone)
+    local_time = utc_time.astimezone(local_timezone)
+    return local_time.replace(tzinfo=None)
+
+def convert_local_to_utc(local_time, timezone:str=None):
+    """
+    Convert local time user to UTC
+    """
+    if local_time is None:
+        return None
+    if timezone is None:
+        timezone = getattr(current_user, 'timezone', None)
+    if timezone is None:
+        timezone = get_localzone().zone
+    local_timezone = ZoneInfo(timezone)
+    aware_local_time = local_time.replace(tzinfo=local_timezone)
+    utc_time = aware_local_time.astimezone(ZoneInfo("UTC"))
+    return utc_time.replace(tzinfo=None)

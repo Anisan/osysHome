@@ -5,7 +5,7 @@ from sqlalchemy import update, delete
 import xml.etree.ElementTree as ET
 from app.core.lib.execute import execute_and_capture_output
 from app.logging_config import getLogger
-from app.database import session_scope, row2dict
+from app.database import session_scope, row2dict, convert_local_to_utc, convert_utc_to_local
 from .crontab import nextStartCronJob
 from .constants import CategoryNotify
 from ..main.PluginsHelper import plugins
@@ -36,8 +36,9 @@ def addScheduledJob(
                 task.name = name
                 session.add(task)
             task.code = code
-            task.runtime = dt
-            task.expire = dt + datetime.timedelta(seconds=expire)
+            utc_dt = convert_local_to_utc(dt)
+            task.runtime = utc_dt
+            task.expire = utc_dt + datetime.timedelta(seconds=expire)
             session.commit()
             return task.id
     except Exception as ex:
@@ -65,8 +66,9 @@ def addCronJob(name: str, code: str, crontab: str = "* * * * *") -> int:
                 task.name = name
                 session.add(task)
             task.code = code
-            task.runtime = dt
-            task.expire = dt + datetime.timedelta(1800)
+            utc_dt = convert_local_to_utc(dt)
+            task.runtime = utc_dt
+            task.expire = utc_dt + datetime.timedelta(1800)
             task.crontab = crontab
             session.commit()
             return task.id
@@ -144,8 +146,9 @@ def setTimeout(name: str, code: str, timeout: int = 0):
     Returns:
         _type_: _description_
     """
+    local_dt = convert_utc_to_local(datetime.datetime.now(datetime.timezone.utc))
     res = addScheduledJob(
-        name, code, datetime.datetime.now() + datetime.timedelta(seconds=timeout)
+        name, code, local_dt + datetime.timedelta(seconds=timeout)
     )
     return res
 
@@ -243,16 +246,16 @@ def addNotify(
         source (str, optional): Source notify (use name plugins). Defaults to "".
     """
     with session_scope() as session:
-        notify = session.query(Notify).filter(Notify.name == name, Notify.description == description, Notify.read == False).one_or_none() # noqa
+        notify = session.query(Notify).filter(Notify.name == name, Notify.description == description, Notify.read == False).first() # noqa
         if notify:
-            notify.count = notify.count + 1
+            notify.count = notify.count if notify.count else 0 + 1
         else:
             notify = Notify()
             notify.name = name
             notify.description = description
             notify.category = category
             notify.source = source
-            notify.created = datetime.datetime.now()
+            notify.created = datetime.datetime.now(datetime.timezone.utc)
             session.add(notify)
     # todo send to websocket
     # callPluginFunction()

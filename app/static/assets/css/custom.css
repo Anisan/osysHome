@@ -7,7 +7,7 @@
     height: 49px;
 }
 
-[data-bs-theme="dark"] {
+[data-bs-theme="dark2"] {
     --bs-primary: #a8d8ea;
     --bs-secondary: #aa96da;
     --bs-success: #bbfcba;

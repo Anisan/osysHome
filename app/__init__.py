@@ -2,7 +2,7 @@
 import os
 from importlib import import_module
 from flask import Flask, request, render_template, current_app
-import flask_monitoringdashboard as dashboard
+#import flask_monitoringdashboard as dashboard
 from flask_login import current_user
 from flask import flash, redirect, url_for, abort
 from app.core.lib.object import getProperty
@@ -40,7 +40,7 @@ def createApp(config_object):
 
     if config_object.DEBUG:
         app.config['DEBUG_TB_TEMPLATE_EDITOR_ENABLED'] = True
-        app.config['DEBUG_TB_PROFILER_ENABLED'] = True
+        app.config['DEBUG_TB_PROFILER_ENABLED'] = False
         app.config['DEBUG_TB_PROFILER_DUMP_FILENAME'] = "dump.prof"
         app.config['DEBUG_TB_INTERCEPT_REDIRECTS'] = False
         app.config['SQLALCHEMY_RECORD_QUERIES'] = True
@@ -58,8 +58,8 @@ def createApp(config_object):
     registerPlugins(app)
     sync_db(app)  # sync plugins tables
 
-    if config_object.DEBUG:
-        dashboard.bind(app)
+    #if config_object.DEBUG:
+    #   dashboard.bind(app)
 
     @app.context_processor
     def inject_common_data():

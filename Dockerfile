@@ -34,6 +34,9 @@ COPY settings_sample.py /app/settings.py
 COPY requirements.txt /app/
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Создание документации
+RUN pdoc --docformat google --no-show-source --output-dir docs settings_sample.py app plugins
+
 # Скопируйте остальные файлы приложения
 COPY . /app/
 

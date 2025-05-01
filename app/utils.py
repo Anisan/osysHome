@@ -22,7 +22,7 @@ def get_user_by_api_key(apikey):
 
 def initSystemVar():
 
-    from app.core.lib.object import addClass, updateClass, addClassProperty, addObject, getObject, setProperty, addObjectProperty, addObjectMethod, getObjectsByClass
+    from app.core.lib.object import addClass, updateClass, addClassProperty, addObject, getObject, addObjectProperty, addObjectMethod, getObjectsByClass
     # Create permissions
     addObject("_permissions",None,"Permission settings")
     getObject("_permissions")  # preload
@@ -48,6 +48,7 @@ def initSystemVar():
     addClassProperty('home_page', 'Users', 'Home page for user (default: admin)', 0, type=PropertyType.String)
     addClassProperty('image', 'Users', 'User`s avatar', 0, type=PropertyType.String)
     addClassProperty('lastLogin', 'Users', 'Last login', 7, type=PropertyType.Datetime)
+    addClassProperty('timezone', 'Users', 'Timezone user', 0, type=PropertyType.String)
 
     # Create SystemVar
     addObject("SystemVar",None,"System variable")
@@ -55,9 +56,7 @@ def initSystemVar():
     addObjectProperty('Started','SystemVar',"Datetime starting system",0,PropertyType.Datetime,"isStarted")
     addObjectProperty('NeedRestart','SystemVar',"Need restart system",0,PropertyType.Bool)
     addObjectProperty('LastSay','SystemVar',"Last 'say' message",7,PropertyType.String)
-    setProperty("SystemVar.Started",datetime.datetime.now(), "osysHome")
-    setProperty("SystemVar.NeedRestart", False, "osysHome")
-
+    
     users = getObjectsByClass('Users')
     if users is not None and len(users) != 0:
         initPermissions()
@@ -70,3 +69,8 @@ def initPermissions():
                                                 "edit": {"access_roles": ["admin"], "denied_roles": ["editor", "user"]}}}}
     if getProperty("_permissions.class:Users") is None:
         setProperty("_permissions.class:Users", permissions_user)
+
+def startSystemVar():
+    from app.core.lib.object import setProperty
+    setProperty("SystemVar.Started",datetime.datetime.now(), "osysHome")
+    setProperty("SystemVar.NeedRestart", False, "osysHome")

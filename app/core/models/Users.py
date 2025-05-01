@@ -11,10 +11,10 @@ class User(UserMixin):
     role: str = None
     home_page: str = None
     apikey: str = None
-    pages_access: list = []
-    pages_denied: list = []
+    timezone: str = None
 
     def __init__(self, objectUser):
+        self.timezone = "UTC"
         self.username = object.__getattribute__(objectUser, 'name')
         if 'password' in objectUser.__dict__['properties']:
             self.password = objectUser.__dict__['properties']["password"]._PropertyManager__value
@@ -26,6 +26,11 @@ class User(UserMixin):
             self.home_page = objectUser.__dict__['properties']["home_page"]._PropertyManager__value
         if 'apikey' in objectUser.__dict__['properties']:
             self.apikey = objectUser.__dict__['properties']["apikey"]._PropertyManager__value
+        if 'timezone' in objectUser.__dict__['properties']:
+            timezone = objectUser.__dict__['properties']["timezone"]._PropertyManager__value
+            from zoneinfo import available_timezones
+            if timezone in available_timezones():
+                self.timezone = timezone
 
     def set_password(self, password):
         """Set password."""

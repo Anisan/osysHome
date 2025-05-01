@@ -2,7 +2,7 @@
 """Main module for start system"""
 from settings import Config
 from app import createApp
-from app.utils import initSystemVar
+from app.utils import initSystemVar, startSystemVar
 from app.core.main.PluginsHelper import start_plugins, stop_plugins
 from app.logging_config import getLogger
 
@@ -18,6 +18,8 @@ if __name__ == '__main__':
 
     _logger.info("Start plugins")
     start_plugins()
+
+    startSystemVar()
 
     _logger.info("Run flask")
     app.run(

@@ -28,7 +28,11 @@
 
 </head>
 <body data-tag="body" data-bs-theme="light">
-
+    <script>
+        var dragTheme = window.localStorage.getItem('dark-theme');
+        const bodyTagHead = document.querySelector('[data-tag="body"]');
+        bodyTagHead.setAttribute('data-bs-theme', (dragTheme == "true")? "dark" : "light");
+    </script>
     {% block main %}{% endblock main %}
 
     <!-- Specific Page JS goes HERE  -->

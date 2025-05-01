@@ -53,7 +53,7 @@ class GetPlugins(Resource):
 
             updated = getProperty("SystemVar.upgraded")
             if updated is None or updated is False:
-                updated = datetime.datetime.now() - datetime.timedelta(10000)
+                updated = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(10000)
             osysHome = {
                 "title": "osysHome",
                 "name": "osysHome",

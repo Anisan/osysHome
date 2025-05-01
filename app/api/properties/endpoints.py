@@ -1,11 +1,10 @@
 import datetime
 from flask import request, abort
 from flask_restx import Namespace, Resource, fields
-from app.database import session_scope
+from app.database import session_scope, convert_local_to_utc, convert_utc_to_local
 from app.api.decorators import api_key_required
 from app.authentication.handlers import handle_user_required
 from app.api.models import model_result, model_404
-from app.core.lib.object import getProperty
 from app.core.main.ObjectsStorage import objects_storage
 
 props_ns = Namespace(name="property", description="Property namespace", validate=True)
@@ -59,7 +58,7 @@ class GetProperty(Resource):
             property_name = request.args.get("property")
             if not object_name or not property_name:
                 abort(400, 'Missing required parameters: object and property')
-        
+
         obj = objects_storage.getObjectByName(object_name)
         if obj is None:
             return {"success": False,
@@ -72,7 +71,7 @@ class GetProperty(Resource):
             result = obj.getProperty(property_name)
         return {"success": True,
                 "result": result}, 200
- 
+
     @api_key_required
     @handle_user_required
     @props_ns.doc(security="apikey")
@@ -98,7 +97,7 @@ class GetProperty(Resource):
                     prop = obj.properties[property_name]
                     data['value'] = prop.value
                     data['source'] = prop.source
-                    data['changed'] = prop.changed
+                    data['changed'] = convert_utc_to_local(prop.changed)
                     result[object_property] = data
         return {"success": True,
                 "result": result}, 200
@@ -123,7 +122,7 @@ class PropertyWithPath(Resource):
             object_name, property_name = object_property.split('.', 1)
         else:
             abort(400, 'Missing required parameters: object.property')
-        
+
         obj = objects_storage.getObjectByName(object_name)
         if obj is None:
             return {"success": False,
@@ -131,12 +130,12 @@ class PropertyWithPath(Resource):
         if property_name not in obj.properties:
             return {"success": False,
                     "msg": "Property not found."}, 404
-        
+
         prop = obj.properties[property_name]
         result = {}
         result['value'] = prop.value
         result['source'] = prop.source
-        result['changed'] = prop.changed
+        result['changed'] = convert_utc_to_local(prop.changed)
         return {"success": True,
                 "result": result}, 200
 
@@ -161,7 +160,7 @@ class PropertyWithPath(Resource):
                     payload = request.get_json()
                     if payload is None:
                         return {'success': False,"error": "Invalid JSON data"}, 400
-                    
+
                     payload = request.get_json()
                     value = payload['data']
                     source = payload.get('source', 'api')
@@ -207,7 +206,7 @@ class PropertyInfo(Resource):
             object_name, property_name = object_property.split('.', 1)
         else:
             abort(400, 'Missing required parameters: object.property')
-        
+
         obj = objects_storage.getObjectByName(object_name)
         if obj is None:
             return {"success": False,
@@ -215,7 +214,7 @@ class PropertyInfo(Resource):
         if property_name not in obj.properties:
             return {"success": False,
                     "msg": "Property not found."}, 404
-        
+
         prop = obj.properties[property_name]
         result = {}
         result['id'] = prop.property_id
@@ -229,7 +228,7 @@ class PropertyInfo(Resource):
         result['history'] = prop.history
         result['linked'] = prop.linked
         result['method'] = prop.method
-        
+
         return {"success": True,
                 "result": result}, 200
 
@@ -298,6 +297,9 @@ class GetHistory(Resource):
 
         dt_begin = datetime.datetime.fromisoformat(dt_begin_str) if dt_begin_str else None
         dt_end = datetime.datetime.fromisoformat(dt_end_str) if dt_end_str else None
+        # TODO get timezone from request
+        dt_begin = convert_local_to_utc(dt_begin)
+        dt_end = convert_local_to_utc(dt_end)
 
         result = obj.getHistory(property_name, dt_begin, dt_end, limit, order_desc)
 
@@ -352,6 +354,9 @@ class GetAggregateHistory(Resource):
 
         dt_begin = datetime.datetime.fromisoformat(dt_begin_str) if dt_begin_str else None
         dt_end = datetime.datetime.fromisoformat(dt_begin_str) if dt_end_str else None
+        # TODO get timezone from request
+        dt_begin = convert_local_to_utc(dt_begin)
+        dt_end = convert_local_to_utc(dt_end)
 
         result = obj.getHistoryAggregate(property_name, dt_begin, dt_end)
 

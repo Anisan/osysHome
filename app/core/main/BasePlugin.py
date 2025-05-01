@@ -23,7 +23,7 @@ class BasePlugin:
 
         self.system = False
         self.thread = None
-        self.dtUpdated = datetime.datetime.now()
+        self.dtUpdated = datetime.datetime.now(datetime.timezone.utc)
         self.config = {}
         self.actions = []  # list support actions
 
@@ -100,7 +100,7 @@ class BasePlugin:
             except Exception as ex:
                 self.logger.error(f"Error in cyclic task: {ex}", exc_info=True)
 
-            self.dtUpdated = datetime.datetime.now()
+            self.dtUpdated = datetime.datetime.now(datetime.timezone.utc)
 
     def cyclic_task(self):
         pass
@@ -146,10 +146,6 @@ class BasePlugin:
 
     def sendDataToWebsocket(self, operation:str, data:dict):
         """ Send data to websocket """
-        if isinstance(data, dict):
-            for key in data.keys():
-                if isinstance(data[key], datetime.datetime):
-                    data[key] = str(data[key])
         payload = {
             "operation": operation,
             "data": data
