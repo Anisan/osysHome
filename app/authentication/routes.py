@@ -23,7 +23,7 @@ def login():
     login_form = LoginForm(request.form)
     users = getObjectsByClass('Users')
             
-    if 'login' in request.form:
+    if 'login' in request.form and len(users)!=0:
 
         # read form data
         username = request.form['username']
@@ -69,7 +69,7 @@ def login():
                                register=False,
                                form=login_form)
 
-    if not current_user.is_authenticated:
+    if not current_user.is_authenticated or len(users) == 0:
         msg = None
         register = False
         if users is None:
