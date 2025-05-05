@@ -1,7 +1,6 @@
 import os
 import importlib.util
-import datetime
-from app.database import model_exists, row2dict
+from app.database import model_exists, row2dict, get_now_to_utc
 from app.core.models.Plugins import Plugin, Notify
 from app.extensions import cache
 from app.core.lib.constants import CategoryNotify
@@ -40,7 +39,7 @@ def registerPlugins(app):
                             if plugin_db is None:
                                 plugin_db = Plugin()
                                 plugin_db.name = plugin_name
-                                plugin_db.updated = datetime.datetime.now(datetime.timezone.utc)
+                                plugin_db.updated = get_now_to_utc()
                                 plugin_db.save()
                             if plugin_db.active:
                                 plugin_instance = plugin_class(

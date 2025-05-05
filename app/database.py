@@ -2,7 +2,7 @@
 """Database module, including the SQLAlchemy database object and DB-related utilities."""
 import time
 import random
-from datetime import datetime
+from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 from tzlocal import get_localzone
 from flask_login import current_user
@@ -299,3 +299,6 @@ def convert_local_to_utc(local_time, timezone:str=None):
     aware_local_time = local_time.replace(tzinfo=local_timezone)
     utc_time = aware_local_time.astimezone(ZoneInfo("UTC"))
     return utc_time.replace(tzinfo=None)
+
+def get_now_to_utc():
+    return datetime.now(timezone.utc).replace(tzinfo=None)

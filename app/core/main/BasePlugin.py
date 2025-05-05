@@ -7,7 +7,7 @@ from flask import Blueprint, request, render_template
 from settings import Config
 from app.core.models.Plugins import Plugin
 from app.core.lib.common import sendDataToWebsocket
-from app.database import session_scope
+from app.database import session_scope, get_now_to_utc
 from app.authentication.handlers import handle_admin_required
 from app.logging_config import getLogger
 
@@ -23,7 +23,7 @@ class BasePlugin:
 
         self.system = False
         self.thread = None
-        self.dtUpdated = datetime.datetime.now(datetime.timezone.utc)
+        self.dtUpdated = get_now_to_utc()
         self.config = {}
         self.actions = []  # list support actions
 
@@ -100,7 +100,7 @@ class BasePlugin:
             except Exception as ex:
                 self.logger.error(f"Error in cyclic task: {ex}", exc_info=True)
 
-            self.dtUpdated = datetime.datetime.now(datetime.timezone.utc)
+            self.dtUpdated = get_now_to_utc()
 
     def cyclic_task(self):
         pass

@@ -6,7 +6,7 @@ import json
 from sqlalchemy import update
 from flask import render_template_string
 from flask_login import current_user
-from app.database import session_scope,row2dict, convert_utc_to_local, convert_local_to_utc
+from app.database import session_scope,row2dict, convert_utc_to_local, convert_local_to_utc, get_now_to_utc
 from app.core.main.PluginsHelper import plugins
 from app.core.models.Clasess import Object, Property, Value, History
 from app.core.lib.common import setTimeout
@@ -42,7 +42,7 @@ class PropertyManager():
             self.__value = self._decodeValue(value.value)
         self.count_read = 0
         self.count_write = 0
-        self.readed = datetime.datetime.now(datetime.timezone.utc)
+        self.readed = get_now_to_utc()
 
     def _decodeValue(self, value):
         if value is None:
@@ -168,7 +168,7 @@ class PropertyManager():
         if changed is not None:
             self.changed = changed
         else:
-            now = datetime.datetime.now(datetime.timezone.utc)
+            now = get_now_to_utc()
             self.changed = now
 
         # save Value To DB
@@ -181,10 +181,13 @@ class PropertyManager():
         self.count_write = self.count_write + 1
 
     def getValue(self):
-        self.readed = datetime.datetime.now(datetime.timezone.utc)
+        self.readed = get_now_to_utc()
         self.count_read = self.count_read + 1
         if self.type == 'datetime' and self.__value:
-            return convert_utc_to_local(self.__value)
+            try:
+                return convert_utc_to_local(self.__value)
+            except Exception as ex:
+                _logger.exception(ex)
         return self.__value
 
     @property
@@ -522,7 +525,7 @@ class ObjectManager:
                     source += ':'
                 source += username
             self.methods[name].source = source
-            self.methods[name].executed = datetime.datetime.now(datetime.timezone.utc)
+            self.methods[name].executed = get_now_to_utc()
             self.methods[name].exec_params = args
             self.methods[name].exec_result = output
             self.methods[name].count_executed = self.methods[name].count_executed + 1

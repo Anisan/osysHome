@@ -7,7 +7,7 @@ class CustomJSONEncoder(JSONEncoder):
     Custom encoder for handling default values from a function call.
     Formats datetime objects using a specified format, including milliseconds.
     """
-    def __init__(self, date_format="%Y-%m-%d %H:%M:%S", include_milliseconds=False, *args, **kwargs):
+    def __init__(self, date_format="%Y-%m-%d %H:%M:%S", include_milliseconds=True, *args, **kwargs):
         """
         Initialize the encoder with an optional date format and millisecond inclusion flag.
 

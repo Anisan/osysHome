@@ -5,7 +5,7 @@ from sqlalchemy import update, delete
 import xml.etree.ElementTree as ET
 from app.core.lib.execute import execute_and_capture_output
 from app.logging_config import getLogger
-from app.database import session_scope, row2dict, convert_local_to_utc, convert_utc_to_local
+from app.database import session_scope, row2dict, convert_local_to_utc, convert_utc_to_local, get_now_to_utc
 from .crontab import nextStartCronJob
 from .constants import CategoryNotify
 from ..main.PluginsHelper import plugins
@@ -146,7 +146,7 @@ def setTimeout(name: str, code: str, timeout: int = 0):
     Returns:
         _type_: _description_
     """
-    local_dt = convert_utc_to_local(datetime.datetime.now(datetime.timezone.utc))
+    local_dt = convert_utc_to_local(get_now_to_utc())
     res = addScheduledJob(
         name, code, local_dt + datetime.timedelta(seconds=timeout)
     )
@@ -255,7 +255,7 @@ def addNotify(
             notify.description = description
             notify.category = category
             notify.source = source
-            notify.created = datetime.datetime.now(datetime.timezone.utc)
+            notify.created = get_now_to_utc()
             session.add(notify)
     # todo send to websocket
     # callPluginFunction()

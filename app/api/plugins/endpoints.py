@@ -6,7 +6,7 @@ from app.api.decorators import api_key_required
 from app.authentication.handlers import handle_user_required, handle_admin_required
 from app.api.models import model_404, model_result
 from app.core.models.Plugins import Plugin
-from app.database import row2dict, session_scope
+from app.database import row2dict, session_scope, get_now_to_utc
 from app.core.main.PluginsHelper import plugins
 from app.core.lib.object import getProperty
 from app.extensions import cache
@@ -53,7 +53,7 @@ class GetPlugins(Resource):
 
             updated = getProperty("SystemVar.upgraded")
             if updated is None or updated is False:
-                updated = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(10000)
+                updated = get_now_to_utc() - datetime.timedelta(10000)
             osysHome = {
                 "title": "osysHome",
                 "name": "osysHome",

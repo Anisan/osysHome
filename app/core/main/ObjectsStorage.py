@@ -1,7 +1,5 @@
 import threading
-import datetime
-from datetime import timezone
-from app.database import row2dict, session_scope
+from app.database import row2dict, session_scope, get_now_to_utc
 from app.core.main.ObjectManager import ObjectManager, PropertyManager, MethodManager
 from app.core.models.Clasess import Class, Property, Method, Object, Value, History
 from app.logging_config import getLogger
@@ -21,7 +19,7 @@ class ObjectStorage():
 
         if name in self.objects:
             self.stats[name]['count_get'] = self.stats[name]['count_get'] + 1
-            self.stats[name]['last_get'] = datetime.datetime.now(timezone.utc)
+            self.stats[name]['last_get'] = get_now_to_utc()
             return self.objects[name]
         with session_scope() as session:
             obj = session.query(Object).filter_by(name=name).one_or_none()
@@ -30,7 +28,7 @@ class ObjectStorage():
                     self.name_lock[name] = threading.Condition()
                 with self.name_lock[name]:
                     self.objects[obj.name] = self._createObjectManager(session, obj)
-                    self.stats[obj.name] = {'count_get':1, 'last_get': datetime.datetime.now(timezone.utc)}
+                    self.stats[obj.name] = {'count_get':1, 'last_get': get_now_to_utc()}
 
                     self.name_lock[name].notify_all()
 
@@ -302,7 +300,7 @@ class ObjectStorage():
                 if obj.name not in self.objects:
                     self.objects[obj.name] = self._createObjectManager(session, obj)
                     if obj.name not in self.stats:
-                        self.stats[obj.name] = {'count_get':1, 'last_get': datetime.datetime.now(datetime.timezone.utc)}
+                        self.stats[obj.name] = {'count_get':1, 'last_get': get_now_to_utc()}
 
     def clear(self):
         self.logger.info("Clear storage")
