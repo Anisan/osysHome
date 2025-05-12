@@ -208,15 +208,15 @@ class PropertyManager():
             "name": self.name,
             "description": self.description,
             "history": self.history,
-            "changed": str(self.changed) if self.changed else None,
+            "changed": str(convert_utc_to_local(self.changed)) if self.changed else None,
             "method": self.method,
             "linked": self.linked,
             "source": self.source,
             "type": self.type,
             "value": self.value if self.type != 'datetime' else str(self.value),
-            # "count_read": self.count_read,
-            # "count_write": self.count_write,
-            # "readed": str(self.readed)
+            "count_read": self.count_read,
+            "count_write": self.count_write,
+            "readed": str(convert_utc_to_local(self.readed))
         }
 
     def __str__(self):
@@ -240,11 +240,12 @@ class MethodManager():
         return {
             "name": self.name,
             "description": self.description,
-            # "source": self.source,
-            # "count_executed": self.count_executed,
-            # "executed": str(self.executed) if self.executed else None,
-            # "exec_params": self.exec_params,
-            # "exec_result": self.exec_result
+            "source": self.source,
+            "methods": self.methods,
+            "count_executed": self.count_executed,
+            "executed": str(convert_utc_to_local(self.executed)) if self.executed else None,
+            "exec_params": self.exec_params,
+            "exec_result": self.exec_result
         }
 
     def __str__(self):
@@ -285,12 +286,12 @@ class ObjectManager:
     def _check_permissions(self, operation:TypeOperation, property_name:str=None, method_name:str=None):
         if not object.__getattribute__(self, "__inited"):
             return True
-        
+
         name = object.__getattribute__(self, "name")
-        
+
         if name == "_permissions" and operation == TypeOperation.Get:
             return True
-        
+
         # permissions check
         username = getattr(current_user, 'username', None)
         if username is None:
@@ -362,7 +363,7 @@ class ObjectManager:
         try:
             _logger.debug("ObjectManager::setProperty %s.%s - %s", self.name, name, str(value))
             self._check_permissions(TypeOperation.Set, name, None)
-                
+
             if name not in self.properties:
                 with session_scope() as session:
                     property_db = Property()
@@ -618,6 +619,9 @@ class ObjectManager:
             return None
         prop:PropertyManager = self.properties[name]
         value_id = prop.value_id
+        # TODO get timezone from request
+        dt_begin = convert_local_to_utc(dt_begin)
+        dt_end = convert_local_to_utc(dt_end)
 
         with session_scope() as session:
             result = History.getHistory(session, value_id, dt_begin,dt_end,limit,order_desc,row2dict)
@@ -646,6 +650,9 @@ class ObjectManager:
             return None
         prop:PropertyManager = self.properties[name]
         value_id = prop.value_id
+        # TODO get timezone from request
+        dt_begin = convert_local_to_utc(dt_begin)
+        dt_end = convert_local_to_utc(dt_end)
 
         with session_scope() as session:
             if func == 'count':
@@ -711,7 +718,9 @@ class ObjectManager:
             "description": self.description,
             "template": self.template,
             "properties": properties_dict,
-            "methods": methods_dict
+            "methods": methods_dict,
+            "parents": self.parents,
+            "permissions": object.__getattribute__(self, "__permissions")
         }
 
     def __str__(self):

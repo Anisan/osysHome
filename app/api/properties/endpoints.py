@@ -297,10 +297,7 @@ class GetHistory(Resource):
 
         dt_begin = datetime.datetime.fromisoformat(dt_begin_str) if dt_begin_str else None
         dt_end = datetime.datetime.fromisoformat(dt_end_str) if dt_end_str else None
-        # TODO get timezone from request
-        dt_begin = convert_local_to_utc(dt_begin)
-        dt_end = convert_local_to_utc(dt_end)
-
+        
         result = obj.getHistory(property_name, dt_begin, dt_end, limit, order_desc)
 
         return {"success": True,
@@ -354,10 +351,7 @@ class GetAggregateHistory(Resource):
 
         dt_begin = datetime.datetime.fromisoformat(dt_begin_str) if dt_begin_str else None
         dt_end = datetime.datetime.fromisoformat(dt_begin_str) if dt_end_str else None
-        # TODO get timezone from request
-        dt_begin = convert_local_to_utc(dt_begin)
-        dt_end = convert_local_to_utc(dt_end)
-
+        
         result = obj.getHistoryAggregate(property_name, dt_begin, dt_end)
 
         return {"success": True,

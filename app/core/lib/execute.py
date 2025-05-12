@@ -1,6 +1,7 @@
 import sys
 import io
 import traceback
+from contextlib import redirect_stdout
 
 module_names = [
     "app.core.lib.common",
@@ -33,24 +34,16 @@ def execute_and_capture_output(code: str, variables: dict):
         import_statement = f'from {module_name} import *'
         exec(import_statement, environment)
 
-    # Захватываем стандартный вывод
-    old_stdout = sys.stdout
-    output_buffer = io.StringIO()
-    sys.stdout = output_buffer
-
+    buffer = io.StringIO()
     error = False
     output = ''
-    try:
-        # Выполняем пользовательский код в окружении
-        exec(code, environment)
-        # Получаем результат из захваченного вывода
-        output = output_buffer.getvalue()
-    except Exception as e:
-        output = f"Exception: {str(e)}\n\nTraceback:\n{traceback.format_exc()}"
-        error = True
-    finally:
-        # Восстанавливаем стандартный вывод
-        sys.stdout = old_stdout
-        output_buffer.close()
+    
+    with redirect_stdout(buffer):
+        try:
+            exec(code, environment, locals())
+            output = buffer.getvalue()  # Читаем данные до закрытия
+        except Exception as e:
+            output = f"Exception: {str(e)}\n\nTraceback:\n{traceback.format_exc()}"
+            error = True
 
     return output, error
