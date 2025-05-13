@@ -43,7 +43,6 @@ class GetPlugins(Resource):
                         item["actions"] = module["instance"].actions
                         item["author"] = module["instance"].author
                         item["alive"] = module["instance"].is_alive()
-                        item['new'] = False
                         if "cycle" in item["actions"]:
                             item["updatedCycle"] = module["instance"].dtUpdated
                     else:
@@ -59,8 +58,9 @@ class GetPlugins(Resource):
                 "name": "osysHome",
                 "description":"Object System smartHome",
                 "topic":["core","smarthome"],
-                "new": False,
                 "need_restart": getProperty("SystemVar.NeedRestart"),
+                "branch": getProperty("SystemVar.core_branch"),
+                "update": getProperty("SystemVar.update"),
                 "author":"Eraser",
                 "updated": updated,
                 "url":"https://github.com/Anisan/osysHome",
@@ -93,7 +93,6 @@ class GetPluginInfo(Resource):
                         item["actions"] = module["instance"].actions
                         item["author"] = module["instance"].author
                         item["alive"] = module["instance"].is_alive()
-                        item['new'] = False
                         if "cycle" in item["actions"]:
                             item["updatedCycle"] = module["instance"].dtUpdated
                     else:
@@ -178,6 +177,7 @@ class PluginSettings(Resource):
                 config['hidden'] = module.hidden
                 config['active'] = module.active
                 config['url'] = module.url
+                config['branch'] = module.branch
                 return config, 200
             else:
                 return {"message": f"Plugin '{plugin_name}' not found", "status": "error"}, 404
@@ -208,6 +208,9 @@ class PluginSettings(Resource):
                 if "url" in config:
                     module.url = config['url']
                     del config['url']
+                if "branch" in config:
+                    module.branch = config['branch']
+                    del config['branch']
 
                 module.config = json.dumps(config)
 

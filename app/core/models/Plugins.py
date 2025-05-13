@@ -11,6 +11,8 @@ class Plugin(SurrogatePK, db.Model):
     active = Column(db.Boolean, default=True)
     config = Column(db.Text)
     url = Column(db.String(512))
+    branch = Column(db.String(128))
+    update = Column(db.Boolean)
     updated = Column(db.DateTime)
 
 class Notify(SurrogatePK, db.Model):
