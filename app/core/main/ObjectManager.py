@@ -604,8 +604,8 @@ class ObjectManager:
 
         Args:
             name (str): Name property
-            dt_begin (datetime, optional): Begin date. Defaults to None.
-            dt_end (datetime, optional): End date. Defaults to None.
+            dt_begin (datetime, optional): Begin local datetime. Defaults to None.
+            dt_end (datetime, optional): End local datetime. Defaults to None.
             limit (int, optional): Limit. Defaults to None.
             order_desc (bool, optional): Order desc. Defaults to False.
             func (function, optional): Function to apply to the data. Defaults to None.
@@ -619,7 +619,7 @@ class ObjectManager:
             return None
         prop:PropertyManager = self.properties[name]
         value_id = prop.value_id
-        # TODO get timezone from request
+        
         dt_begin = convert_local_to_utc(dt_begin)
         dt_end = convert_local_to_utc(dt_end)
 
@@ -637,8 +637,8 @@ class ObjectManager:
 
         Args:
             name (str): Name property
-            dt_begin (datetime, optional): Begin date. Defaults to None.
-            dt_end (datetime, optional): End date. Defaults to None.
+            dt_begin (datetime, optional): Begin local datetime. Defaults to None.
+            dt_end (datetime, optional): End local datetime. Defaults to None.
             func (str, optional): Aggregate function (min,max,sum,avg,count). Defaults to None, return all aggregate value.
 
         Returns:
@@ -650,12 +650,11 @@ class ObjectManager:
             return None
         prop:PropertyManager = self.properties[name]
         value_id = prop.value_id
-        # TODO get timezone from request
-        dt_begin = convert_local_to_utc(dt_begin)
-        dt_end = convert_local_to_utc(dt_end)
-
+        
         with session_scope() as session:
             if func == 'count':
+                dt_begin = convert_local_to_utc(dt_begin)
+                dt_end = convert_local_to_utc(dt_end)
                 result = History.get_count(session, value_id, dt_begin,dt_end)
                 return result
             data = self.getHistory(name, dt_begin, dt_end)

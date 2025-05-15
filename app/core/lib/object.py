@@ -724,8 +724,8 @@ def getHistory(name:str, dt_begin:datetime = None, dt_end:datetime = None, limit
 
         Args:
             name (str): Name property
-            dt_begin (datetime, optional): Begin date. Defaults to None.
-            dt_end (datetime, optional): End date. Defaults to None.
+            dt_begin (datetime, optional): Begin local datetime. Defaults to None.
+            dt_end (datetime, optional): End local datetime. Defaults to None.
             limit (int, optional): Limit. Defaults to None.
             order_desc (bool, optional): Order desc. Defaults to False.
             func (function, optional): Function to apply to the data. Defaults to None.
@@ -755,8 +755,8 @@ def getHistoryAggregate(name:str, dt_begin:datetime = None, dt_end:datetime = No
 
     Args:
         name (str): Name property
-        dt_begin (datetime, optional): Begin date. Defaults to None.
-        dt_end (datetime, optional): End date. Defaults to None.
+        dt_begin (datetime, optional): Begin local datetime. Defaults to None.
+        dt_end (datetime, optional): End local datetime. Defaults to None.
         func (str, optional): Aggregate function (min,max,sum,avg,count). Defaults to None, return all
 
     Returns:
