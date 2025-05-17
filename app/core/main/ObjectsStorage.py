@@ -210,9 +210,11 @@ class ObjectStorage():
             mm = MethodManager(group)
             om._addMethod(mm)
 
-        # get template from class
-        if not obj.template:
-            om.template = self._getTemplateClass(obj.class_id)
+        # get templates from class
+        templates = self._getTemplateClass(session, obj.class_id,{})
+        templates[obj.name] = obj.template
+        om._setTemplates(templates)
+        
         parents = []
         parents = self._getParents(session, obj.class_id, parents)
         om.parents = parents
@@ -246,14 +248,13 @@ class ObjectStorage():
                 return self._getMethodsClass(session, cls.parent_id, methods)
         return methods
 
-    def _getTemplateClass(self, class_id):
-        with session_scope() as session:
-            cls = session.query(Class).filter(Class.id == class_id).one_or_none()
-            if cls and cls.template:
-                return cls.template
+    def _getTemplateClass(self, session, id, templates):
+        if id:
+            cls = session.query(Class).filter(Class.id == id).one_or_none()
+            templates[cls.name] = cls.template
             if cls and cls.parent_id:
-                return self._getTemplateClass(cls.parent_id)
-            return None
+                return self._getTemplateClass(session, cls.parent_id, templates)
+        return templates
 
     # remove object
     def remove_object(self, object_name):

@@ -4,7 +4,6 @@ from dateutil import parser
 import threading
 import json
 from sqlalchemy import update
-from flask import render_template_string
 from flask_login import current_user
 from app.database import session_scope,row2dict, convert_utc_to_local, convert_local_to_utc, get_now_to_utc
 from app.core.main.PluginsHelper import plugins
@@ -261,10 +260,10 @@ class ObjectManager:
     def __init__(self, obj: Object):
         object.__setattr__(self, "__inited", False)
         object.__setattr__(self, "__permissions", None)
+        object.__setattr__(self, "__templates", {})
         self.object_id = obj.id
         self.name = obj.name
         self.description = obj.description
-        self.template = obj.template
         self.properties = {}
         self.methods = {}
 
@@ -468,7 +467,7 @@ class ObjectManager:
             raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{name}'")
 
     def __setattr__(self, name, value):
-        if name not in ['properties', 'template']:
+        if name not in ['properties', 'templates']:
             self._check_permissions(TypeOperation.Set, name, None)
 
         if name == "properties":
@@ -540,6 +539,9 @@ class ObjectManager:
         except Exception as ex:
             _logger.critical(ex, exc_info=True)
             return str(ex)
+        
+    def _setTemplates(self, templates):
+        object.__setattr__(self, "__templates", templates)
 
     def render(self) -> str:
         """Render object template
@@ -548,9 +550,28 @@ class ObjectManager:
             str: html view object
         """
         try:
-            if self.template:
-                return render_template_string(self.template, object=self)
-            return ''
+            result = ''
+
+            templates = object.__getattribute__(self, "__templates")
+
+            from jinja2 import Environment, DictLoader
+            env = Environment(loader=DictLoader(
+                templates
+            ))
+
+            render_template = self.name
+            if not templates.get(render_template):
+                for parent in self.parents:
+                    if templates.get(parent):
+                        render_template = parent
+                        break
+
+            if templates.get(render_template):
+                template = env.get_template(render_template)
+                result = template.render(object=self)
+            if result == 'None':
+                result = ''
+            return result
         except Exception as ex:
             _logger.error(ex, exc_info=True)
             return str(ex)
@@ -619,7 +640,7 @@ class ObjectManager:
             return None
         prop:PropertyManager = self.properties[name]
         value_id = prop.value_id
-        
+
         dt_begin = convert_local_to_utc(dt_begin)
         dt_end = convert_local_to_utc(dt_end)
 
@@ -650,7 +671,7 @@ class ObjectManager:
             return None
         prop:PropertyManager = self.properties[name]
         value_id = prop.value_id
-        
+
         with session_scope() as session:
             if func == 'count':
                 dt_begin = convert_local_to_utc(dt_begin)
@@ -715,7 +736,7 @@ class ObjectManager:
             "name": self.name,
             "id": self.object_id,
             "description": self.description,
-            "template": self.template,
+            "templates": object.__getattribute__(self, "__templates"),
             "properties": properties_dict,
             "methods": methods_dict,
             "parents": self.parents,
