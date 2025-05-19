@@ -1,4 +1,5 @@
 [![Mailing list : test](http://img.shields.io/badge/Telegram-blue.svg?style=for-the-badge&logo=telegram)](https://t.me/osysHome)
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/Anisan/osysHome)
 
 ![header](https://github.com/Anisan/osysHome/blob/master/app/static/assets/images/logo.png?raw=true)
 
