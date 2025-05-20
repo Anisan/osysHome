@@ -558,6 +558,8 @@ class ObjectManager:
             env = Environment(loader=DictLoader(
                 templates
             ))
+            from app.core.lib.object import getProperty
+            env.globals.update(getProperty=getProperty)
 
             render_template = self.name
             if not templates.get(render_template):
