@@ -443,7 +443,13 @@ class ObjectManager:
 
         if name in self.properties:
             prop = self.properties[name]
-            return getattr(prop, data, None)
+            value = getattr(prop, data, None)
+            if data == 'changed' and value:
+                try:
+                    return convert_utc_to_local(value)
+                except Exception as ex:
+                    _logger.exception(ex)
+            return value
         return None
 
     def getChanged(self, name:str):
