@@ -12,7 +12,6 @@ class Config(object):
     DOCS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'docs')
     FILES_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'files')
 
-    LANGUAGES = ['en', 'ru']
     DEFAULT_LANGUAGE = 'en'
     # Settings app
     SECRET_KEY = 'secret-key'  # TODO: Change me

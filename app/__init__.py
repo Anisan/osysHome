@@ -90,6 +90,7 @@ def createApp(config_object):
 def load_translations(app):
     """Загружает переводы из JSON файлов"""
     app.translations = {}
+    app.config['LANGUAGES'] = []
     base_dir = os.path.dirname(os.path.dirname(__file__))
 
     # Загрузка основных переводов
@@ -122,13 +123,12 @@ def load_translation_files(app, trans_dir):
                         app.translations[lang][key] = value
 
             # Обновляем список языков
-            if lang not in app.config['LANGUAGES']:
-                app.config['LANGUAGES'].append(lang)
+            app.config['LANGUAGES'].append(lang)
 
 def get_current_language():
     """Определяет текущий язык"""
     if not has_app_context():
-        return current_app.config['DEFAULT_LANGUAGE']
+        return current_app.config.get('DEFAULT_LANGUAGE','en')
 
     # 1. Из параметра URL
     lang = request.args.get('lang')
@@ -146,7 +146,7 @@ def get_current_language():
         return browser_lang
 
     # 4. Язык по умолчанию
-    return current_app.config['DEFAULT_LANGUAGE']
+    return current_app.config.get('DEFAULT_LANGUAGE','en')
 
 def safe_translate(key, lang=None):
     """Безопасный перевод с проверкой контекста"""
@@ -160,7 +160,7 @@ def translate(key, lang=None):
     lang = lang or get_current_language()
 
     if lang not in app.translations:
-        lang = current_app.config['DEFAULT_LANGUAGE']
+        lang = current_app.config.get('DEFAULT_LANGUAGE','en')
 
     # Поиск перевода
     if key in app.translations[lang]:
