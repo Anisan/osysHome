@@ -12,7 +12,7 @@
             <img src="{{ config.ASSETS_ROOT }}/images/logo.png" class="mb-3">
             {% if msg %}
             <div class="alert alert-danger" role="alert">
-              <h4 class="alert-heading">Warning!!!</h4>
+              <h4 class="alert-heading">{{ _('Warning!!!')}}</h4>
               <span>{{ msg | safe }}</span>
             </div>
             {% endif %} 
@@ -21,12 +21,12 @@
               {{ form.hidden_tag() }}
               <div data-mdb-input-init class="form-outline input-group  mb-3">
                 <span class="input-group-text" id="basic-addon1"><i class="fas fa-user"></i></span>
-                {{ form.username(placeholder="Username", class="form-control form-control-lg") }}
+                {{ form.username(placeholder=_("Username"), class="form-control form-control-lg") }}
               </div>
 
               <div data-mdb-input-init class="form-outline  input-group mb-3">
                 <span class="input-group-text" id="basic-addon1"><i class="fas fa-lock"></i></span>
-                {{ form.password(placeholder="Password", class="form-control  form-control-lg", type="password") }}
+                {{ form.password(placeholder=_("Password"), class="form-control  form-control-lg", type="password") }}
                 <span class="input-group-text" onclick="password_show_hide();">
                     <i class="fas fa-eye" id="show_eye"></i>
                     <i class="fas fa-eye-slash d-none" id="hide_eye"></i>
@@ -34,7 +34,7 @@
               </div>
 
               <button data-mdb-button-init data-mdb-ripple-init class="btn btn-primary btn-lg btn-block"
-                type="submit" name="login">{% if register==True %} Register {%else%} Login {%endif%}</button>
+                type="submit" name="login">{% if register==True %} {{ _('Register')}} {%else%} {{ _('Login')}} {%endif%}</button>
             </form>
           </div>
         </div>

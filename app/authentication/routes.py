@@ -11,6 +11,7 @@ from .forms import LoginForm
 from app.extensions import login_manager
 from app.core.models.Users import User
 from app.core.lib.object import getObject, getObjectsByClass, addObject, setProperty
+from app import safe_translate as _
 
 @blueprint.route('/')
 def route_default():
@@ -29,14 +30,14 @@ def login():
         username = request.form['username']
         if not username:
             return render_template('accounts/login.html',
-                                   msg='Username cannot be empty',
+                                   msg=_('Username cannot be empty'),
                                    register=False,
                                    form=login_form)
 
         password = request.form['password']
         if not password:
             return render_template('accounts/login.html',
-                                   msg='Password cannot be empty',
+                                   msg=_('Password cannot be empty'),
                                    register=False,
                                    form=login_form)
 
@@ -65,7 +66,7 @@ def login():
 
         # Something (user or pass) is not ok
         return render_template('accounts/login.html',
-                               msg='Wrong user or password',
+                               msg=_('Wrong user or password'),
                                register=False,
                                form=login_form)
 
@@ -73,7 +74,7 @@ def login():
         msg = None
         register = False
         if users is None:
-            msg = 'For create a user with administrator rights, specify login and password!'
+            msg = _('For create a user with administrator rights, specify login and password!')
             register = True
         return render_template('accounts/login.html',
                                form=login_form,
