@@ -85,12 +85,14 @@ def create_translation_files(keys, project_dir, languages):
                 app_translations = json.load(f)
         
         # Обновляем переводы для app
+        app_keys = {}
         for key in keys.get('app', []):
-            if key not in app_translations:
-                app_translations[key] = key if lang == 'en' else ''
+            app_keys[key] = key if lang == 'en' else ''
+            if key in app_translations:
+                app_keys[key] = app_translations[key]
         
         with open(app_file, 'w', encoding='utf-8') as f:
-            json.dump(app_translations, f, ensure_ascii=False, indent=2, sort_keys=True)
+            json.dump(app_keys, f, ensure_ascii=False, indent=2, sort_keys=True)
         print(f'Updated app translations: {app_file}')
     
     # Создаем переводы для плагинов
@@ -110,14 +112,14 @@ def create_translation_files(keys, project_dir, languages):
                 with open(plugin_file, 'r', encoding='utf-8') as f:
                     plugin_translations = json.load(f)
             
-            # Обновляем переводы для плагина (только уникальные ключи)
+            plugin_keys = {}
             for key in keys.get(plugin, []):
-                # Если ключ уже есть в app, не добавляем его в плагин
-                if key not in keys.get('app', []) and key not in plugin_translations:
-                    plugin_translations[key] = key if lang == 'en' else ''
+                plugin_keys[key] = key if lang == 'en' else ''
+                if key in plugin_translations:
+                    plugin_keys[key] = plugin_translations[key]
             
             with open(plugin_file, 'w', encoding='utf-8') as f:
-                json.dump(plugin_translations, f, ensure_ascii=False, indent=2, sort_keys=True)
+                json.dump(plugin_keys, f, ensure_ascii=False, indent=2, sort_keys=True)
             print(f'Updated {plugin} translations: {plugin_file}')
 
 if __name__ == '__main__':
