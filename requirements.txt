@@ -8,7 +8,6 @@ flask-restx
 Flask-Bcrypt
 flask-login
 flask_socketio
-flask_babel
 flask_wtf
 Flask-Caching
 

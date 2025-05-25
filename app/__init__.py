@@ -1,7 +1,9 @@
 """ Main module """
 import os
+import json
 from importlib import import_module
-from flask import Flask, request, render_template, current_app
+from functools import lru_cache
+from flask import Flask, request, render_template, current_app, session, has_app_context
 #import flask_monitoringdashboard as dashboard
 from flask_login import current_user
 from flask import flash, redirect, url_for, abort
@@ -9,7 +11,7 @@ from app.core.lib.object import getProperty
 from app import commands
 from app.exceptions import InvalidUsage
 from app.constants import LANGUAGES
-from app.extensions import db, login_manager, cors, bcrypt, babel, toolbar, cache
+from app.extensions import db, login_manager, cors, bcrypt, toolbar, cache
 from app.core.main.PluginsHelper import registerPlugins
 from app.core.utils import CustomJSONEncoder, CustomJSONProvider
 
@@ -52,6 +54,9 @@ def createApp(config_object):
     # from werkzeug.middleware.profiler import ProfilerMiddleware
     # app.wsgi_app = ProfilerMiddleware(app.wsgi_app, restrictions=[5], profile_dir='.')
 
+    # Загрузка переводов
+    load_translations(app)
+
     registerExtensions(app)
     registerBlueprints(app)
     registerErrorHandlers(app)
@@ -66,6 +71,14 @@ def createApp(config_object):
     #   dashboard.bind(app)
 
     @app.context_processor
+    def inject_utils():
+        return {
+            '_': safe_translate,
+            'gettext': safe_translate,  # Дополнительный алиас
+            'current_language': get_current_language
+        }
+
+    @app.context_processor
     def inject_common_data():
         return {
             'project_name': 'osysHome',
@@ -74,11 +87,95 @@ def createApp(config_object):
 
     return app
 
+def load_translations(app):
+    """Загружает переводы из JSON файлов"""
+    app.translations = {}
+    app.config['LANGUAGES'] = []
+    base_dir = os.path.dirname(os.path.dirname(__file__))
+
+    # Загрузка основных переводов
+    trans_dir = os.path.join(base_dir, 'app', 'translations')
+    if os.path.exists(trans_dir):
+        load_translation_files(app, trans_dir)
+
+    # Загрузка переводов плагинов
+    plugins_dir = os.path.join(base_dir, 'plugins')
+    if os.path.exists(plugins_dir):
+        for plugin in os.listdir(plugins_dir):
+            plugin_dir = os.path.join(plugins_dir, plugin)
+            if os.path.isdir(plugin_dir):
+                plugin_trans_dir = os.path.join(plugin_dir, 'translations')
+                if os.path.exists(plugin_trans_dir):
+                    load_translation_files(app, plugin_trans_dir)
+
+def load_translation_files(app, trans_dir):
+    for filename in os.listdir(trans_dir):
+        if filename.endswith('.json'):
+            lang = filename[:-5]
+            if lang not in app.translations:
+                app.translations[lang] = {}
+            filepath = os.path.join(trans_dir, filename)
+
+            with open(filepath, 'r', encoding='utf-8') as f:
+                dict_translate = json.load(f)
+                for key, value in dict_translate.items():
+                    if key not in app.translations[lang]:
+                        app.translations[lang][key] = value
+
+            # Обновляем список языков
+            app.config['LANGUAGES'].append(lang)
+
+def get_current_language():
+    """Определяет текущий язык"""
+    if not has_app_context():
+        return current_app.config.get('DEFAULT_LANGUAGE','en')
+
+    # 1. Из параметра URL
+    lang = request.args.get('lang')
+    if lang in current_app.config['LANGUAGES']:
+        session['lang'] = lang
+        return lang
+
+    # 2. Из сессии
+    if 'lang' in session and session['lang'] in current_app.config['LANGUAGES']:
+        return session['lang']
+
+    # 3. Из заголовков браузера
+    browser_lang = request.accept_languages.best_match(current_app.config['LANGUAGES'])
+    if browser_lang:
+        return browser_lang
+
+    # 4. Язык по умолчанию
+    return current_app.config.get('DEFAULT_LANGUAGE','en')
+
+def safe_translate(key, lang=None):
+    """Безопасный перевод с проверкой контекста"""
+    if not has_app_context():
+        return key
+    return translate(key, lang)
+
+def translate(key, lang=None):
+    """Основная функция перевода"""
+    app = current_app._get_current_object()
+    lang = lang or get_current_language()
+
+    if lang not in app.translations:
+        lang = current_app.config.get('DEFAULT_LANGUAGE','en')
+
+    # Поиск перевода
+    if key in app.translations[lang]:
+        return app.translations[lang][key]
+
+    # Логирование отсутствующего перевода
+    _logger.debug(f"Missing translation: {key} (lang: {lang})")
+    return key
+
 def registerExtensions(app):
 
     from app.core.lib.object import getProperty
     # Добавляем функцию в контекст шаблона
     app.jinja_env.globals['getProperty'] = getProperty
+    app.jinja_env.globals['gettext'] = safe_translate
 
     """Register Flask extensions."""
     bcrypt.init_app(app)
@@ -87,14 +184,6 @@ def registerExtensions(app):
     cors.init_app(app)
     login_manager.init_app(app)
     toolbar.init_app(app)
-
-    def locale():
-        # TODO get from user language
-        return request.accept_languages.best_match(LANGUAGES.keys())
-
-    babel.init_app(app,locale_selector=locale)
-    basedir = os.path.abspath(os.path.dirname(__file__))
-    app.config['BABEL_TRANSLATION_DIRECTORIES'] = os.path.join(basedir, 'translations')
 
 def registerBlueprints(app):
     """Register Flask blueprints."""
@@ -106,8 +195,6 @@ def registerBlueprints(app):
         app.register_blueprint(module.blueprint)
 
 def check_page_access(request):
-    _logger.debug(request)
-
     # Извлекаем имя blueprint из endpoint
     parts = request.endpoint.split('.')
     if len(parts) > 1:

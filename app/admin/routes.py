@@ -1,4 +1,4 @@
-from flask import render_template, send_from_directory
+from flask import render_template, send_from_directory, current_app, session
 from . import blueprint
 from settings import Config
 from app.logging_config import getLogger
@@ -35,3 +35,9 @@ def docs_file(filename):
 @handle_user_required
 def about():
     return render_template("about.html")
+
+@blueprint.route('/set_lang/<lang>')
+def set_lang(lang):
+    if lang in current_app.translations:
+        session['lang'] = lang
+    return 'Ok'

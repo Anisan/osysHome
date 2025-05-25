@@ -6,7 +6,6 @@ from flask_caching import Cache
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager
-from flask_babel import Babel
 from flask_debugtoolbar import DebugToolbarExtension
 
 class CRUDMixin(object):
@@ -41,7 +40,6 @@ bcrypt = Bcrypt()
 db = SQLAlchemy(model_class=CRUDMixin)
 cache = Cache()
 cors = CORS()
-babel = Babel()
 toolbar = DebugToolbarExtension()
 
 from .utils import load_user  # noqa
@@ -49,4 +47,3 @@ from .utils import load_user  # noqa
 login_manager = LoginManager()
 login_manager.login_view = "login"
 login_manager.user_loader(load_user)
-
