@@ -25,8 +25,11 @@ class ObjectStorage():
 
             for key,obj in self.objects.items():
                 if self.last_clean.get(key) is None or now.date() > self.last_clean.get(key).date():
-                    self.logger.debug(f'Clean history for object "{key}"')
-                    obj.cleanHistory()
+                    res = obj.cleanHistory()
+                    if len(res) > 0:
+                        self.logger.info(f'Clean history for object "{key}"')
+                        for name, item in res.items():
+                            self.logger.info(f'Clean history {key}.{name} (history - {item["history"]} days). Count deleted:{item["count"]}')
                     self.last_clean[key] = now
 
             time.sleep(60)
@@ -288,7 +291,8 @@ class ObjectStorage():
         self.logger.debug(f"Remove object - name:{object_name}")
         if object_name in self.objects:
             del self.objects[object_name]
-            del self.last_clean[object_name]
+            if object_name in self.last_clean:
+                del self.last_clean[object_name]
 
     def remove_objects_by_class(self, class_id):
         self.logger.debug(f"Remove objects by class - id:{class_id}")
@@ -297,7 +301,8 @@ class ObjectStorage():
             for obj in objs:
                 if obj.name in self.objects:
                     del self.objects[obj.name]
-                    del self.last_clean[obj.name]
+                    if obj.name in self.last_clean:
+                        del self.last_clean[obj.name]
             childs = session.query(Class).filter(Class.parent_id == class_id).all()
             for child in childs:
                 self.remove_objects_by_class(child.id)
@@ -310,7 +315,8 @@ class ObjectStorage():
             if obj:
                 if obj.name in self.objects:
                     del self.objects[obj.name]
-                    del self.last_clean[obj.name]
+                    if obj.name in self.last_clean:
+                        del self.last_clean[obj.name]
 
     def reload_objects_by_class(self, class_id):
         self.logger.debug(f"Reload objects by class - id:{class_id}")
@@ -319,7 +325,8 @@ class ObjectStorage():
             for obj in objs:
                 if obj.name in self.objects:
                     del self.objects[obj.name]
-                    del self.last_clean[obj.name]
+                    if obj.name in self.last_clean:
+                        del self.last_clean[obj.name]
             childs = session.query(Class).filter(Class.parent_id == class_id).all()
             for child in childs:
                 self.reload_objects_by_class(child.id)

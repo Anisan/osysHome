@@ -723,10 +723,12 @@ class ObjectManager:
 
     def cleanHistory(self):
         """Clean history of all properties"""
-        for _, prop in self.properties.items():
+        count = {}
+        for key, prop in self.properties.items():
             deleted_count = prop.cleanHistory()
             if deleted_count > 0:
-                _logger.debug(f"Clean history {self.name}.{prop.name} (history - {prop.history} days). Count deleted:{deleted_count}")
+                count[key] = {"history": prop.history, "count":deleted_count}
+        return count
 
     def getStats(self):
         stat_props = {}
