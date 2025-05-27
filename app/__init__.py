@@ -85,6 +85,10 @@ def createApp(config_object):
             'author': 'Eraser',
         }
 
+    @app.context_processor
+    def inject_config():
+        return dict(config=config_object)
+
     return app
 
 def load_translations(app):

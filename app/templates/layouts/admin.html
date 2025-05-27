@@ -1,6 +1,8 @@
 {% extends "layouts/main.html" %}
 {% block main %}
 
+    {% include 'includes/websockets.html' %}
+
     {% include 'includes/navbar.html' %}
     
     <div class="container-fluid">
@@ -13,6 +15,5 @@
     </div>
 
     {% include 'includes/scripts.html' %}
-    {% include 'includes/websockets.html' %}
-
+    
 {% endblock main %}

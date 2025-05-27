@@ -177,6 +177,7 @@
   }
 
   function subscribe(){
+      socket.emit('subscribeActions', ['say']);
       var elements = document.querySelectorAll('[id^="prop:"]');
       var propList = [];
       elements.forEach(function(element) {
@@ -199,6 +200,6 @@
   }
 
   document.addEventListener('DOMContentLoaded', function() {
-      //subscribe()
+      subscribe()
   });
 </script>
