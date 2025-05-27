@@ -1,4 +1,6 @@
 import threading
+import time
+from datetime import datetime
 from app.database import row2dict, session_scope, get_now_to_utc
 from app.core.main.ObjectManager import ObjectManager, PropertyManager, MethodManager
 from app.core.models.Clasess import Class, Property, Method, Object, Value, History
@@ -11,6 +13,31 @@ class ObjectStorage():
         self.objects = {}
         self.stats = {}
         self.name_lock = {}
+        self.last_clean = {}
+
+        self.cleaner_thread = threading.Thread(target=self.clean_task, daemon=True)
+        self.cleaner_thread.start()
+
+    def clean_task(self):
+        while True:
+            self.logger.debug("Check objects for clean history")
+            now = datetime.now()
+
+            for key,obj in self.objects.items():
+                if self.last_clean.get(key) is None or now.date() > self.last_clean.get(key).date():
+                    self.logger.debug(f'Clean history for object "{key}"')
+                    obj.cleanHistory()
+                    self.last_clean[key] = now
+
+            time.sleep(60)
+
+    def run_daily_check(self):
+        while True:
+            now = datetime.now()
+            if self.last_clean is None or now.date() > self.last_clean.date():
+                self.clear_task()
+                self.last_clean = now
+            time.sleep(3600)
 
     def getObjectByName(self, name: str) -> ObjectManager:
         # Проверяем, занят ли ресурс (имя)
@@ -214,7 +241,7 @@ class ObjectStorage():
         templates = self._getTemplateClass(session, obj.class_id,{})
         templates[obj.name] = obj.template
         om._setTemplates(templates)
-        
+
         parents = []
         parents = self._getParents(session, obj.class_id, parents)
         om.parents = parents
@@ -261,6 +288,7 @@ class ObjectStorage():
         self.logger.debug(f"Remove object - name:{object_name}")
         if object_name in self.objects:
             del self.objects[object_name]
+            del self.last_clean[object_name]
 
     def remove_objects_by_class(self, class_id):
         self.logger.debug(f"Remove objects by class - id:{class_id}")
@@ -269,6 +297,7 @@ class ObjectStorage():
             for obj in objs:
                 if obj.name in self.objects:
                     del self.objects[obj.name]
+                    del self.last_clean[obj.name]
             childs = session.query(Class).filter(Class.parent_id == class_id).all()
             for child in childs:
                 self.remove_objects_by_class(child.id)
@@ -281,6 +310,7 @@ class ObjectStorage():
             if obj:
                 if obj.name in self.objects:
                     del self.objects[obj.name]
+                    del self.last_clean[obj.name]
 
     def reload_objects_by_class(self, class_id):
         self.logger.debug(f"Reload objects by class - id:{class_id}")
@@ -289,6 +319,7 @@ class ObjectStorage():
             for obj in objs:
                 if obj.name in self.objects:
                     del self.objects[obj.name]
+                    del self.last_clean[obj.name]
             childs = session.query(Class).filter(Class.parent_id == class_id).all()
             for child in childs:
                 self.reload_objects_by_class(child.id)
