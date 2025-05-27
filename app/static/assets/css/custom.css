@@ -36,3 +36,18 @@
     50% { opacity: 1;}
     100% {opacity: 0;}
 }
+
+
+.theme-icon-light {
+    display: none;
+}
+.theme-icon-dark {
+    display: inline-block;
+}
+  
+[data-bs-theme="dark"] .theme-icon-light {
+    display: inline-block;
+}
+[data-bs-theme="dark"] .theme-icon-dark {
+    display: none;
+}
