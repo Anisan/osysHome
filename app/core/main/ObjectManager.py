@@ -156,17 +156,18 @@ class PropertyManager():
             _logger.exception(ex, exc_info=True)
 
     def cleanHistory(self):
-        if (self.history != 0):
-            period = abs(self.history)
-            with session_scope() as session:
+        with session_scope() as session:
+            count = session.query(History).where(History.value_id == self.value_id).count()
+            if (self.history != 0):
+                period = abs(self.history)
                 # clean history
                 dt = get_now_to_utc() - datetime.timedelta(days=period)
                 sql = delete(History).where(History.value_id == self.value_id, History.added < dt)
                 result = session.execute(sql)
                 deleted_count = result.rowcount
                 session.commit()
-                return deleted_count
-        return 0
+                return deleted_count, count - deleted_count
+            return 0, count
 
     def setValue(self, value, source='', changed=None, save_history:bool=None):
 
@@ -725,9 +726,8 @@ class ObjectManager:
         """Clean history of all properties"""
         count = {}
         for key, prop in self.properties.items():
-            deleted_count = prop.cleanHistory()
-            if deleted_count > 0:
-                count[key] = {"history": prop.history, "count":deleted_count}
+            deleted_count, all = prop.cleanHistory()
+            count[key] = {"history": prop.history, "deleted":deleted_count, "all": all}
         return count
 
     def getStats(self):
