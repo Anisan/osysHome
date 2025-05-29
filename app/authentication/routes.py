@@ -61,7 +61,12 @@ def login():
 
         # Check the password
         if user and user.password and user.check_password(password):
-            setProperty(username + ".lastLogin",datetime.datetime.now())
+            ip = ""
+            if request.headers.getlist("X-Forwarded-For"):
+                ip = request.headers.getlist("X-Forwarded-For")[0]
+            else:
+                ip = request.remote_addr
+            setProperty(username + ".lastLogin",datetime.datetime.now(),source=ip)
             login_user(user)
             return redirect("/")
 

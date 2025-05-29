@@ -167,6 +167,12 @@ class PropertyManager():
                 deleted_count = result.rowcount
                 session.commit()
                 return deleted_count, count - deleted_count
+            elif count > 0:
+                sql = delete(History).where(History.value_id == self.value_id)
+                result = session.execute(sql)
+                deleted_count = result.rowcount
+                session.commit()
+                return deleted_count, count - deleted_count
             return 0, count
 
     def setValue(self, value, source='', changed=None, save_history:bool=None):
