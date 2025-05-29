@@ -24,16 +24,19 @@
       <h4 class="mt-1 me-3"><span class=" blink badge bg-warning text-black">{{ _('Need restart osysHome')}}</span></h4>
       {%endif%}
       {% if 'admin' in request.path %}
-      <button class="btn btn-outline-secondary me-3" data-bs-toggle="modal" data-bs-target="#consoleModal"><i class="fa-solid fa-terminal me-2"></i>{{ _('Console')}}</button>
-      <button class="btn btn-outline-success me-3" data-bs-toggle="modal" data-bs-target="#searchModal"><i class="fa-solid fa-magnifying-glass me-2"></i>{{ _('Search')}}</button>
+      <button class="btn btn-outline-secondary me-2" data-bs-toggle="modal" data-bs-target="#consoleModal"><i class="fa-solid fa-terminal me-2"></i>{{ _('Console')}}</button>
+      <button class="btn btn-outline-success me-2" data-bs-toggle="modal" data-bs-target="#searchModal"><i class="fa-solid fa-magnifying-glass me-2"></i>{{ _('Search')}}</button>
       {%endif%}
 
       <ul class="nav navbar-nav navbar-right">
         <li class="nav-item">
-          <div class="form-check form-switch form-check-reverse display-7 mt-2">
-            <input class="form-check-input" type="checkbox" role="switch" id="darkModeSwitch">
-            <label class="form-check-label" for="darkModeSwitch">{{ _('Dark')}}</label>
-          </div>
+          <button class="btn btn-outline-secondary my-1 theme-toggle"  id="darkModeSwitch" type="button" aria-label="Toggle theme" title="{{ _('Toggle theme')}}">
+            <i class="fas fa-sun d-block d-md-none"></i>
+            <span class="d-none d-md-block">
+              <i class="fas fa-sun theme-icon-light"></i>
+              <i class="fas fa-moon theme-icon-dark"></i>
+            </span>
+          </button>
         </li>
         <li class="nav-item dropdown mx-3">
           <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
@@ -48,8 +51,10 @@
             <li><a class="dropdown-item" href="/admin"><i class="fas fa-cogs me-2"></i>{{ _('Control panel')}}</a></li>
             <li><a class="dropdown-item" href="/admin/Modules"><i class="fas fa-wrench me-2"></i>{{ _('Modules')}}</a></li>
             <li><a class="dropdown-item" href="/about"><i class="fas fa-info-circle me-2"></i>{{ _('About')}}</a></li>
+            {% if config.SERVICE_NAME or config.SERVICE_AUTORESTART%}
             <li><hr class="dropdown-divider"></li>
             <li><a class="dropdown-item" href="#" onclick="restart_system()"><i class="fas fa-gears me-2"></i>{{ _('Restart')}}</a></li>
+            {%endif%}
             <li><hr class="dropdown-divider"></li>
             <li><a class="dropdown-item" href="/logout"><i class="fas fa-sign-out-alt me-2"></i>{{ _('Logout')}}</a></li>
           </ul>

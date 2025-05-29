@@ -1,8 +1,8 @@
-import sys, os, subprocess
+import os
+import subprocess
 import ctypes
 from settings import Config 
 from app.extensions import bcrypt
-from app.core.main.PluginsHelper import stop_plugins
 from app.core.lib.object import getObjectsByClass, getObject, addObject, setProperty
 
 some_queue = None
@@ -13,9 +13,9 @@ def is_admin():
         return ctypes.windll.shell32.IsUserAnAdmin()
     except:
         return False
-    
+
 def restart_system():
-    service_restart = Config.SERVICE_RESTART
+    service_restart = Config.SERVICE_AUTORESTART
     if service_restart:
         # Завершаем скрипт
         print("Exiting with error to trigger systemd restart...")
@@ -42,7 +42,7 @@ def restart_system():
 def create_user(username, password):
     users = getObjectsByClass('Users')
 
-    if users is None:
+    if not users:
         return None
 
     obj = getObject(username)

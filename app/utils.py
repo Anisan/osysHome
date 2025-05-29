@@ -28,12 +28,12 @@ def initSystemVar():
     getObject("_permissions")  # preload
 
     # Create class users
-    cls_user = addClass('Users')
+    cls_user = addClass('Users','Users osysHome')
     if not cls_user['template']:
         # def template for Users
         cls_user['template'] = '''<div class="row">
     {% if object.image %}
-    <img class="col pe-0" src="{{object.image}}"  style="width:auto;height:auto;max-height: 80px;" alt="{{object.name}}">
+    <img class="col pe-0" src="{{object.image}}"  style="width:auto;height:80px;object-fit:contain;" alt="{{object.name}}">
     {% endif %}
     <div class="col-auto">
         <h5 class="m-1">{{object.description}}</h5>
@@ -58,7 +58,7 @@ def initSystemVar():
     addObjectProperty('LastSay','SystemVar',"Last 'say' message",7,PropertyType.String)
     
     users = getObjectsByClass('Users')
-    if users is not None and len(users) != 0:
+    if users:
         initPermissions()
 
 def initPermissions():

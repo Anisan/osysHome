@@ -23,7 +23,7 @@ def route_default():
 def login():
     login_form = LoginForm(request.form)
     users = getObjectsByClass('Users')
-            
+
     if 'login' in request.form and request.method == "POST":
 
         # read form data
@@ -52,6 +52,7 @@ def login():
                 user = User(obj)
                 user.set_password(password)
                 user.role = 'admin'
+                login_user(user)
                 setProperty(username + ".password", user.password)
                 setProperty(username + ".role", 'admin')
 
@@ -60,7 +61,12 @@ def login():
 
         # Check the password
         if user and user.password and user.check_password(password):
-            setProperty(username + ".lastLogin",datetime.datetime.now())
+            ip = ""
+            if request.headers.getlist("X-Forwarded-For"):
+                ip = request.headers.getlist("X-Forwarded-For")[0]
+            else:
+                ip = request.remote_addr
+            setProperty(username + ".lastLogin",datetime.datetime.now(),source=ip)
             login_user(user)
             return redirect("/")
 
@@ -73,7 +79,7 @@ def login():
     if not current_user.is_authenticated:
         msg = None
         register = False
-        if users is None:
+        if not users:
             msg = _('For create a user with administrator rights, specify login and password!')
             register = True
         return render_template('accounts/login.html',

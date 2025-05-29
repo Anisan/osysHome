@@ -3,7 +3,7 @@ from enum import Enum
 from dateutil import parser
 import threading
 import json
-from sqlalchemy import update
+from sqlalchemy import update, delete
 from flask_login import current_user
 from app.database import session_scope,row2dict, convert_utc_to_local, convert_local_to_utc, get_now_to_utc
 from app.core.main.PluginsHelper import plugins
@@ -154,6 +154,26 @@ class PropertyManager():
                 session.commit()
         except Exception as ex:
             _logger.exception(ex, exc_info=True)
+
+    def cleanHistory(self):
+        with session_scope() as session:
+            count = session.query(History).where(History.value_id == self.value_id).count()
+            if (self.history != 0):
+                period = abs(self.history)
+                # clean history
+                dt = get_now_to_utc() - datetime.timedelta(days=period)
+                sql = delete(History).where(History.value_id == self.value_id, History.added < dt)
+                result = session.execute(sql)
+                deleted_count = result.rowcount
+                session.commit()
+                return deleted_count, count - deleted_count
+            elif count > 0:
+                sql = delete(History).where(History.value_id == self.value_id)
+                result = session.execute(sql)
+                deleted_count = result.rowcount
+                session.commit()
+                return deleted_count, count - deleted_count
+            return 0, count
 
     def setValue(self, value, source='', changed=None, save_history:bool=None):
 
@@ -545,7 +565,7 @@ class ObjectManager:
         except Exception as ex:
             _logger.critical(ex, exc_info=True)
             return str(ex)
-        
+
     def _setTemplates(self, templates):
         object.__setattr__(self, "__templates", templates)
 
@@ -707,6 +727,14 @@ class ObjectManager:
                     "avg": sum(data) / len(data) if data else 0
                 }
             return result
+
+    def cleanHistory(self):
+        """Clean history of all properties"""
+        count = {}
+        for key, prop in self.properties.items():
+            deleted_count, all = prop.cleanHistory()
+            count[key] = {"history": prop.history, "deleted":deleted_count, "all": all}
+        return count
 
     def getStats(self):
         stat_props = {}

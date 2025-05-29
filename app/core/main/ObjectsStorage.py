@@ -1,4 +1,5 @@
 import threading
+from datetime import datetime
 from app.database import row2dict, session_scope, get_now_to_utc
 from app.core.main.ObjectManager import ObjectManager, PropertyManager, MethodManager
 from app.core.models.Clasess import Class, Property, Method, Object, Value, History
@@ -11,6 +12,38 @@ class ObjectStorage():
         self.objects = {}
         self.stats = {}
         self.name_lock = {}
+        self.clean_objects = {}
+
+        self._stop_event = threading.Event()
+        self.cleaner_thread = threading.Thread(target=self.clean_task, daemon=True)
+        self.cleaner_thread.start()
+
+    def clean_task(self):
+
+        while not self._stop_event.is_set():
+            try:
+                now = datetime.now()
+
+                object_keys = list(self.objects.keys())
+                if not object_keys:
+                    self._stop_event.wait(60)
+                    continue
+
+                self.logger.debug("Check objects for clean history")
+
+                for key,obj in self.objects.items():
+                    if self.clean_objects.get(key) is None or now.date() > self.clean_objects.get(key,{}).get("dt").date():
+                        res = obj.cleanHistory()
+                        count_deleted = 0
+                        for name, item in res.items():
+                            if item["deleted"] > 0:
+                                self.logger.info(f'Clean history {key}.{name} (history - {item["history"]} days). Count deleted:{item["deleted"]}')
+                            count_deleted += item["deleted"]
+                        self.clean_objects[key] = {"dt": now, "count": count_deleted, "result":res}
+                        break
+            except Exception as e:
+                self.logger.exception(f'Error in clean task: {e}', exc_info=True)
+            self._stop_event.wait(60.0)
 
     def getObjectByName(self, name: str) -> ObjectManager:
         # Проверяем, занят ли ресурс (имя)
@@ -42,6 +75,20 @@ class ObjectStorage():
 
     def values(self):
         return self.objects.values()
+
+    def getCleanerStat(self):
+        stats = []
+        for key, item in self.clean_objects.items():
+            obj = self.getObjectByName(key)
+            stats.append({
+                'id': obj.object_id,
+                'name': obj.name,
+                'description': obj.description,
+                'cleared':item["dt"],
+                'count':item["count"],
+                'details': item["result"]
+            })
+        return stats
 
     def getStats(self):
         stats = {}
@@ -214,7 +261,7 @@ class ObjectStorage():
         templates = self._getTemplateClass(session, obj.class_id,{})
         templates[obj.name] = obj.template
         om._setTemplates(templates)
-        
+
         parents = []
         parents = self._getParents(session, obj.class_id, parents)
         om.parents = parents
@@ -261,6 +308,8 @@ class ObjectStorage():
         self.logger.debug(f"Remove object - name:{object_name}")
         if object_name in self.objects:
             del self.objects[object_name]
+            if object_name in self.clean_objects:
+                del self.clean_objects[object_name]
 
     def remove_objects_by_class(self, class_id):
         self.logger.debug(f"Remove objects by class - id:{class_id}")
@@ -269,6 +318,8 @@ class ObjectStorage():
             for obj in objs:
                 if obj.name in self.objects:
                     del self.objects[obj.name]
+                    if obj.name in self.clean_objects:
+                        del self.clean_objects[obj.name]
             childs = session.query(Class).filter(Class.parent_id == class_id).all()
             for child in childs:
                 self.remove_objects_by_class(child.id)
@@ -281,6 +332,8 @@ class ObjectStorage():
             if obj:
                 if obj.name in self.objects:
                     del self.objects[obj.name]
+                    if obj.name in self.clean_objects:
+                        del self.clean_objects[obj.name]
 
     def reload_objects_by_class(self, class_id):
         self.logger.debug(f"Reload objects by class - id:{class_id}")
@@ -289,6 +342,8 @@ class ObjectStorage():
             for obj in objs:
                 if obj.name in self.objects:
                     del self.objects[obj.name]
+                    if obj.name in self.clean_objects:
+                        del self.clean_objects[obj.name]
             childs = session.query(Class).filter(Class.parent_id == class_id).all()
             for child in childs:
                 self.reload_objects_by_class(child.id)

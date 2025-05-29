@@ -35,7 +35,7 @@ class Config(object):
     CACHE_FILE_PATH = "cache"  # Замените на путь к вашей папке кеша
 
     CACHE_TYPE = 'simple'  # Can be "memcached", "redis", etc.
-    
+
     # Service auto restart
     SERVICE_AUTORESTART = False  # True if service option Restart=always
     # Service name
