@@ -1,8 +1,4 @@
 from functools import wraps
-from flask import redirect, url_for, flash, request
-from flask_login import current_user
-from app.logging_config import getLogger
-_logger = getLogger('unauthorized_access')
 
 def handle_roles_required(roles):
     def decorator(f):
