@@ -127,7 +127,8 @@ def load_translation_files(app, trans_dir):
                         app.translations[lang][key] = value
 
             # Обновляем список языков
-            app.config['LANGUAGES'].append(lang)
+            if lang not in app.config['LANGUAGES']:
+                app.config['LANGUAGES'].append(lang)
 
 def get_current_language():
     """Определяет текущий язык"""

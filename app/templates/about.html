@@ -1,25 +1,137 @@
-{% extends "layouts/base-fullscreen.html" %}
+{% extends "layouts/base-fullscreen.html" %}  
+  
+{% block title %} {{ _('About') }} osysHome {% endblock %}  
+  
+{% block content %}  
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/flag-icon-css/3.5.0/css/flag-icon.min.css">
+<section class="vh-100">  
+  <div class="container py-5 h-100">  
+    <div class="row d-flex justify-content-center align-items-center h-100">  
+      <div class="col-12 col-md-10 col-lg-8 col-xl-7">  
+        <div class="card shadow-2-strong" style="border-radius: 1rem;">  
+          <div class="card-body p-5">  
+              
+            <!-- Header Section -->  
+            <div class="text-center mb-4">  
+              <img src="{{ config.ASSETS_ROOT }}/images/logo.png" class="mb-3" style="max-height: 80px;">  
+              <h2 class="fw-bold">osysHome</h2>  
+              <p class="text-muted">Object System smartHome</p>  
+            </div>  
+  
+            <!-- Description Section -->  
+            <div class="mb-4">  
+              <h5 class="fw-bold mb-3">{{ _('About the Project') }}</h5>  
+              <p>{{ _('osysHome is a smart home system developed in Python that offers users flexible and powerful tools to automate and manage their living space. The system is based on object-oriented programming, which ensures modularity, ease of use and ease of expansion of functionality.') }}</p>  
+            </div>  
+  
+            <!-- Key Features -->  
+            <div class="mb-4">  
+              <h5 class="fw-bold mb-3">{{ _('Key Features') }}</h5>  
+              <div class="row">  
+                <div class="col-md-6">  
+                  <ul class="list-unstyled">  
+                    <li><i class="fas fa-check text-success me-2"></i>{{ _('Support for various communication protocols') }}</li>  
+                    <li><i class="fas fa-check text-success me-2"></i>{{ _('Modular architecture') }}</li>  
+                    <li><i class="fas fa-check text-success me-2"></i>{{ _('Intuitive interface') }}</li>  
+                  </ul>  
+                </div>  
+                <div class="col-md-6">  
+                  <ul class="list-unstyled">  
+                    <li><i class="fas fa-check text-success me-2"></i>{{ _('Automation and scripts') }}</li>  
+                    <li><i class="fas fa-check text-success me-2"></i>{{ _('Security and privacy') }}</li>  
+                    <li><i class="fas fa-check text-success me-2"></i>{{ _('Extensibility and integration') }}</li>  
+                  </ul>  
+                </div>  
+              </div>  
+            </div>  
+  
+            <!-- Technical Information -->  
+            <div class="mb-4">  
+              <h5 class="fw-bold mb-3">{{ _('Technical Information') }}</h5>  
+              <div class="row">  
+                <div class="col-md-6">  
+                  <p><strong>{{ _('Version') }}:</strong> 1.0</p>  
+                  <p><strong>{{ _('Language') }}:</strong> Python</p>  
+                  <p><strong>{{ _('Framework') }}:</strong> Flask</p>  
+                </div>  
+                <div class="col-md-6">  
+                  <p><strong>{{ _('Database') }}:</strong> SQLAlchemy</p>  
+                  <p><strong>{{ _('API') }}:</strong> RESTful API</p>  
+                  <p><strong>{{ _('Real-time') }}:</strong> WebSocket</p>  
+                </div>  
+              </div>  
+            </div>  
 
-{% block title %} About {% endblock %}
-
-{% block content %}
-<section class="vh-100">
-  <div class="container py-5 h-100">
-    <div class="row d-flex justify-content-center align-items-center h-100">
-      <div class="col-12 col-md-8 col-lg-6 col-xl-5">
-        <div class="card shadow-2-strong" style="border-radius: 1rem;">
-          <div class="card-body p-4 text-center">
-            <img src="{{ config.ASSETS_ROOT }}/images/logo.png" class="mb-3">
-            <p>Author: Eraser</p>
-            <h1 stype="text-decoration: none;">
-              <a href="https://github.com/Anisan/osysHome" ><i class="fab fa-github text-black"></i></a>
-              <a href="https://t.me/osysHome" ><i class="fab fa-telegram-plane text-black"></i></a>
-            </h1>
-            2025
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-</section>
+            <div class="mb-4">  
+              <h5 class="fw-bold mb-3">{{ _('Supported Languages') }}</h5>  
+              <div class="row">  
+                {% for lang_code in LANGUAGES %}  
+                    <div class="col-md-2 mb-2">  
+                      <div class="d-flex align-items-center">  
+                        <a href="?lang={{lang_code}}"><i class="flag-icon flag-icon-{{ 'us' if lang_code == 'en' else lang_code }} me-2"></i></a>
+                        <span>{{ lang_code }}</span>  
+                      </div>  
+                    </div>  
+                {% endfor %}  
+              </div>  
+              <p class="small text-muted">{{ _('Language can be changed via URL parameter (?lang=ru) or browser settings') }}</p>  
+            </div>
+  
+            <!-- Core Modules -->  
+            <div class="mb-4">  
+              <h5 class="fw-bold mb-3">{{ _('Core Modules') }}</h5>  
+              <div class="row">  
+                <div class="col-md-6">  
+                  <ul class="list-unstyled small">  
+                    <li><a href="/admin/Modules"><i class="fas fa-puzzle-piece text-primary me-2"></i>Modules</a></li>  
+                    <li><a href="/admin/Objects"><i class="fas fa-cube text-primary me-2"></i>Objects</a></li>  
+                    <li><a href="/admin/Users"><i class="fas fa-users text-primary me-2"></i>Users</a></li>  
+                  </ul>  
+                </div>  
+                <div class="col-md-6">  
+                  <ul class="list-unstyled small">  
+                    <li><a href="/admin/Scheduler"><i class="fas fa-clock text-primary me-2"></i>Scheduler</a></li>  
+                    <li><a href="/admin/Dashboard"><i class="fas fa-tachometer-alt text-primary me-2"></i>Dashboard</a></li>  
+                    <li><a href="/admin/wsServer"><i class="fas fa-broadcast-tower text-primary me-2"></i>WebSocket Server</a></li>  
+                  </ul>  
+                </div>  
+              </div>  
+            </div>  
+  
+            <!-- Author and Links -->  
+            <div class="text-center">  
+              <hr class="my-4">  
+              <p class="mb-3"><strong>{{ _('Author') }}:</strong> Eraser</p>  
+                
+              <!-- Social Links -->  
+              <div class="mb-3">  
+                <a href="https://github.com/Anisan/osysHome" class="btn btn-outline-secondary me-2" target="_blank">  
+                  <i class="fab fa-github me-2"></i>GitHub  
+                </a>  
+                <a href="https://t.me/osysHome" class="btn btn-outline-primary me-2" target="_blank">  
+                  <i class="fab fa-telegram-plane me-2"></i>Telegram  
+                </a>  
+                <a href="/docs/index.html" class="btn btn-outline-success">  
+                  <i class="fas fa-code me-2"></i>{{ _('Documentation') }}  
+                </a>  
+                <a href="/api" class="btn btn-outline-success">  
+                  <i class="fas fa-code me-2"></i>API {{ _('Documentation') }}  
+                </a>  
+              </div>  
+                
+              <!-- Contact -->  
+              <p class="small text-muted">  
+                <i class="fas fa-envelope me-1"></i>  
+                <a href="mailto:eraser1981@gmail.com" class="text-decoration-none">eraser1981@gmail.com</a>  
+              </p>  
+                
+              <p class="small text-muted mt-3">© 2025 osysHome</p>  
+            </div>  
+  
+          </div>  
+        </div>  
+      </div>  
+    </div>  
+  </div>  
+</section>  
 {% endblock content %}
