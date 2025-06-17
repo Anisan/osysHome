@@ -82,7 +82,7 @@ def normalize_column_type(column_type, dialect):
             "MEDIUMINT": "INTEGER",
             "BIGINT": "BIGINTEGER",
             "VARCHAR": "STRING",
-            "TEXT": "TEXT"
+            "TEXT": "MEDIUMTEXT"
         },
         "sqlite": {
             "BOOLEAN": "INTEGER",
