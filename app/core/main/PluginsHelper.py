@@ -22,16 +22,16 @@ def registerPlugins(app):
             plugin_files = [f for f in os.listdir(plugin_path) if f == "__init__.py"]
             plugin_name = os.path.basename(plugin_path)
             _logger.debug(f"Register plugin  {plugin_name}")
-            for plugin_file in plugin_files:
-                plugin_file_path = os.path.join(plugin_path, plugin_file)
-                spec = importlib.util.spec_from_file_location(
-                    plugin_name, plugin_file_path
-                )
-                plugin_module = importlib.util.module_from_spec(spec)
-                spec.loader.exec_module(plugin_module)
-                plugin_class = getattr(plugin_module, plugin_name, None)
-                if plugin_class and model_exists(Plugin):
-                    try:
+            try:
+                for plugin_file in plugin_files:
+                    plugin_file_path = os.path.join(plugin_path, plugin_file)
+                    spec = importlib.util.spec_from_file_location(
+                        plugin_name, plugin_file_path
+                    )
+                    plugin_module = importlib.util.module_from_spec(spec)
+                    spec.loader.exec_module(plugin_module)
+                    plugin_class = getattr(plugin_module, plugin_name, None)
+                    if plugin_class and model_exists(Plugin):
                         with app.app_context():
                             plugin_db = Plugin.query.filter(
                                 Plugin.name == plugin_name
@@ -50,8 +50,8 @@ def registerPlugins(app):
                                     "instance": plugin_instance,
                                     "file_path": plugin_file_path,
                                 }
-                    except Exception as ex:
-                        _logger.critical(ex, exc_info=True)
+            except Exception as ex:
+                _logger.exception(ex)
 
     # Регистрируем контекстный процессор
     @app.context_processor
