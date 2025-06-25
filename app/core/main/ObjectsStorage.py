@@ -4,7 +4,7 @@ from app.database import row2dict, session_scope, get_now_to_utc
 from app.core.main.ObjectManager import ObjectManager, PropertyManager, MethodManager
 from app.core.models.Clasess import Class, Property, Method, Object, Value, History
 from app.logging_config import getLogger
-
+from app.core.main.PluginsHelper import plugins
 
 class ObjectStorage():
     def __init__(self):
@@ -362,6 +362,17 @@ class ObjectStorage():
         self.logger.info("Clear storage")
         self.objects.clear()
         self.stats.clear()
+
+    def changeObject(self, event, object_name, property_name, method_name, new_value):
+        # send event to plugins
+        self.logger.info(f"Change object event: {event} Object:{object_name} Property:{property_name} Method:{method_name} New value:{new_value}")
+        for _,plugin in plugins.items():
+            plugin_obj = plugin["instance"]
+            if hasattr(plugin_obj, "changeObject"):
+                try:
+                    plugin["instance"].changeObject(event, object_name, property_name, method_name, new_value)
+                except Exception as ex:
+                    self.logger.exception(ex)
 
 
 objects_storage = ObjectStorage()
