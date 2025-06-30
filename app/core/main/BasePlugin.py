@@ -181,42 +181,42 @@ class BasePlugin:
 
             self.dtUpdated = get_now_to_utc()
 
-    def cyclic_task(self):  
-        """  
-        Execute cyclic background task for the plugin.  
-        
-        This method is called repeatedly in a loop by the plugin's background thread  
-        when 'cycle' is included in the plugin's actions list. The method runs  
-        continuously until the plugin is stopped via stop_cycle().  
-        
-        The cyclic task execution is managed by _cyclic_task() which:  
-        - Calls this method in an infinite loop  
-        - Handles exceptions and logs errors  
-        - Updates dtUpdated timestamp after each execution  
-        - Checks for stop events between iterations  
-        
-        Override this method in plugin subclasses to implement custom background  
-        processing such as:  
-        - Periodic data collection from external sources  
-        - Regular status checks and monitoring  
-        - Scheduled maintenance operations  
-        - Continuous sensor reading or device polling  
-        
-        Note:  
-            - This method should not contain infinite loops or blocking operations  
-            - Long-running operations should check self.event.is_set() periodically  
-            - Exceptions are automatically caught and logged by the framework  
-            - The method is called from a daemon thread named 'Thread_{plugin_name}_cycle'  
-        
-        Example:  
-            def cyclic_task(self):  
-                # Check sensor every cycle  
-                sensor_value = self.read_sensor()  
-                if sensor_value > threshold:  
-                    self.logger.warning(f"Sensor value high: {sensor_value}")  
-                    # Update object property  
-                    setProperty("MySensor.value", sensor_value)  
-        """  
+    def cyclic_task(self):
+        """
+        Execute cyclic background task for the plugin.
+
+        This method is called repeatedly in a loop by the plugin's background thread
+        when 'cycle' is included in the plugin's actions list. The method runs
+        continuously until the plugin is stopped via stop_cycle().
+
+        The cyclic task execution is managed by _cyclic_task() which:
+        - Calls this method in an infinite loop
+        - Handles exceptions and logs errors
+        - Updates dtUpdated timestamp after each execution
+        - Checks for stop events between iterations
+
+        Override this method in plugin subclasses to implement custom background
+        processing such as:
+        - Periodic data collection from external sources
+        - Regular status checks and monitoring
+        - Scheduled maintenance operations
+        - Continuous sensor reading or device polling
+
+        Note:
+            - This method should not contain infinite loops or blocking operations
+            - Long-running operations should check self.event.is_set() periodically
+            - Exceptions are automatically caught and logged by the framework
+            - The method is called from a daemon thread named 'Thread_{plugin_name}_cycle'
+
+        Example:
+            def cyclic_task(self):
+                # Check sensor every cycle
+                sensor_value = self.read_sensor()
+                if sensor_value > threshold:
+                    self.logger.warning(f"Sensor value high: {sensor_value}")
+                    # Update object property
+                    setProperty("MySensor.value", sensor_value)
+        """
         pass
 
     def say(self, message: str, level: int = 0, args=None) -> None:
@@ -316,6 +316,39 @@ class BasePlugin:
             ...     if prop == "temperature" and value > 100:
             ...         self.logWarning(f"High temperature in {obj}: {value}°C")
             ...     # Add custom handling logic here
+        """
+        pass
+
+    def changeObject(self, event: str, object_name: str, property_name: str = None, method_name: str = None, new_value: str = None) -> None:
+        """Handles object structure change notifications propagated through the system.
+
+        This method receives notifications about structural changes to objects, properties,
+        and methods in the system. Modules implementing this handler can react to these changes.
+
+        Args:
+            event (str): Type of change event
+            object_name (str): Name of the affected object
+            property_name (Optional[str]):
+                - For property events: name of the property
+                - None for object/method events
+            method_name (Optional[str]):
+                - For method events: name of the method
+                - None for object/property events
+            new_value (Optional[str]):
+                - For rename events: new name
+                - None for delete events
+
+        Notes:
+            - This is a notification handler, not a mutator
+            - Changes have already been applied when this is called
+            - Implementations should be fast and non-blocking
+            - Notifications are system-wide broadcasts
+
+        Typical Usage:
+            1. Maintain internal caches of object structures
+            2. Update dependent configurations
+            3. Log structural changes
+            4. Validate changes against module requirements
         """
         pass
 
