@@ -1,22 +1,22 @@
-   
 <!-- Then put toasts within -->
-<div class="toast-container position-absolute top-0 end-0 p-3">
-  <!-- Здесь будут отображаться уведомления -->
+<!-- Контейнеры для разных позиций будут созданы автоматически через JavaScript -->  
+<div class="toast-container position-absolute top-0 end-0 p-3">  
+  <!-- Здесь будут отображаться уведомления -->  
 </div>
 
 <div id="overlay" class="overlay">
   <div class="spinner-container">
     <div class="spinner-border text-primary" role="status">
-        <span class="visually-hidden">Loading...</span>
+      <span class="visually-hidden">Loading...</span>
     </div>
     <div class="overlay-text">
-        Loading...
+      Loading...
     </div>
-</div>
+  </div>
 </div>
 
 <style>
-.overlay {
+  .overlay {
     display: none;
     position: fixed;
     top: 0;
@@ -28,96 +28,96 @@
     justify-content: center;
     align-items: center;
     flex-direction: column;
-}
+  }
 
-.spinner-container {
+  .spinner-container {
     position: relative;
     display: flex;
     justify-content: center;
     align-items: center;
-}
+  }
 
-.spinner-border {
+  .spinner-border {
     width: 7rem;
     height: 7rem;
-}
+  }
 
-.overlay-text {
+  .overlay-text {
     position: absolute;
     color: white;
     font-size: 1rem;
-}
+  }
 </style>
 
 <script src="{{ config.ASSETS_ROOT }}/plugins/socket.io/socket.io.js"></script>
 <script>
-  var socket = io.connect(window.location.protocol+'//' + document.domain + ':' + location.port);
+  var socket = io.connect(window.location.protocol + '//' + document.domain + ':' + location.port);
 
-  socket.on('connect', function() {
-      console.log('Connected to server');
-      document.getElementById('overlay').style.display = 'none';
-      subscribe();
-  });
-
-  socket.on('disconnect', function() {
-      console.log('Disconnected from server');
-      document.getElementById('overlay').style.display = 'flex';
+  socket.on('connect', function () {
+    console.log('Connected to server');
+    document.getElementById('overlay').style.display = 'none';
+    subscribe();
   });
 
-  socket.on('message', function(msg) {
-      var messages = document.getElementById('messages');
-      var message = document.createElement('div');
-      message.textContent = msg;
-      messages.appendChild(message);
+  socket.on('disconnect', function () {
+    console.log('Disconnected from server');
+    document.getElementById('overlay').style.display = 'flex';
   });
 
-  socket.on('changeProperty', function(msg) {
-      var elements = document.querySelectorAll(`[id^="prop:${msg.property}"]`);
-      elements.forEach(element => {
-        if (element.id === `prop:${msg.property}`)
-          element.textContent = typeof msg.value === "object" ? JSON.stringify(msg.value) : msg.value;
-      });
-      elements = document.querySelectorAll(`[id^="prop_changed:${msg.property}"]`);
-      elements.forEach(element => {
-        if (element.id === `prop_changed:${msg.property}`)
-          element.textContent = msg.changed;
-      });
-      elements = document.querySelectorAll(`[id^="prop_source:${msg.property}"]`);
-      elements.forEach(element => {
-        if (element.id === `prop_source:${msg.property}`)
-          element.textContent = msg.source;
-      });
+  socket.on('message', function (msg) {
+    var messages = document.getElementById('messages');
+    var message = document.createElement('div');
+    message.textContent = msg;
+    messages.appendChild(message);
   });
-  socket.on('executedMethod', function(msg) {
-      var elements = document.querySelectorAll(`[id^="method_source:${msg.method}"]`);
-      elements.forEach(element => {
-        if (element.id === `method_source:${msg.method}`)
-          element.textContent = msg.source;
-      });
-      elements = document.querySelectorAll(`[id^="method_executed:${msg.method}"]`);
-      elements.forEach(element => {
-        if (element.id === `method_executed:${msg.method}`)
-          element.textContent = msg.executed;
-      });
-      elements = document.querySelectorAll(`[id^="method_exec_params:${msg.method}"]`);
-      elements.forEach(element => {
-        if (element.id === `method_exec_params:${msg.method}`)
-          element.textContent = msg.exec_params;
-      });
-      elements = document.querySelectorAll(`[id^="method_exec_result:${msg.method}"]`);
-      elements.forEach(element => {
-        if (element.id === `method_exec_result:${msg.method}`)
-          element.textContent = msg.exec_result;
-      });
+
+  socket.on('changeProperty', function (msg) {
+    var elements = document.querySelectorAll(`[id^="prop:${msg.property}"]`);
+    elements.forEach(element => {
+      if (element.id === `prop:${msg.property}`)
+        element.textContent = typeof msg.value === "object" ? JSON.stringify(msg.value) : msg.value;
+    });
+    elements = document.querySelectorAll(`[id^="prop_changed:${msg.property}"]`);
+    elements.forEach(element => {
+      if (element.id === `prop_changed:${msg.property}`)
+        element.textContent = msg.changed;
+    });
+    elements = document.querySelectorAll(`[id^="prop_source:${msg.property}"]`);
+    elements.forEach(element => {
+      if (element.id === `prop_source:${msg.property}`)
+        element.textContent = msg.source;
+    });
   });
-  socket.on('changeObject', function(msg) {
-      console.log("change objects", msg)
-      var element = document.getElementById("obj:"+msg.object);
-      if (element) {
-        element.innerHTML = msg.value;
-      }
-      else
-        console.log("not found object")
+  socket.on('executedMethod', function (msg) {
+    var elements = document.querySelectorAll(`[id^="method_source:${msg.method}"]`);
+    elements.forEach(element => {
+      if (element.id === `method_source:${msg.method}`)
+        element.textContent = msg.source;
+    });
+    elements = document.querySelectorAll(`[id^="method_executed:${msg.method}"]`);
+    elements.forEach(element => {
+      if (element.id === `method_executed:${msg.method}`)
+        element.textContent = msg.executed;
+    });
+    elements = document.querySelectorAll(`[id^="method_exec_params:${msg.method}"]`);
+    elements.forEach(element => {
+      if (element.id === `method_exec_params:${msg.method}`)
+        element.textContent = msg.exec_params;
+    });
+    elements = document.querySelectorAll(`[id^="method_exec_result:${msg.method}"]`);
+    elements.forEach(element => {
+      if (element.id === `method_exec_result:${msg.method}`)
+        element.textContent = msg.exec_result;
+    });
+  });
+  socket.on('changeObject', function (msg) {
+    console.log("change objects", msg)
+    var element = document.getElementById("obj:" + msg.object);
+    if (element) {
+      element.innerHTML = msg.value;
+    }
+    else
+      console.log("not found object")
   });
 
   function formatTime(number) {
@@ -125,81 +125,88 @@
   }
 
   // Функция для отображения уведомлений
+  // Заменить функцию showNotification на:  
   function showNotification(data) {
-    let now = new Date();
-    let hours = formatTime(now.getHours());
-    let minutes = formatTime(now.getMinutes());
-    let seconds = formatTime(now.getSeconds());
-
-    const toast = `
-      <div class="toast" role="alert" aria-live="assertive" aria-atomic="true"  data-bs-delay="10000">
-        <div class="toast-header">
-          <span class="badge rounded-pill bg-warning text-dark me-3">${data.level}</span>
-          <strong class="me-auto">Say</strong>
-          <small>${hours}:${minutes}:${seconds}</small>
-          <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
-        </div>
-        <div class="toast-body">
-          ${data.message}
-        </div>
-      </div>
-    `;
-    const toastContainer = document.querySelector('.toast-container');
-    toastContainer.innerHTML += toast;
-    $(document).ready(function() {
-        $(".toast").toast('show');
-    });
-    setTimeout(() => {
-      toastContainer.removeChild(toastContainer.querySelector('.toast'));
-    }, 11000);
+    notificationManager.show(data);
   }
 
-  // Обработка события при получении уведомления от сервера
-  socket.on('say', function(data) {
-    console.log("SAY",data)
-    showNotification(data);
+  // Обработка события при получении уведомления от сервера 
+  socket.on('say', function (data) {
+    console.log("SAY", data);
+
+    var ext = data.args || {}
+
+    const options = {
+      groupKey: ext.source || null,
+      sound: ext.sound || ext.level === 'error' || ext.level === 'warning',
+      persistent: ext.persistent || ext.level === 'error',
+      actions: []
+    };
+
+    if (ext.source) {
+      options.actions.push({
+        id: 'view_logs',
+        label: 'Open',
+        callback: (notifId, actionId) => {
+          window.open(`/admin/${ext.source}`, '_blank');
+        }
+      });
+    }
+
+    notificationManager.show({
+      level: ext.level || 'info',
+      message: data.message,
+      title: ext.title || 'Системное уведомление'
+    }, options);
   });
 
-  function restart_system(){
+  socket.on('playsound', function (data) {
+    console.log("playsound", data);
+    if (typeof playSound === 'function') {  
+      playSound(data.file_url);  
+    }  
+  });
+
+  function restart_system() {
     socket.emit('restart_system');
   }
 
-  function setProperty(name, value){
+  function setProperty(name, value) {
     socket.emit('setProperty', name, value);
   }
 
-  function callMethod(name){
+  function callMethod(name) {
     socket.emit('callMethod', name);
   }
 
-  function callMethodWithResult(name){
+  function callMethodWithResult(name) {
     socket.emit('callMethod', name, "WS", true);
   }
 
-  function subscribe(){
-      socket.emit('subscribeActions', ['say']);
-      var elements = document.querySelectorAll('[id^="prop:"]');
-      var propList = [];
-      elements.forEach(function(element) {
-            var idWithoutProp = element.id.slice(5); // cut "prop:"
-            propList.push(idWithoutProp);
-      });
-      console.log(propList);
-      elements = document.querySelectorAll('[id^="obj:"]');
-      var objectList = [];
-      elements.forEach(function(element) {
-            var idWithoutProp = element.id.slice(4); // cut "prop:"
-            objectList.push(idWithoutProp);
-      });
-      console.log(objectList);
-      // subscribe
-      if (propList.length > 0)
-        socket.emit('subscribeProperties', propList);
-      if (objectList.length > 0)
-        socket.emit('subscribeObjects', objectList);
+  function subscribe() {
+    socket.emit('subscribeActions', ['say','playsound']);
+    var elements = document.querySelectorAll('[id^="prop:"]');
+    var propList = [];
+    elements.forEach(function (element) {
+      var idWithoutProp = element.id.slice(5); // cut "prop:"
+      propList.push(idWithoutProp);
+    });
+    console.log(propList);
+    elements = document.querySelectorAll('[id^="obj:"]');
+    var objectList = [];
+    elements.forEach(function (element) {
+      var idWithoutProp = element.id.slice(4); // cut "prop:"
+      objectList.push(idWithoutProp);
+    });
+    console.log(objectList);
+    // subscribe
+    if (propList.length > 0)
+      socket.emit('subscribeProperties', propList);
+    if (objectList.length > 0)
+      socket.emit('subscribeObjects', objectList);
   }
 
-  document.addEventListener('DOMContentLoaded', function() {
-      subscribe()
+  document.addEventListener('DOMContentLoaded', function () {
+    subscribe()
   });
 </script>
