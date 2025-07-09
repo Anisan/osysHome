@@ -246,9 +246,9 @@ class NotificationManager {
         // Интеграция с существующей системой звуков  
         if (typeof playSound === 'function') {  
             const soundFiles = {  
-                'error': '/static/assets/sounds/error.wav',  
-                'warning': '/static/assets/sounds/warning.wav',   
-                'success': '/static/assets/sounds/success.wav',  
+                'error': '/static/assets/sounds/error.mp3',  
+                'warning': '/static/assets/sounds/warning.mp3',   
+                'success': '/static/assets/sounds/success.mp3',  
                 'info': '/static/assets/sounds/info.mp3'  
             };  
             playSound(soundFiles[level] || '/static/assets/sounds/info.mp3');  
@@ -261,6 +261,7 @@ class NotificationManager {
   
     // Публичные методы для разных типов уведомлений  
     success(message, options = {}) {  
+        options['sound'] = true
         this.show({ level: 'success', message, title: 'Успех' }, options);  
     }  
   
