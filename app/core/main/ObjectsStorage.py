@@ -6,6 +6,34 @@ from app.core.models.Clasess import Class, Property, Method, Object, Value, Hist
 from app.logging_config import getLogger
 from app.core.main.PluginsHelper import plugins
 
+"""
+A class for managing objects storage with thread-safe operations.
+
+This class provides functionality to store, retrieve, clean, and manage objects with their properties and methods.
+It includes background cleaning of object history, object locking mechanism for thread safety,
+and various statistics collection about object usage.
+
+Attributes:
+    logger (Logger): Logger instance for logging operations.
+    objects (dict): Dictionary storing object managers.
+    stats (dict): Dictionary storing statistics about object usage.
+    name_lock (dict): Dictionary storing threading conditions for object locking.
+    clean_objects (dict): Dictionary storing cleaning information for objects.
+    _stop_event (threading.Event): Event to control the cleaning thread.
+    cleaner_thread (threading.Thread): Thread for periodic cleaning of object history.
+
+The class provides methods for:
+- Getting objects by name with thread-safe locking
+- Managing object cleaning and statistics
+- Handling object permissions
+- Creating and managing object managers
+- Loading and reloading objects
+- Clearing storage
+- Handling object change events
+
+Note:
+    This class is designed to be thread-safe and includes background maintenance tasks.
+"""
 class ObjectStorage():
     def __init__(self):
         self.logger = getLogger('object_storage')

@@ -1,0 +1,99 @@
+/* Стили для улучшенных уведомлений */  
+.notification-toast {  
+    min-width: 300px;  
+    max-width: 400px;  
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);  
+    border-left: 4px solid;  
+}  
+  
+.notification-toast.notification-error {  
+    border-left-color: var(--bs-danger);  
+}  
+  
+.notification-toast.notification-warning {  
+    border-left-color: var(--bs-warning);  
+}  
+  
+.notification-toast.notification-success {  
+    border-left-color: var(--bs-success);  
+}  
+  
+.notification-toast.notification-info {  
+    border-left-color: var(--bs-info);  
+}  
+  
+.notification-toast.notification-debug {  
+    border-left-color: var(--bs-secondary);  
+}  
+  
+.notification-actions {  
+    border-top: 1px solid var(--bs-border-color);  
+    padding-top: 0.5rem;  
+}  
+  
+.notification-count {  
+    animation: pulse 0.5s ease-in-out;  
+}  
+  
+@keyframes pulse {  
+    0% { transform: scale(1); }  
+    50% { transform: scale(1.2); }  
+    100% { transform: scale(1); }  
+}  
+  
+/* Анимации появления */  
+.toast-container-top-end .toast,  
+.toast-container-top-start .toast {  
+    animation: slideInFromTop 0.3s ease-out;  
+}  
+  
+.toast-container-bottom-end .toast,  
+.toast-container-bottom-start .toast {  
+    animation: slideInFromBottom 0.3s ease-out;  
+}  
+  
+@keyframes slideInFromTop {  
+    from {  
+        transform: translateY(-100%);  
+        opacity: 0;  
+    }  
+    to {  
+        transform: translateY(0);  
+        opacity: 1;  
+    }  
+}  
+  
+@keyframes slideInFromBottom {  
+    from {  
+        transform: translateY(100%);  
+        opacity: 0;  
+    }  
+    to {  
+        transform: translateY(0);  
+        opacity: 1;  
+    }  
+}  
+  
+/* Hover эффекты */  
+.notification-toast:hover {  
+    transform: translateY(-2px);  
+    box-shadow: 0 0.75rem 1.5rem rgba(0, 0, 0, 0.2);  
+    transition: all 0.2s ease-in-out;  
+}  
+  
+/* Адаптивность */  
+@media (max-width: 576px) {  
+    .toast-container-top-end,  
+    .toast-container-top-start,  
+    .toast-container-bottom-end,  
+    .toast-container-bottom-start {  
+        left: 10px !important;  
+        right: 10px !important;  
+        width: auto !important;  
+    }  
+      
+    .notification-toast {  
+        min-width: auto;  
+        max-width: none;  
+    }  
+} 

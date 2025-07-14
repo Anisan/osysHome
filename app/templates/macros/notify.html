@@ -36,6 +36,7 @@
             method: 'GET',
             success: function(data) {
                 console.log(data)
+                notificationManager.success('Уведомление отмечено как прочитанное');
             }
         });
     }
@@ -48,6 +49,7 @@
                 if (data.success){
                   const toastContainer = document.querySelector('#notify_block');
                   toastContainer.innerHTML = "";
+                  notificationManager.success('Все уведомления отмечены как прочитанные');
                 }
             }
         });

@@ -87,46 +87,314 @@
   </div>
 </div>
 <script>
-  function filterSearch() {
-        $('#filter_add').show().html('<center><div class="spinner-border" role="status"><span class="visually-hidden">{{ _('Loading...')}}</span></div></center>');
-        
-        var title = $('#filter_search').val();
-        var urlFilter="/api/utils/search?";
+// Оптимизированная функция поиска с debouncing  
+let searchTimeout;  
+let searchCache = new Map();  
+let currentRequest = null;  
+  
+function optimizedFilterSearch() {  
+    const searchInput = $('#filter_search');  
+    const resultsContainer = $('#filter_add');  
+    const query = searchInput.val().trim();  
+      
+    // Очистка предыдущего таймера  
+    clearTimeout(searchTimeout);  
+      
+    // Отмена предыдущего запроса если он еще выполняется  
+    if (currentRequest) {  
+        currentRequest.abort();  
+        currentRequest = null;  
+    }  
+      
+    if (query.length <= 2) {  
+        resultsContainer.show().html(`  
+            <div class="search-hint">  
+                <i class="fas fa-info-circle me-2"></i>  
+                {{ _('Please enter more than 2 characters to search...')}}  
+            </div>  
+        `);  
+        return;  
+    }  
+      
+    // Проверка кэша  
+    if (searchCache.has(query)) {  
+        displaySearchResults(searchCache.get(query));  
+        return;  
+    }  
+      
+    // Debouncing - задержка 300ms  
+    searchTimeout = setTimeout(() => {  
+        performSearch(query);  
+    }, 300);  
+}  
+  
+function performSearch(query) {  
+    const resultsContainer = $('#filter_add');  
+      
+    // Показываем индикатор загрузки  
+    resultsContainer.show().html(`  
+        <div class="search-loading">  
+            <i class="fa-solid fa-spinner fa-spin"></i>
+            {{ _('Loading...')}}  
+        </div>  
+    `);  
+      
+    currentRequest = $.ajax({  
+        url: '/api/utils/search',  
+        method: 'GET',  
+        data: { query: query },  
+        timeout: 10000,  
+        success: function(data) {  
+            currentRequest = null;  
+            if (data && data.success) {  
+                // Кэшируем результат на 5 минут  
+                searchCache.set(query, data.result);  
+                setTimeout(() => searchCache.delete(query), 300000);  
+                  
+                displaySearchResults(data.result);  
+            } else {  
+                showNoResults();  
+            }  
+        },  
+        error: function(xhr, status, error) {  
+            currentRequest = null;  
+            if (status !== 'abort') {  
+                showSearchError(error);  
+            }  
+        }  
+    });  
+}  
+  
+function displaySearchResults(results) {  
+    const resultsContainer = $('#filter_add');  
+      
+    if (!results || results.trim() === '') {  
+        showNoResults();  
+        return;  
+    }  
+      
+    resultsContainer.html(results);  
+      
+    // Сбрасываем индекс при новых результатах  
+    currentIndex = -1;  
+      
+    // Добавляем клавиатурную навигацию  
+    addKeyboardNavigation();  
+      
+    // Добавляем обработчики мыши для синхронизации с клавиатурной навигацией  
+    const resultItems = $('#filter_add a[href], #filter_add .list-group-item[onclick], #filter_add [data-url]');  
+    resultItems.on('mouseenter', function() {  
+        resultItems.removeClass('keyboard-selected');  
+        $(this).addClass('keyboard-selected');  
+        currentIndex = resultItems.index(this);  
+    });  
+}
+  
+function showNoResults() {  
+    $('#filter_add').html(`  
+        <div class="search-no-results">  
+            <i class="fas fa-search me-2"></i>  
+            {{ _('No results found')}}  
+        </div>  
+    `);  
+}  
+  
+function showSearchError(error) {  
+    $('#filter_add').html(`  
+        <div class="search-error">  
+            <i class="fas fa-exclamation-triangle me-2"></i>  
+            Ошибка поиска: ${error}  
+        </div>  
+    `);  
+}
 
-        if(title.length <= 2) {
-            $('#filter_add').show().html('<div style="padding: 15px;text-align: center;"><i class="glyphicon glyphicon-info-sign"></i> {{ _('Please enter more than 2 characters to search...')}}</div>');
-            return;
-        }
+function addKeyboardNavigation() {  
+    const searchInput = $('#filter_search');  
+    let currentIndex = -1;  
+      
+    // Удаляем предыдущие обработчики  
+    searchInput.off('keydown.search');  
+      
+    searchInput.on('keydown.search', function(e) {  
+        // Получаем актуальный список результатов при каждом нажатии клавиши  
+        const results = $('#filter_add a[href], #filter_add .list-group-item[onclick], #filter_add [data-url]');  
+          
+        if (results.length === 0) return;  
+          
+        switch(e.keyCode) {  
+            case 40: // Arrow Down  
+                e.preventDefault();  
+                currentIndex = Math.min(currentIndex + 1, results.length - 1);  
+                highlightResult(results, currentIndex);  
+                break;  
+                  
+            case 38: // Arrow Up  
+                e.preventDefault();  
+                currentIndex = Math.max(currentIndex - 1, -1);  
+                highlightResult(results, currentIndex);  
+                break;  
+                  
+            case 13: // Enter  
+                e.preventDefault();  
+                if (currentIndex >= 0 && results[currentIndex]) {  
+                    const selectedResult = $(results[currentIndex]);  
+                      
+                    // Проверяем разные способы перехода  
+                    if (selectedResult.attr('href')) {  
+                        // Если это ссылка  
+                        window.location.href = selectedResult.attr('href');  
+                    } else if (selectedResult.attr('onclick')) {  
+                        // Если есть onclick обработчик  
+                        selectedResult.click();  
+                    } else if (selectedResult.attr('data-url')) {  
+                        // Если есть data-url атрибут  
+                        window.location.href = selectedResult.attr('data-url');  
+                    } else {  
+                        // Попробуем найти ссылку внутри элемента  
+                        const innerLink = selectedResult.find('a[href]').first();  
+                        if (innerLink.length) {  
+                            window.location.href = innerLink.attr('href');  
+                        }  
+                    }  
+                      
+                    $('#searchModal').modal('hide');  
+                }  
+                break;  
+                  
+            case 27: // Escape  
+                e.preventDefault();  
+                $('#searchModal').modal('hide');  
+                break;  
+        }  
+    });  
+      
+    function highlightResult(results, index) {  
+        // Убираем выделение со всех элементов  
+        results.removeClass('keyboard-selected');  
+          
+        if (index >= 0 && results[index]) {  
+            $(results[index]).addClass('keyboard-selected');  
+              
+            // Прокручиваем к выбранному элементу  
+            const container = $('#filter_add')[0];  
+            const selectedElement = results[index];  
+              
+            if (container && selectedElement) {  
+                const containerRect = container.getBoundingClientRect();  
+                const elementRect = selectedElement.getBoundingClientRect();  
+                  
+                if (elementRect.bottom > containerRect.bottom) {  
+                    container.scrollTop += elementRect.bottom - containerRect.bottom + 10;  
+                } else if (elementRect.top < containerRect.top) {  
+                    container.scrollTop -= containerRect.top - elementRect.top + 10;  
+                }  
+            }  
+        }  
+    }  
+}
 
-        urlFilter+='query='+encodeURIComponent(title);
-
-        $.ajax({
-            url: urlFilter,
-            success: function(data){
-                $('#filter_add').show();
-
-                if(data) {
-                    $('#filter_add').html(data.result);
-                } else {
-                    $('#filter_add').html('<div style="padding: 15px;text-align: center;"><i class="glyphicon glyphicon-info-sign"></i> Ничего не найдено :(</div>');
-                }
-            },
-            error: function(data){
-                $('#filter_add').show();
-                $('#filter_add').html('<div style="min-width: 200px;padding: 10px;background: #ffafaf;border-radius: 10px;text-align: center;">Error sending request - filterSearch()</div>');
-            },
-        });
-        return false;
-    }
-
-  $('#searchModal').on('shown.bs.modal', function() {
-    $('input#filter_search').focus();
-  })
-  $('input[name=filter_search]').on('input', function() {
-    //todo debouncer
-    filterSearch();
-  });
+// Заменить существующий обработчик  
+$('input[name=filter_search]').off('input').on('input', optimizedFilterSearch);  
+  
+// Глобальная переменная для индекса  
+let currentIndex = -1;  
+  
+$('#searchModal').on('shown.bs.modal', function() {  
+    const searchInput = $('input#filter_search');  
+    searchInput.focus();  
+    currentIndex = -1; // Сброс индекса  
+});  
+  
+$('#searchModal').on('hidden.bs.modal', function() {  
+    clearTimeout(searchTimeout);  
+    if (currentRequest) {  
+        currentRequest.abort();  
+        currentRequest = null;  
+    }  
+    $('#filter_search').val('');  
+    $('#filter_add').hide().empty();  
+    searchCache.clear();  
+    currentIndex = -1;  
+});
 </script>
+<style>
+.search-hint, .search-loading, .search-no-results, .search-error {  
+    padding: 15px;  
+    text-align: center;  
+    border-radius: 5px;  
+    margin: 5px 0;  
+}  
+  
+.search-hint {  
+    background-color: var(--bs-info-bg-subtle);  
+    color: var(--bs-info-text-emphasis);  
+    border: 1px solid var(--bs-info-border-subtle);  
+}  
+  
+.search-loading {  
+    background-color: var(--bs-light-bg-subtle);  
+    color: var(--bs-body-color);  
+}  
+  
+.search-no-results {  
+    background-color: var(--bs-warning-bg-subtle);  
+    color: var(--bs-warning-text-emphasis);  
+    border: 1px solid var(--bs-warning-border-subtle);  
+}  
+  
+.search-error {  
+    background-color: var(--bs-danger-bg-subtle);  
+    color: var(--bs-danger-text-emphasis);  
+    border: 1px solid var(--bs-danger-border-subtle);  
+}  
+  
+.search-results a:hover,  
+.search-results .clickable:hover,  
+.keyboard-selected {  
+    background-color: var(--bs-primary-bg-subtle) !important;  
+    color: var(--bs-primary-text-emphasis) !important;  
+}  
+  
+#filter_add {  
+    max-height: 400px;  
+    overflow-y: auto;  
+}  
+  
+/* Улучшенная прокрутка */  
+#filter_add::-webkit-scrollbar {  
+    width: 6px;  
+}  
+  
+#filter_add::-webkit-scrollbar-track {  
+    background: var(--bs-light-bg-subtle);  
+    border-radius: 3px;  
+}  
+  
+#filter_add::-webkit-scrollbar-thumb {  
+    background: var(--bs-border-color);  
+    border-radius: 3px;  
+}  
+  
+#filter_add::-webkit-scrollbar-thumb:hover {  
+    background: var(--bs-secondary);  
+}
+.keyboard-selected {  
+    background-color: var(--bs-primary-bg-subtle) !important;  
+    color: var(--bs-primary-text-emphasis) !important;  
+    outline: 2px solid var(--bs-primary) !important;  
+    outline-offset: -2px;  
+}  
+  
+#filter_add .list-group-item:focus,  
+#filter_add a:focus {  
+    outline: none;  
+}  
+  
+/* Плавная прокрутка */  
+#filter_add {  
+    scroll-behavior: smooth;  
+}
+</style>
 <div class="modal fade" id="consoleModal" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
   <div class="modal-dialog modal-lg modal-dialog-centered">
       <div class="modal-content">

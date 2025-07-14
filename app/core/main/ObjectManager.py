@@ -1,7 +1,8 @@
 import datetime
 from enum import Enum
 from dateutil import parser
-import threading
+import concurrent.futures
+from threading import Lock
 import json
 from sqlalchemy import update, delete
 from flask_login import current_user
@@ -13,6 +14,10 @@ from app.core.lib.execute import execute_and_capture_output
 from app.logging_config import getLogger
 _logger = getLogger('object')
 
+# Глобальный пул потоков (максимум 20 одновременных задач)
+_executor = concurrent.futures.ThreadPoolExecutor(max_workers=20)
+_executor_lock = Lock()
+
 class TypeOperation(Enum):
     """ Type operation """
     Get = "get"
@@ -21,6 +26,31 @@ class TypeOperation(Enum):
     Edit = "edit"
 
 class PropertyManager():
+    """
+    Initializes an ObjectManager instance with the given parameters.
+
+    Args:
+        object_id (int): The ID of the object.
+        property (Property): The property object containing property details.
+        value (Value): The value object containing value details or None.
+
+    Attributes:
+        property_id: ID of the property.
+        value_id: ID of the value if exists, otherwise None.
+        name: Name of the property.
+        description: Description of the property.
+        object_id: ID of the object.
+        history: History count of the property or 0 if not specified.
+        changed: Timestamp when the value was changed, None if no value.
+        method: Method associated with the property (initialized to None).
+        linked: List of linked items if exists, None otherwise.
+        source: Source of the value if exists, None otherwise.
+        __value: Decoded value of the property.
+        type: Type of the property.
+        count_read: Count of read operations (initialized to 0).
+        count_write: Count of write operations (initialized to 0).
+        readed: Timestamp of when the property was last read (UTC).
+    """
     def __init__(self, object_id:int, property: Property, value: Value):
         self.property_id = property.id
         self.value_id = value.id if value else None
@@ -193,10 +223,15 @@ class PropertyManager():
         # save Value To DB
         # self.saveValue()
         def wrapper():
-            self.saveValue(save_history)
+            try:
+                self.saveValue(save_history)
+            except Exception as ex:
+                _logger.exception(f"Error saving value in thread: {str(ex)}")
 
-        thread = threading.Thread(name=f"Thread_saveValue_{self.object_id}_{self.name}", target=wrapper)
-        thread.start()
+        # Используем глобальный пул потоков вместо создания новых
+        with _executor_lock:
+            _executor.submit(wrapper)
+
         self.count_write = self.count_write + 1
 
     def getValue(self):
@@ -244,6 +279,22 @@ class PropertyManager():
     def __repr__(self):
         return self.__str__()
 
+"""
+Manages method information and execution tracking.
+
+This class encapsulates information about methods, including their execution status and results.
+It provides methods to convert the method data to a dictionary and string representations.
+
+Attributes:
+    methods (list): List of method dictionaries including parent methods.
+    name (str): Name of the method (taken from the first method in the list).
+    description (str): Description of the method (taken from the first method in the list).
+    source (str): Source of the method (None by default).
+    count_executed (int): Number of times the method has been executed.
+    executed (datetime): Timestamp of last execution (None if never executed).
+    exec_params (any): Parameters used in last execution.
+    exec_result (any): Result from last execution.
+"""
 class MethodManager():
     def __init__(self, methods):
         self.methods = methods  # include parents
@@ -273,6 +324,21 @@ class MethodManager():
     def __repr__(self):
         return self.__str__()
 
+"""
+Manages object properties and methods with permission control.
+
+This class provides functionality to handle object properties and methods with
+built-in permission checking. It maintains properties and methods dictionaries,
+handles property value updates with history tracking, and performs permission
+checks before allowing any operations.
+
+Attributes:
+    object_id: The ID of the managed object.
+    name: The name of the managed object.
+    description: Description of the managed object.
+    properties: Dictionary of property managers.
+    methods: Dictionary of method managers.
+"""
 class ObjectManager:
     """ Object manager
         Contain properties and methods
@@ -728,6 +794,19 @@ class ObjectManager:
                 }
             return result
 
+    """
+    Cleans the history of all properties in the object manager.
+
+    Iterates over all properties and cleans their history, returning a count of deleted items
+    and the remaining history for each property.
+
+    Returns:
+        dict: A dictionary with property names as keys and dictionaries as values.
+              Each value dictionary contains:
+                - "history": The remaining history of the property
+                - "deleted": Count of deleted history items
+                - "all": Total count of history items (deleted + remaining)
+    """
     def cleanHistory(self):
         """Clean history of all properties"""
         count = {}

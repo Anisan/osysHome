@@ -33,4 +33,3 @@ function formatTimeDiff(diff) {
     }
     return text.trim()
 }
-
