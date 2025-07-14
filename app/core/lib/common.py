@@ -216,17 +216,18 @@ def say(message: str, level: int = 0, args: dict = None):
                 _logger.exception(ex)
 
 
-def playSound(file_name: str, level: int = 0):
+def playSound(file_name: str, level: int = 0, args: dict = None):
     """Play sound
 
     Args:
         file_name (_type_): Path media file
         level (int, optional): Level. Defaults to 0.
+        args (dict, optional): Arguments. Defaults to None.
     """
     for _, plugin in plugins.items():
         if "playsound" in plugin["instance"].actions:
             try:
-                plugin["instance"].playSound(file_name, level)
+                plugin["instance"].playSound(file_name, level, args)
             except Exception as ex:
                 _logger.exception(ex)
 

@@ -1,7 +1,8 @@
 import datetime
 from enum import Enum
 from dateutil import parser
-import threading
+import concurrent.futures
+from threading import Lock
 import json
 from sqlalchemy import update, delete
 from flask_login import current_user
@@ -12,6 +13,10 @@ from app.core.lib.common import setTimeout
 from app.core.lib.execute import execute_and_capture_output
 from app.logging_config import getLogger
 _logger = getLogger('object')
+
+# Глобальный пул потоков (максимум 20 одновременных задач)
+_executor = concurrent.futures.ThreadPoolExecutor(max_workers=20)
+_executor_lock = Lock()
 
 class TypeOperation(Enum):
     """ Type operation """
@@ -218,10 +223,15 @@ class PropertyManager():
         # save Value To DB
         # self.saveValue()
         def wrapper():
-            self.saveValue(save_history)
+            try:
+                self.saveValue(save_history)
+            except Exception as ex:
+                _logger.exception(f"Error saving value in thread: {str(ex)}")
 
-        thread = threading.Thread(name=f"Thread_saveValue_{self.object_id}_{self.name}", target=wrapper)
-        thread.start()
+        # Используем глобальный пул потоков вместо создания новых
+        with _executor_lock:
+            _executor.submit(wrapper)
+
         self.count_write = self.count_write + 1
 
     def getValue(self):
