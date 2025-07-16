@@ -743,6 +743,16 @@ class ObjectManager:
             for item in result:
                 item['value'] = prop._decodeValue(item["value"])
                 del item["value_id"]
+
+            from app.core.lib.common import is_datetime_in_range
+            if is_datetime_in_range(prop.changed, dt_begin, dt_end, True):
+                changed = convert_utc_to_local(prop.changed)
+                if result:
+                    find = any(item.get("added") == changed for item in result)
+                    if not find:
+                        result.append({"value": prop.value, "added": changed, "source": prop.source})
+                else:
+                    result.append({"value": prop.value, "added": changed, "source": prop.source})
             if func:
                 result = [func(r) for r in result]
             return result

@@ -1,6 +1,7 @@
 """ Common library """
 
 import datetime
+from typing import Optional, Union
 from sqlalchemy import update, delete
 import xml.etree.ElementTree as ET
 from app.core.lib.execute import execute_and_capture_output
@@ -411,3 +412,43 @@ def runCode(code: str, args=None):
     except Exception as ex:
         _logger.exception(ex)
         return str(ex), False
+
+def is_datetime_in_range(
+    check_dt: datetime.datetime,
+    start_dt: Optional[datetime.datetime],
+    end_dt: Optional[datetime.datetime],
+    inclusive: Union[bool, str] = True,
+) -> bool:
+    """
+    Проверяет, находится ли check_dt между start_dt и end_dt.
+    
+    Параметры:
+        check_dt: Проверяемый момент времени.
+        start_dt: Начало диапазона (None = -∞).
+        end_dt: Конец диапазона (None = +∞).
+        inclusive: Включение границ:
+            - True (по умолчанию): границы включены [start_dt, end_dt].
+            - False: границы исключены (start_dt, end_dt).
+            - "left": только start_dt включен [start_dt, end_dt).
+            - "right": только end_dt включен (start_dt, end_dt].
+    
+    Возвращает:
+        bool: True, если check_dt попадает в диапазон.
+    """
+    if start_dt is not None:
+        if inclusive in (True, "left"):
+            if check_dt < start_dt:
+                return False
+        else:
+            if check_dt <= start_dt:
+                return False
+    
+    if end_dt is not None:
+        if inclusive in (True, "right"):
+            if check_dt > end_dt:
+                return False
+        else:
+            if check_dt >= end_dt:
+                return False
+    
+    return True
