@@ -68,12 +68,12 @@ class PropertyManager():
         self.__value = None
         self.type = property.type
         if value:
-            self.__value = self._decodeValue(value.value)
+            self.__value = self._decodeValue(value.value, True)
         self.count_read = 0
         self.count_write = 0
         self.readed = get_now_to_utc()
 
-    def _decodeValue(self, value):
+    def _decodeValue(self, value, init=False):
         if value is None:
             return None
         converted_value = None
@@ -98,7 +98,7 @@ class PropertyManager():
                     converted_value = parser.parse(value)
                 else:
                     converted_value = value
-                if converted_value:
+                if converted_value and not init:
                     converted_value = convert_local_to_utc(converted_value)
             elif self.type == "dict":
                 if isinstance(value, dict):
@@ -743,6 +743,16 @@ class ObjectManager:
             for item in result:
                 item['value'] = prop._decodeValue(item["value"])
                 del item["value_id"]
+
+            from app.core.lib.common import is_datetime_in_range
+            if is_datetime_in_range(prop.changed, dt_begin, dt_end, True):
+                changed = convert_utc_to_local(prop.changed)
+                if result:
+                    find = any(item.get("added") == changed for item in result)
+                    if not find:
+                        result.append({"value": prop.value, "added": changed, "source": prop.source})
+                else:
+                    result.append({"value": prop.value, "added": changed, "source": prop.source})
             if func:
                 result = [func(r) for r in result]
             return result
