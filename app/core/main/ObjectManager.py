@@ -68,12 +68,12 @@ class PropertyManager():
         self.__value = None
         self.type = property.type
         if value:
-            self.__value = self._decodeValue(value.value)
+            self.__value = self._decodeValue(value.value, True)
         self.count_read = 0
         self.count_write = 0
         self.readed = get_now_to_utc()
 
-    def _decodeValue(self, value):
+    def _decodeValue(self, value, init=False):
         if value is None:
             return None
         converted_value = None
@@ -98,7 +98,7 @@ class PropertyManager():
                     converted_value = parser.parse(value)
                 else:
                     converted_value = value
-                if converted_value:
+                if converted_value and not init:
                     converted_value = convert_local_to_utc(converted_value)
             elif self.type == "dict":
                 if isinstance(value, dict):
