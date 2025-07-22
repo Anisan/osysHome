@@ -70,8 +70,10 @@ def registerPlugins(app):
                             {
                                 "name": plugin["instance"].name,
                                 "title": plugin["instance"].title,
+                                "custom_title": None,
                                 "route": "/admin/" + plugin["name"],
                                 "category": plugin["instance"].category,
+                                "custom_category": None,
                             }
                         )
                     else:
@@ -79,9 +81,11 @@ def registerPlugins(app):
                             sidebar.append(
                                 {
                                     "name": plugin["instance"].name,
-                                    "title": plugin_rec.title if plugin_rec.title else plugin["instance"].title,
+                                    "title": plugin["instance"].title,
+                                    "custom_title": plugin_rec.title,
                                     "route": "/admin/" + plugin["name"],
-                                    "category": plugin_rec.category if plugin_rec.category else plugin["instance"].category,
+                                    "category": plugin["instance"].category,
+                                    "custom_category": plugin_rec.category,
                                 }
                             )
                 sidebar.sort(key=lambda x: x["title"], reverse=False)
@@ -102,10 +106,29 @@ def registerPlugins(app):
                         item['notify'] = n[1]
 
             groups = {}
+            from app import safe_translate
+                
             for item in sidebar:
-                if item["category"] not in groups:
-                    groups[item["category"]] = []
-                groups[item["category"]].append(item)
+                if item["custom_title"]:
+                    item['title'] = item["custom_title"]
+                else:
+                    title = safe_translate(item['title'])
+                    if title:
+                        item['title'] = title
+                category = item["category"]
+                if item['custom_category']:
+                    category = item["custom_category"]
+                else:
+                    #   _('System')
+                    #   _('App')
+                    #   _('Devices')
+                    #   _('Automation')
+                    #   _('Communication')
+                    #   _('Network')
+                    category = safe_translate(category)
+                if category not in groups:
+                    groups[category] = []
+                groups[category].append(item)
             return groups
 
         def getListNotify(source):

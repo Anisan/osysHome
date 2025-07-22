@@ -168,7 +168,7 @@ def translate(key, lang=None):
         lang = current_app.config.get('DEFAULT_LANGUAGE','en')
 
     # Поиск перевода
-    if key in app.translations[lang]:
+    if key in app.translations[lang] and app.translations[lang][key] != '':
         return app.translations[lang][key]
 
     # Логирование отсутствующего перевода
