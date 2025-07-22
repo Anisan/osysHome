@@ -13,6 +13,9 @@ from app.core.models.Users import User
 from app.core.lib.object import getObject, getObjectsByClass, addObject, setProperty
 from app import safe_translate as _
 
+from app.logging_config import getLogger  
+_logger = getLogger("security")  
+
 @blueprint.route('/')
 def route_default():
     return redirect(url_for('auth.login'))
@@ -71,6 +74,9 @@ def login():
             return redirect("/")
 
         # Something (user or pass) is not ok
+        ip = request.headers.getlist("X-Forwarded-For")[0] if request.headers.getlist("X-Forwarded-For") else request.remote_addr
+        _logger.warning(f"Failed login attempt for user '{username}' from {ip}")
+
         return render_template('accounts/login.html',
                                msg=_('Wrong user or password'),
                                register=False,

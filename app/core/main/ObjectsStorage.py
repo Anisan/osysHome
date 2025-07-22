@@ -76,7 +76,9 @@ class ObjectStorage():
     def getObjectByName(self, name: str) -> ObjectManager:
         # Проверяем, занят ли ресурс (имя)
         while name in self.name_lock and self.name_lock[name]._is_owned():
+            self.logger.debug(f"Locked object '{name}', waiting for unlock")
             self.name_lock[name].wait()  # Ждем, пока имя станет доступным
+            self.logger.debug(f"Unlock object '{name}'")
 
         if name in self.objects:
             self.stats[name]['count_get'] = self.stats[name]['count_get'] + 1
@@ -92,7 +94,7 @@ class ObjectStorage():
                     self.stats[obj.name] = {'count_get':1, 'last_get': get_now_to_utc()}
 
                     self.name_lock[name].notify_all()
-
+                    del self.name_lock[name]
                 return self.objects[name]
             # warning
             self.logger.warning(f'Object "{name}" not found')
