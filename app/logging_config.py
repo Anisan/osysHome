@@ -26,6 +26,7 @@ def getLogger(moduleName, level=None, logDirectory='logs'):
         os.makedirs(logDirectory)
 
     logFile = os.path.join(logDirectory, f'{moduleName}.log')
+    logErrors = os.path.join(logDirectory, 'errors.log')
 
     loggingConfig = {
         'version': 1,
@@ -41,6 +42,17 @@ def getLogger(moduleName, level=None, logDirectory='logs'):
             },
         },
         'handlers': {
+            'error_file_handler': {  # Новый обработчик ошибок
+                'class': 'logging.handlers.TimedRotatingFileHandler',
+                'filename': logErrors,
+                'level': 'ERROR',
+                'formatter': 'console_formatter',
+                'when': 'midnight',
+                'interval': 1,
+                'backupCount': 7,  # Хранить последние 7 файлов логов
+                'encoding': 'utf-8',
+                'utc': False  # Использовать локальное время
+            },
             f'{moduleName}_file_handler': {
                 'class': 'logging.handlers.TimedRotatingFileHandler',
                 'formatter': 'standard',
@@ -59,7 +71,7 @@ def getLogger(moduleName, level=None, logDirectory='logs'):
         },
         'loggers': {
             moduleName: {
-                'handlers': [f'{moduleName}_file_handler', f'{moduleName}_console_handler'],
+                'handlers': [f'{moduleName}_file_handler', f'{moduleName}_console_handler', 'error_file_handler'],
                 'level': level,
                 'propagate': False
             },
