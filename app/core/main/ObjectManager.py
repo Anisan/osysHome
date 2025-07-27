@@ -1,4 +1,5 @@
 import datetime
+import time
 from enum import Enum
 from dateutil import parser
 import concurrent.futures
@@ -294,6 +295,7 @@ Attributes:
     executed (datetime): Timestamp of last execution (None if never executed).
     exec_params (any): Parameters used in last execution.
     exec_result (any): Result from last execution.
+    exec_time (int): Time taken for last execution (in milliseconds).
 """
 class MethodManager():
     def __init__(self, methods):
@@ -305,6 +307,7 @@ class MethodManager():
         self.executed = None
         self.exec_params = None
         self.exec_result = None
+        self.exec_time = None
 
     def to_dict(self):
         return {
@@ -315,7 +318,8 @@ class MethodManager():
             "count_executed": self.count_executed,
             "executed": str(convert_utc_to_local(self.executed)) if self.executed else None,
             "exec_params": self.exec_params,
-            "exec_result": self.exec_result
+            "exec_result": self.exec_result,
+            "exec_time": self.exec_time
         }
 
     def __str__(self):
@@ -590,6 +594,8 @@ class ObjectManager:
         if name not in self.methods:
             _logger.warning("Method %s does not exist.", name)
             return None
+        
+        start = time.perf_counter()
 
         self._check_permissions(TypeOperation.Call, None, name)
 
@@ -621,6 +627,9 @@ class ObjectManager:
             self.methods[name].exec_params = args
             self.methods[name].exec_result = output
             self.methods[name].count_executed = self.methods[name].count_executed + 1
+
+            end = time.perf_counter()
+            self.methods[name].exec_time = int((end - start) * 1000)  # в миллисекунды
 
             # send event to proxy
             for _,plugin in plugins.items():
@@ -845,6 +854,7 @@ class ObjectManager:
             stat_methods[name] = {
                 'count_executed': method.count_executed,
                 'last_executed': method.executed,
+                'exec_time': method.exec_time,
                 'source': method.source,
                 'params': method.exec_params,
             }
