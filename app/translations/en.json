@@ -59,6 +59,8 @@
   "Login": "Login",
   "Logout": "Logout",
   "Manufacturer": "Manufacturer",
+  "Max": "Max",
+  "Min": "Min",
   "Model": "Model",
   "Modular architecture": "Modular architecture",
   "Modules": "Modules",

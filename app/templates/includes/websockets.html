@@ -109,6 +109,11 @@
       if (element.id === `method_exec_result:${msg.method}`)
         element.textContent = msg.exec_result;
     });
+    elements = document.querySelectorAll(`[id^="method_exec_time:${msg.method}"]`);
+    elements.forEach(element => {
+      if (element.id === `method_exec_time:${msg.method}`)
+        element.textContent = msg.exec_time;
+    });
   });
   socket.on('changeObject', function (msg) {
     console.log("change objects", msg)
