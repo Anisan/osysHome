@@ -25,13 +25,7 @@ def registerPlugins(app):
             try:
                 for plugin_file in plugin_files:
                     plugin_file_path = os.path.join(plugin_path, plugin_file)
-                    spec = importlib.util.spec_from_file_location(
-                        plugin_name, plugin_file_path
-                    )
-                    plugin_module = importlib.util.module_from_spec(spec)
-                    spec.loader.exec_module(plugin_module)
-                    plugin_class = getattr(plugin_module, plugin_name, None)
-                    if plugin_class and model_exists(Plugin):
+                    if model_exists(Plugin):
                         with app.app_context():
                             plugin_db = Plugin.query.filter(
                                 Plugin.name == plugin_name
@@ -41,15 +35,19 @@ def registerPlugins(app):
                                 plugin_db.name = plugin_name
                                 plugin_db.updated = get_now_to_utc()
                                 plugin_db.save()
-                            if plugin_db.active:
-                                plugin_instance = plugin_class(
-                                    app
-                                )  # Создаем экземпляр плагина
-                                plugins[plugin_name] = {
-                                    "name": plugin_name,
-                                    "instance": plugin_instance,
-                                    "file_path": plugin_file_path,
-                                }
+                            if not plugin_db.active:
+                                continue
+
+                    spec = importlib.util.spec_from_file_location(plugin_name, plugin_file_path)
+                    plugin_module = importlib.util.module_from_spec(spec)
+                    spec.loader.exec_module(plugin_module)
+                    plugin_class = getattr(plugin_module, plugin_name, None)
+                    plugin_instance = plugin_class(app)  # Создаем экземпляр плагина
+                    plugins[plugin_name] = {
+                        "name": plugin_name,
+                        "instance": plugin_instance,
+                        "file_path": plugin_file_path,
+                    }
             except Exception as ex:
                 _logger.exception(ex)
 
