@@ -594,7 +594,7 @@ class ObjectManager:
         if name not in self.methods:
             _logger.warning("Method %s does not exist.", name)
             return None
-        
+
         start = time.perf_counter()
 
         self._check_permissions(TypeOperation.Call, None, name)
@@ -612,6 +612,7 @@ class ObjectManager:
             for method in methods:
                 res, error = execute_and_capture_output(method['code'],variables)
                 if error:
+                    _logger.error("Error executing method %s.%s: %s", method['owner'], name, res)
                     output += "Error method in " + method['owner'] + "\n" + res
                     break
                 if res:
@@ -638,7 +639,7 @@ class ObjectManager:
 
             return output
         except Exception as ex:
-            _logger.critical(ex, exc_info=True)
+            _logger.exception(ex)
             return str(ex)
 
     def _setTemplates(self, templates):
