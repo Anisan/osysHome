@@ -13,8 +13,8 @@ from app.core.models.Users import User
 from app.core.lib.object import getObject, getObjectsByClass, addObject, setProperty
 from app import safe_translate as _
 
-from app.logging_config import getLogger  
-_logger = getLogger("security")  
+from app.logging_config import getLogger
+_logger = getLogger("security")
 
 @blueprint.route('/')
 def route_default():
@@ -96,7 +96,7 @@ def login():
     home_page = current_user.home_page
     if not home_page:
         home_page = '/admin'
-    return redirect(home_page) 
+    return redirect(home_page)
 
 
 @blueprint.route('/logout')

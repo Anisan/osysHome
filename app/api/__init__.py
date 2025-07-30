@@ -1,8 +1,8 @@
 """API blueprint configuration."""
-from flask import Blueprint, render_template
+from flask import Blueprint
 from flask_restx import Api, Resource
 from app.logging_config import getLogger
-from app.api.decorators import *
+from app.api.decorators import g, api_key_required
 from app.api.classes.endpoints import classes_ns
 from app.api.objects.endpoints import objects_ns
 from app.api.properties.endpoints import props_ns

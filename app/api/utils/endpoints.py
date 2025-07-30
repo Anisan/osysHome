@@ -225,14 +225,14 @@ class NotificationStats(Resource):
         """
         with session_scope() as session:
             total = session.query(Notify).count()
-            unread = session.query(Notify).filter(Notify.read == False).count()  # Исправлено условие
+            unread = session.query(Notify).filter(Notify.read == False).count()  # Исправлено условие # noqa
 
             # Статистика по источникам
             source_stats = (
                 session.query(  # Исправлено: используем session.query вместо Notify.query
                     Notify.source,
                     func.count(Notify.id).label("total"),
-                    func.sum(case((Notify.read == False, 1), else_=0)).label("unread"),  # Исправлено подсчет непрочитанных
+                    func.sum(case((Notify.read == False, 1), else_=0)).label("unread"),  # Исправлено подсчет непрочитанных # noqa
                 )
                 .group_by(Notify.source)
                 .all()

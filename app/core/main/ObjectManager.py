@@ -280,6 +280,7 @@ class PropertyManager():
     def __repr__(self):
         return self.__str__()
 
+
 """
 Manages method information and execution tracking.
 
@@ -327,6 +328,7 @@ class MethodManager():
 
     def __repr__(self):
         return self.__str__()
+
 
 """
 Manages object properties and methods with permission control.

@@ -90,6 +90,7 @@ def normalize_column_type(column_type, dialect):
         },
         "postgresql": {
             "BOOLEAN": "BOOLEAN",
+            "DOUBLE PRECISION": "FLOAT",
             "INTEGER": "INTEGER",
             "BIGINT": "BIGINTEGER",
             "TEXT": "TEXT",
@@ -110,7 +111,7 @@ def sync_db(app):
         for class_name, model in db.Model.registry._class_registry.items():
             if hasattr(model, '__tablename__') and hasattr(model, '__table__'):
                 table_name = model.__tablename__
-                safe_table_name = f'"{table_name}"' if dialect == 'postgresql' else f'`{table_name}`'  
+                safe_table_name = f'"{table_name}"' if dialect == 'postgresql' else f'`{table_name}`'
 
                 if not inspector.has_table(table_name):
                     logger.info(f'✅ Create table: {table_name}')

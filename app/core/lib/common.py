@@ -340,7 +340,7 @@ def sendDataToWebsocket(typeData: str, data: any) -> bool:
     """
     if "wsServer" not in plugins:
         return False
-        
+
     plugin_obj = plugins["wsServer"]["instance"]
 
     if hasattr(plugin_obj, "sendData"):
@@ -420,20 +420,20 @@ def is_datetime_in_range(
     inclusive: Union[bool, str] = True,
 ) -> bool:
     """
-    Проверяет, находится ли check_dt между start_dt и end_dt.
-    
-    Параметры:
-        check_dt: Проверяемый момент времени.
-        start_dt: Начало диапазона (None = -∞).
-        end_dt: Конец диапазона (None = +∞).
-        inclusive: Включение границ:
-            - True (по умолчанию): границы включены [start_dt, end_dt].
-            - False: границы исключены (start_dt, end_dt).
-            - "left": только start_dt включен [start_dt, end_dt).
-            - "right": только end_dt включен (start_dt, end_dt].
-    
-    Возвращает:
-        bool: True, если check_dt попадает в диапазон.
+    Checks whether check_dt is between start_dt and end_dt.
+
+    Parameters:
+        check_dt: The datetime to check.
+        start_dt: The start of the range (None = -∞).
+        end_dt: The end of the range (None = +∞).
+        inclusive: Boundary inclusion:
+        - True (default): both boundaries are included [start_dt, end_dt].
+        - False: both boundaries are excluded (start_dt, end_dt).
+        - "left": only start_dt is included [start_dt, end_dt).
+        - "right": only end_dt is included (start_dt, end_dt].
+
+    Returns:
+        bool: True if check_dt falls within the range.
     """
     if start_dt is not None:
         if inclusive in (True, "left"):
@@ -442,7 +442,7 @@ def is_datetime_in_range(
         else:
             if check_dt <= start_dt:
                 return False
-    
+
     if end_dt is not None:
         if inclusive in (True, "right"):
             if check_dt > end_dt:
@@ -450,5 +450,5 @@ def is_datetime_in_range(
         else:
             if check_dt >= end_dt:
                 return False
-    
+
     return True

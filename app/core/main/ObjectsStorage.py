@@ -39,6 +39,7 @@ class ObjectStorage():
         self.logger = getLogger('object_storage')
         self.objects = {}
         self.stats = {}
+        self.name_lock_global = threading.Lock()
         self.name_lock = {}
         self.clean_objects = {}
 
@@ -74,29 +75,25 @@ class ObjectStorage():
             self._stop_event.wait(60.0)
 
     def getObjectByName(self, name: str) -> ObjectManager:
-        # Проверяем, занят ли ресурс (имя)
-        while name in self.name_lock and self.name_lock[name]._is_owned():
-            self.logger.debug(f"Locked object '{name}', waiting for unlock")
-            self.name_lock[name].wait()  # Ждем, пока имя станет доступным
-            self.logger.debug(f"Unlock object '{name}'")
+        with self.name_lock_global:
+            if name not in self.name_lock:
+                self.name_lock[name] = threading.Condition()
+            condition = self.name_lock[name]
 
-        if name in self.objects:
-            self.stats[name]['count_get'] = self.stats[name]['count_get'] + 1
-            self.stats[name]['last_get'] = get_now_to_utc()
-            return self.objects[name]
-        with session_scope() as session:
-            obj = session.query(Object).filter_by(name=name).one_or_none()
-            if obj:
-                if obj.name not in self.name_lock:
-                    self.name_lock[name] = threading.Condition()
-                with self.name_lock[name]:
+        with condition:
+            if name in self.objects:
+                self.stats[name]['count_get'] = self.stats[name]['count_get'] + 1
+                self.stats[name]['last_get'] = get_now_to_utc()
+                return self.objects[name]
+
+            with session_scope() as session:
+                obj = session.query(Object).filter_by(name=name).one_or_none()
+                if obj:
                     self.objects[obj.name] = self._createObjectManager(session, obj)
                     self.stats[obj.name] = {'count_get':1, 'last_get': get_now_to_utc()}
+                    condition.notify_all()
+                    return self.objects[name]
 
-                    self.name_lock[name].notify_all()
-                    del self.name_lock[name]
-                return self.objects[name]
-            # warning
             self.logger.warning(f'Object "{name}" not found')
             return None
 
