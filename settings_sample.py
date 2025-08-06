@@ -23,6 +23,9 @@ class Config(object):
     LOGGER_LEVEL = logging.INFO
     ENV = 'dev'
 
+    POOL_SIZE = 20
+    """ Number of worker threads for the application """
+
     # DB settings
     SQLALCHEMY_ECHO = False  # SQL log
     DB_NAME = 'app.db'

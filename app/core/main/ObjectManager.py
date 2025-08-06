@@ -7,6 +7,7 @@ from threading import Lock
 import json
 from sqlalchemy import update, delete
 from flask_login import current_user
+from settings import Config
 from app.database import session_scope,row2dict, convert_utc_to_local, convert_local_to_utc, get_now_to_utc
 from app.core.main.PluginsHelper import plugins
 from app.core.models.Clasess import Object, Property, Value, History
@@ -16,7 +17,7 @@ from app.logging_config import getLogger
 _logger = getLogger('object')
 
 # Глобальный пул потоков (максимум 20 одновременных задач)
-_executor = concurrent.futures.ThreadPoolExecutor(max_workers=20)
+_executor = concurrent.futures.ThreadPoolExecutor(max_workers=Config.POOL_SIZE)
 _executor_lock = Lock()
 
 class TypeOperation(Enum):
@@ -155,36 +156,40 @@ class PropertyManager():
             _logger.exception(ex, exc_info=True)
         return str(self.__value)
 
-    def saveValue(self, save_history:bool=None):
-        try:
+    def _saveValue(self, save_history:bool=None):
+        if self.value_id is None:
             with session_scope() as session:
-                if self.value_id is None:
-                    valRec = Value()
-                    valRec.object_id = self.object_id
-                    valRec.name = self.name
-                    session.add(valRec)
-                    session.commit()
-                    self.value_id = valRec.id
-
-                stringValue = self._encodeValue()
-                if stringValue is None:
-                    _logger.info(stringValue)
-
-                sql = update(Value).where(Value.id == self.value_id).values(value=stringValue, changed=self.changed, source=self.source)
-                session.execute(sql)
-
-                # save history
-                if (self.history > 0 and (save_history is None or save_history)) or (self.history < 0 and save_history is not None and save_history):
-                    hist = History()
-                    hist.value_id = self.value_id
-                    hist.added = self.changed
-                    hist.value = stringValue
-                    hist.source = self.source
-                    session.add(hist)
-
+                valRec = Value()
+                valRec.object_id = self.object_id
+                valRec.name = self.name
+                session.add(valRec)
                 session.commit()
-        except Exception as ex:
-            _logger.exception(ex, exc_info=True)
+                self.value_id = valRec.id
+
+        stringValue = self._encodeValue()
+
+        def create_wrapper(value, changed, source, save_history):
+            def wrapper():
+                try:
+                    with session_scope() as session:
+                        sql = update(Value).where(Value.id == self.value_id).values(value=value, changed=changed, source=source)
+                        session.execute(sql)
+                        # save history
+                        if (self.history > 0 and (save_history is None or save_history)) or (self.history < 0 and save_history is not None and save_history):
+                            hist = History()
+                            hist.value_id = self.value_id
+                            hist.added = changed
+                            hist.value = stringValue
+                            hist.source = source
+                            session.add(hist)
+                        session.commit()
+                except Exception as ex:
+                    _logger.exception(ex, exc_info=True)
+            return wrapper
+
+        wrapper = create_wrapper(stringValue, self.changed, self.source, save_history)
+        with _executor_lock:
+            _executor.submit(wrapper)
 
     def cleanHistory(self):
         with session_scope() as session:
@@ -222,16 +227,10 @@ class PropertyManager():
             self.changed = now
 
         # save Value To DB
-        # self.saveValue()
-        def wrapper():
-            try:
-                self.saveValue(save_history)
-            except Exception as ex:
-                _logger.exception(f"Error saving value in thread: {str(ex)}")
-
-        # Используем глобальный пул потоков вместо создания новых
-        with _executor_lock:
-            _executor.submit(wrapper)
+        try:
+            self._saveValue()
+        except Exception as ex:
+            _logger.exception(ex, exc_info=True)
 
         self.count_write = self.count_write + 1
 
