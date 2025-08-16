@@ -38,28 +38,28 @@ class GlobalSearch(Resource):
             return {"success": True, "result": cached_result}, 200
 
         result = []
-        from app.core.main.PluginsHelper import plugins
+        from app.core.lib.common import getModulesByAction
 
-        for _, plugin in plugins.items():
-            if "search" in plugin["instance"].actions:
-                try:
-                    res = plugin["instance"].search(query)
-                    result.extend(res[:limit])  # Ограничиваем результаты
+        plugins = getModulesByAction("search")
+        for plugin in plugins:
+            try:
+                res = plugin.search(query)
+                result.extend(res[:limit])  # Ограничиваем результаты
 
-                    if len(result) >= limit:
-                        result = result[:limit]
-                        break
+                if len(result) >= limit:
+                    result = result[:limit]
+                    break
 
-                except Exception as ex:
-                    _logger.exception(ex)
-                    name = plugin["name"]
-                    result.append(
-                        {
-                            "url": "Logs",
-                            "title": f"{ex}",
-                            "tags": [{"name": name, "color": "danger"}],
-                        }
-                    )
+            except Exception as ex:
+                _logger.exception(ex)
+                name = plugin["name"]
+                result.append(
+                    {
+                        "url": "Logs",
+                        "title": f"{ex}",
+                        "tags": [{"name": name, "color": "danger"}],
+                    }
+                )
 
         render = render_template("search_result.html", result=result)
 

@@ -12,8 +12,13 @@ from .constants import CategoryNotify
 from ..main.PluginsHelper import plugins
 from ..models.Tasks import Task
 from ..models.Plugins import Notify
+from app.core.MonitoredThreadPool import MonitoredThreadPool
 
 _logger = getLogger("common")
+
+# Глобальный пул потоков
+_poolSay = MonitoredThreadPool(thread_name_prefix="say")
+_poolPlaysound = MonitoredThreadPool(thread_name_prefix="playsound")
 
 
 def addScheduledJob(
@@ -174,6 +179,15 @@ def getModule(name: str):
         return None
     return plugins[name]["instance"]
 
+def getModulesByAction(action: str):
+    """Get modules by action
+    Args:
+        action (str): Action
+    Returns:
+        list: List of modules
+    """
+    return [module["instance"] for _, module in plugins.items() if action in module["instance"].actions]
+
 
 def callPluginFunction(plugin: str, func: str, args):
     """Call plugin function
@@ -209,12 +223,13 @@ def say(message: str, level: int = 0, args: dict = None):
     from .object import setProperty
     source = args.get("source", "osysHome") if args else "osysHome"
     setProperty("SystemVar.LastSay", message, source)
-    for _, plugin in plugins.items():
-        if "say" in plugin["instance"].actions:
-            try:
-                plugin["instance"].say(message, level, args)
-            except Exception as ex:
-                _logger.exception(ex)
+    modules_with_say = getModulesByAction("say")
+    for plugin in modules_with_say:
+        try:
+            # plugin.say(message, level, args) #todo poolthread
+            _poolSay.submit(plugin.say, f"say_{plugin.name}", message, level, args)
+        except Exception as ex:
+            _logger.exception(ex)
 
 
 def playSound(file_name: str, level: int = 0, args: dict = None):
@@ -225,12 +240,14 @@ def playSound(file_name: str, level: int = 0, args: dict = None):
         level (int, optional): Level. Defaults to 0.
         args (dict, optional): Arguments. Defaults to None.
     """
-    for _, plugin in plugins.items():
-        if "playsound" in plugin["instance"].actions:
-            try:
-                plugin["instance"].playSound(file_name, level, args)
-            except Exception as ex:
-                _logger.exception(ex)
+    modules_with_playsound = getModulesByAction("playsound")
+    for plugin in modules_with_playsound:
+        try:
+            # plugin.playSound(file_name, level, args) #todo poolthread
+            _poolPlaysound.submit(plugin.playSound, f"playsound_{plugin.name}", file_name, level, args)
+
+        except Exception as ex:
+            _logger.exception(ex)
 
 
 def addNotify(

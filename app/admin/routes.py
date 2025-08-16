@@ -3,7 +3,7 @@ from . import blueprint
 from settings import Config
 from app.logging_config import getLogger
 from app.authentication.handlers import handle_user_required, handle_editor_required
-from app.core.main.PluginsHelper import plugins
+from app.core.lib.common import getModulesByAction
 
 _logger = getLogger("main")
 
@@ -11,15 +11,14 @@ _logger = getLogger("main")
 @handle_editor_required
 def control_panel():
     widgets = {}
-
-    for key, plugin in plugins.items():
-        if "widget" in plugin["instance"].actions:
-            if plugin["instance"].config.get('hide_widget',False):
-                continue
-            try:
-                widgets[key] = plugin["instance"].widget()
-            except Exception as ex:
-                _logger.exception(ex)
+    modules = getModulesByAction("widget")
+    for plugin in modules:
+        if plugin.config.get('hide_widget',False):
+            continue
+        try:
+            widgets[plugin.__name__] = plugin.widget()
+        except Exception as ex:
+            _logger.exception(ex)
 
     content = {"widgets":widgets}
     return render_template("control_panel.html", **content)

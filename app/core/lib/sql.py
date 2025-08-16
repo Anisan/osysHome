@@ -6,8 +6,6 @@ from app.logging_config import getLogger
 
 _logger = getLogger("sql")
 
-
-
 def SqlExec(sql: str):
     """
     Exec SQL

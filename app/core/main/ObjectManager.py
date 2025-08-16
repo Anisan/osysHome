@@ -2,23 +2,22 @@ import datetime
 import time
 from enum import Enum
 from dateutil import parser
-import concurrent.futures
-from threading import Lock
 import json
 from sqlalchemy import update, delete
 from flask_login import current_user
-from settings import Config
 from app.database import session_scope,row2dict, convert_utc_to_local, convert_local_to_utc, get_now_to_utc
-from app.core.main.PluginsHelper import plugins
+from app.core.lib.common import getModule, getModulesByAction
 from app.core.models.Clasess import Object, Property, Value, History
 from app.core.lib.common import setTimeout
 from app.core.lib.execute import execute_and_capture_output
 from app.logging_config import getLogger
+from app.core.MonitoredThreadPool import MonitoredThreadPool
+
 _logger = getLogger('object')
 
-# Глобальный пул потоков (максимум 20 одновременных задач)
-_executor = concurrent.futures.ThreadPoolExecutor(max_workers=Config.POOL_SIZE)
-_executor_lock = Lock()
+# Глобальный пул потоков
+_poolSaveHistory = MonitoredThreadPool(thread_name_prefix="saveHistory")
+_poolLinkedProperty = MonitoredThreadPool(thread_name_prefix="linkedProperty")
 
 class TypeOperation(Enum):
     """ Type operation """
@@ -188,8 +187,7 @@ class PropertyManager():
             return wrapper
 
         wrapper = create_wrapper(stringValue, self.changed, self.source, save_history)
-        with _executor_lock:
-            _executor.submit(wrapper)
+        _poolSaveHistory.submit(wrapper, f"history_{self.value_id}.{self.name}")
 
     def cleanHistory(self):
         with session_scope() as session:
@@ -228,7 +226,7 @@ class PropertyManager():
 
         # save Value To DB
         try:
-            self._saveValue()
+            self._saveValue(save_history)
         except Exception as ex:
             _logger.exception(ex, exc_info=True)
 
@@ -479,17 +477,33 @@ class ObjectManager:
                     if link == source:
                         continue
                     # get plugin
-                    if link in plugins:
-                        plugin = plugins[link]
+                    plugin = getModule(link)
+                    if plugin:
                         try:
-                            plugin["instance"].changeLinkedProperty(self.name, name, value)
+                            # def task_wrapper(plugin, object_name, property_name, property_value):
+                            #     def wrapper():
+                            #         plugin.changeLinkedProperty(object_name, property_name, property_value)
+                            #     return wrapper
+
+                            # _poolLinkedProperty.submit(task_wrapper(plugin, self.name, name, value), task_id=f"{self.name, name}")
+
+                            _poolLinkedProperty.submit(plugin.changeLinkedProperty, f"{link}_{self.name}.{name}", self.name, name, value)
                         except Exception as e:
                             _logger.exception(e)
 
             # send event to proxy
-            for _,plugin in plugins.items():
-                if 'proxy' in plugin["instance"].actions:
-                    plugin["instance"].changeProperty(self.name, name, value)
+            plugins = getModulesByAction("proxy")
+            for plugin in plugins:
+                try:
+                    # def task_wrapper(plugin, object_name, property_name, property_value):
+                    #     def wrapper():
+                    #         plugin.changeProperty(object_name, property_name, property_value)
+                    #     return wrapper
+                    # _poolLinkedProperty.submit(task_wrapper(plugin, self.name, name, value), task_id=f"proxy_{self.name, name}")
+                    _poolLinkedProperty.submit(plugin.changeProperty, f"proxy_{plugin.name}_{self.name}.{name}", self.name, name, value)
+
+                except Exception as e:
+                    _logger.exception(e)
             return True
         except Exception as ex:
             _logger.exception(ex, exc_info=True)
@@ -634,9 +648,9 @@ class ObjectManager:
             self.methods[name].exec_time = int((end - start) * 1000)  # в миллисекунды
 
             # send event to proxy
-            for _,plugin in plugins.items():
-                if 'proxy' in plugin["instance"].actions:
-                    plugin["instance"].executedMethod(self.name, name)
+            plugins = getModulesByAction('proxy')
+            for plugin in plugins:
+                plugin.executedMethod(self.name, name)
 
             return output
         except Exception as ex:
