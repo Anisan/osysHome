@@ -16,7 +16,7 @@ def control_panel():
         if plugin.config.get('hide_widget',False):
             continue
         try:
-            widgets[plugin.__name__] = plugin.widget()
+            widgets[plugin.name] = plugin.widget()
         except Exception as ex:
             _logger.exception(ex)
 
