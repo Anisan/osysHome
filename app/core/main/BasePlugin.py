@@ -134,6 +134,17 @@ class BasePlugin:
         raise NotImplementedError(
             "Subclasses must implement generate_web_content method"
         )
+    
+    def route_page(self):
+        @self.blueprint.route("/page/" + self.name, methods=["GET", "POST"])
+        @handle_admin_required
+        def module_page():
+            return self.page(request)
+        
+    def page(self, request):
+        raise NotImplementedError(
+            "Subclasses must implement generate_web_content method"
+        )
 
     def render(self, template, content):
         content["segment"] = self.name

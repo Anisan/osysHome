@@ -1,0 +1,27 @@
+{% extends "layouts/base-fullscreen.html" %}
+
+<!-- Specific CSS goes HERE -->
+{% block stylesheets %}{% endblock stylesheets %}
+
+{% block title %} {{ _('Pages')}} {% endblock %}
+
+<!-- [ Main Content ] start -->
+{% block content %}
+<div class="m-2">
+  <div class="d-flex flex-wrap gap-3">
+    {% for item in modules %}
+    <div class="d-flex flex-column align-items-center text-center p-3 border rounded-3 hover-shadow">
+      <a class="text-center" href="/page/{{item.name}}">
+        <div class="icon-container">
+          <img src="/{{item.name}}/static/{{item.name}}.png" height="48px" onError="this.src='{{ config.ASSETS_ROOT }}/images/module.png'">          
+        </div>
+        <div class="mb-1">{{ item.name }}</div>
+      </a>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock content %}
+
+<!-- Specific Page JS goes HERE  -->
+{% block javascripts %}{% endblock javascripts %}

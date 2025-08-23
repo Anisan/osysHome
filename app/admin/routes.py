@@ -23,6 +23,13 @@ def control_panel():
     content = {"widgets":widgets}
     return render_template("control_panel.html", **content)
 
+@blueprint.route("/pages")
+@handle_user_required
+def pages_panel():
+    modules = getModulesByAction("page")
+    content = {"modules":modules}
+    return render_template("pages_panel.html", **content)
+
 # Маршрут для отображения файлов документации
 @blueprint.route('/docs/<path:filename>')
 @handle_user_required
