@@ -5,6 +5,9 @@ from dataclasses import dataclass
 from datetime import datetime
 from collections import deque
 from settings import Config
+from app.logging_config import getLogger
+
+_logger = getLogger('thread_pools')
 
 @dataclass
 class PoolStats:
@@ -53,6 +56,8 @@ class MonitoredThreadPool:
         # История для графиков (последние 100 записей)
         self._execution_history = deque(maxlen=100)
 
+        _logger.info(f"Init pool threads '{thread_name_prefix}' (max workers: {max_workers})")
+
     def submit(self, fn: Callable, task_id=None, *args, **kwargs) -> concurrent.futures.Future:
         """Отправляет задачу в пул с мониторингом"""
         with self._lock:
@@ -70,6 +75,8 @@ class MonitoredThreadPool:
 
             if self._on_task_start:
                 self._on_task_start(task_id, start_time)
+            else:
+                _logger.debug(f"Starting task '{task_id}'")
 
             success = False
             error = None
@@ -122,9 +129,13 @@ class MonitoredThreadPool:
                     if success:
                         if self._on_task_complete:
                             self._on_task_complete(task_id, execution_time)
+                        else:
+                            _logger.debug(f"Completed task '{task_id}' in {execution_time:.2f}s")
                     else:
                         if self._on_task_error:
                             self._on_task_error(task_id, str(error))
+                        else:
+                            _logger.exception(f"Task '{task_id}' failed: {error}")
 
             return result
 
