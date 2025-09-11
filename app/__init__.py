@@ -183,6 +183,8 @@ def registerExtensions(app):
     """Register Flask extensions."""
     bcrypt.init_app(app)
     cache.init_app(app)
+    _logger.debug(f"Cache type: {type(cache.cache)}")
+    _logger.debug(f"Cache attributes: {dir(cache.cache)}")
     db.init_app(app)
     cors.init_app(app)
     login_manager.init_app(app)

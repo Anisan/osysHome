@@ -12,6 +12,8 @@ class Config(object):
     DOCS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'docs')
     FILES_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'files')
 
+    DEFAULT_TIMEZONE = "Europe/Moscow"
+    
     DEFAULT_LANGUAGE = 'en'
     # Settings app
     SECRET_KEY = 'secret-key'  # TODO: Change me
@@ -35,9 +37,19 @@ class Config(object):
     # SQLALCHEMY_DATABASE_URI = 'postgresql://user:password@127.0.0.1/app'
     # SQLALCHEMY_DATABASE_URI = 'mysql://user:password@127.0.0.1/app'
 
-    CACHE_FILE_PATH = "cache"  # Замените на путь к вашей папке кеша
+    CACHE_FILE_PATH = "cache"  # Замените на путь к вашей папке кеша файлов
 
     CACHE_TYPE = 'simple'  # Can be "memcached", "redis", etc.
+    CACHE_DEFAULT_TIMEOUT = 300  # Default timeout (sec). A timeout of 0 indicates that the cache never expires.
+    # For redis
+    # CACHE_REDIS_HOST = '127.0.0.1'
+    # CACHE_REDIS_PORT = 6379
+    # CACHE_REDIS_DB = 0
+    # CACHE_REDIS_PASSWORD = None
+    # CACHE_KEY_PREFIX = 'osys_'  # Префикс для всех ключей
+    # CACHE_REDIS_SOCKET_TIMEOUT = 5      # Таймаут сокета
+    # CACHE_REDIS_SOCKET_CONNECT_TIMEOUT = 5  # Таймаут подключения
+    # CACHE_REDIS_MAX_CONNECTIONS = 20    # Максимальное количество соединений
 
     # Service auto restart
     SERVICE_AUTORESTART = False  # True if service option Restart=always

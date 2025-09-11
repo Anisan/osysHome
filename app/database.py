@@ -4,7 +4,6 @@ import time
 import random
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
-from tzlocal import get_localzone
 from flask_login import current_user
 from sqlalchemy.orm import relationship
 from sqlalchemy.orm import sessionmaker, scoped_session
@@ -281,7 +280,7 @@ def convert_utc_to_local(utc_time, timezone:str=None):
     if utc_time.tzinfo is None:
         utc_time = utc_time.replace(tzinfo=ZoneInfo("UTC"))
     if timezone is None:
-        timezone = get_localzone().zone
+        timezone = get_default_timezone()
     local_timezone = ZoneInfo(timezone)
     local_time = utc_time.astimezone(local_timezone)
     return local_time.replace(tzinfo=None)
@@ -295,11 +294,15 @@ def convert_local_to_utc(local_time, timezone:str=None):
     if timezone is None:
         timezone = getattr(current_user, 'timezone', None)
     if timezone is None:
-        timezone = get_localzone().zone
+        timezone = get_default_timezone()
     local_timezone = ZoneInfo(timezone)
     aware_local_time = local_time.replace(tzinfo=local_timezone)
     utc_time = aware_local_time.astimezone(ZoneInfo("UTC"))
     return utc_time.replace(tzinfo=None)
+
+def get_default_timezone():
+    from settings import Config
+    return Config.DEFAULT_TIMEZONE
 
 def get_now_to_utc():
     return datetime.now(timezone.utc).replace(tzinfo=None)
