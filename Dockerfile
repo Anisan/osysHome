@@ -1,5 +1,5 @@
 # Используйте официальный образ Python
-FROM python:3.10
+FROM python:3.13
 
 # Установите переменную окружения для улучшения вывода
 ENV PYTHONUNBUFFERED 1
@@ -28,7 +28,7 @@ RUN git clone https://github.com/Anisan/osysHome-Modules.git /app/plugins/Module
     git clone https://github.com/Anisan/osysHome-Dashboard.git /app/plugins/Dashboard
 
 # Копирование файла настройки
-COPY settings_sample.py /app/settings.py
+COPY sample_config.yaml /app/config.yaml
 
 # Скопируйте зависимости и установите их
 COPY requirements.txt /app/

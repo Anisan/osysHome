@@ -88,7 +88,7 @@ for module in "${!modules[@]}"; do
 done
 
 # Create the settings file
-echo "Creating the settings.py file..."
+echo "Creating the config.yaml file..."
 if ! cp sample_config.yaml config.yaml; then
     echo "Error creating the settings file."
     exit 1
