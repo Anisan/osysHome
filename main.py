@@ -1,6 +1,6 @@
 
 """Main module for start system"""
-from settings import Config
+from app.configuration import Config
 from app import createApp
 from app.utils import initSystemVar, startSystemVar
 from app.core.main.PluginsHelper import start_plugins, stop_plugins

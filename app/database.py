@@ -10,7 +10,7 @@ from sqlalchemy.orm import sessionmaker, scoped_session
 from contextlib import contextmanager
 from sqlalchemy import create_engine, exc, event, inspect, text, ForeignKey
 from sqlalchemy.exc import ProgrammingError
-from settings import Config
+from app.configuration import Config
 from .extensions import db
 from .logging_config import getLogger
 
@@ -64,7 +64,7 @@ def reference_col(tablename, nullable=False, pk_name='id', **kwargs):
 
 
 # define the database
-engine = create_engine(Config.SQLALCHEMY_DATABASE_URI, pool_size=20, max_overflow=30)
+engine = create_engine(Config.SQLALCHEMY_DATABASE_URI, pool_size=Config.SQLALCHEMY_POOL_SIZE, max_overflow=Config.SQLALCHEMY_POOL_SIZE + 10)
 Base.metadata.create_all(engine)
 Base.metadata.bind = engine
 DBSession = sessionmaker(bind=engine)
@@ -301,7 +301,7 @@ def convert_local_to_utc(local_time, timezone:str=None):
     return utc_time.replace(tzinfo=None)
 
 def get_default_timezone():
-    from settings import Config
+    from app.configuration import Config
     return Config.DEFAULT_TIMEZONE
 
 def get_now_to_utc():

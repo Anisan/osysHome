@@ -4,7 +4,7 @@ from typing import Dict, Optional, Callable
 from dataclasses import dataclass
 from datetime import datetime
 from collections import deque
-from settings import Config
+from app.configuration import Config
 from app.logging_config import getLogger
 
 _logger = getLogger('thread_pools')

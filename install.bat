@@ -111,8 +111,8 @@ for %%M in (
 )
 
 :: Create the settings file
-echo Creating the settings.py file...
-copy settings_sample.py settings.py >nul
+echo Creating the config.yaml file...
+copy sample_config.yaml config.yaml >nul
 if %ERRORLEVEL% neq 0 (
     echo Error creating the settings file.
     exit /b 1
@@ -120,7 +120,7 @@ if %ERRORLEVEL% neq 0 (
 
 :: Generate documentation using pdoc
 echo Generating documentation with pdoc...
-pdoc --docformat google --no-show-source --output-dir docs settings_sample.py app plugins
+pdoc --docformat google --no-show-source --output-dir docs app plugins
 if %ERRORLEVEL% neq 0 (
     echo Error generating documentation.
     exit /b 1

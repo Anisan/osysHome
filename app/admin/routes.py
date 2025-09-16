@@ -1,6 +1,6 @@
 from flask import render_template, send_from_directory, current_app, session
 from . import blueprint
-from settings import Config
+from app.configuration import Config
 from app.logging_config import getLogger
 from app.authentication.handlers import handle_user_required, handle_editor_required
 from app.core.lib.common import getModulesByAction

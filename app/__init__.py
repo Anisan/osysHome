@@ -34,7 +34,7 @@ def createApp(config_object):
     app.config.from_object(config_object)
     _logger.info("DB: %s", config_object.SQLALCHEMY_DATABASE_URI)
     app.config['SQLALCHEMY_DATABASE_URI'] = config_object.SQLALCHEMY_DATABASE_URI
-    app.config['SQLALCHEMY_POOL_SIZE'] = 20
+    app.config['SQLALCHEMY_POOL_SIZE'] = config_object.SQLALCHEMY_POOL_SIZE
 
 # Установка CustomJSONProvider как JSON-провайдера
     app.json_provider_class = CustomJSONProvider

@@ -41,9 +41,9 @@ osysHome (Object System smartHome) is smart home system developed in Python that
 ## Settings
 
 * Create settings file
-    * Linux: cp settings_sample.py settings.py
-    * Windows: copy settings_sample.py settings.py
-* Change settings db in settings.py
+    * Linux: cp sample_config.yaml config.yaml
+    * Windows: copy sample_config.yaml config.yaml
+* Change settings db in config.yaml
 
 ## Start
 

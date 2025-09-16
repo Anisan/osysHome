@@ -43,6 +43,7 @@ def initSystemVar():
 </div>
 '''
         updateClass(cls_user)
+        
     addClassProperty('password', 'Users', 'Hash password', 0, type=PropertyType.String)
     addClassProperty('role', 'Users', 'Role user', 0, type=PropertyType.String)
     addClassProperty('home_page', 'Users', 'Home page for user (default: admin)', 0, type=PropertyType.String)

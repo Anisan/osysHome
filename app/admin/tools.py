@@ -1,7 +1,7 @@
 import os
 import subprocess
 import ctypes
-from settings import Config 
+from app.configuration import Config 
 from app.extensions import bcrypt
 from app.core.lib.object import getObjectsByClass, getObject, addObject, setProperty
 

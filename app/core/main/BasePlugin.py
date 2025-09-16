@@ -4,7 +4,7 @@ import os
 import json
 from threading import Thread, Event
 from flask import Blueprint, request, render_template
-from settings import Config
+from app.configuration import Config
 from app.core.models.Plugins import Plugin
 from app.core.lib.common import sendDataToWebsocket
 from app.database import session_scope, get_now_to_utc
