@@ -31,7 +31,7 @@ class ConfigLoader(object):
         self.SQLALCHEMY_ECHO = False  # SQL log
         DB_NAME = 'app.db'
         # Put the db file in project root
-        DB_PATH = os.path.join(self.APP_DIR,'instance', DB_NAME)
+        DB_PATH = os.path.join(self.APP_DIR, DB_NAME)
         self.SQLALCHEMY_DATABASE_URI = 'sqlite:///{0}'.format(DB_PATH)
         self.SQLALCHEMY_POOL_SIZE = 20  # Пул потоков для выполнения запросов к БД
 
