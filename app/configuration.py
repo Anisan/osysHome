@@ -77,7 +77,7 @@ class ConfigLoader(object):
             self.SQLALCHEMY_DATABASE_URI = db_config['connection_string']
         else:
             DB_NAME = db_config.get('db_name', 'app.db')
-            DB_PATH = os.path.join(self.APP_DIR, 'instance', DB_NAME)
+            DB_PATH = os.path.join(self.APP_DIR, DB_NAME)
             self.SQLALCHEMY_DATABASE_URI = f'sqlite:///{DB_PATH}'
 
         cache_config = self._config_data.get('cache', {})
