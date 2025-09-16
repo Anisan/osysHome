@@ -1,7 +1,7 @@
 """ Cache module """
 import os
 import shutil
-from settings import Config
+from app.configuration import Config
 
 __cacheDir = Config.CACHE_FILE_PATH
 

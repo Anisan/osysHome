@@ -1,85 +1,92 @@
 """ Module init logger """
 import logging
-import logging.config
 import logging.handlers
 import os
-from settings import Config
+from app.configuration import Config
+
+# Глобальный error handler (чтобы не дублировался для каждого модуля)
+_global_error_handler = None
+
 
 def getLogger(moduleName, level=None, logDirectory='logs'):
-    """ Get logger
+    """ Get logger with file rotation, console output and shared error handler.
 
     Args:
-        moduleName (String): Name logger
-        level (String): Level logger.
-        logDirectory (str, optional): directory for logs. Defaults to 'logs'.
+        moduleName (str): Имя логгера (обычно имя модуля).
+        level (str, optional): Уровень логирования. По умолчанию INFO (DEBUG если Config.DEBUG).
+        logDirectory (str, optional): Папка для логов. Defaults to 'logs'.
 
     Returns:
-        logger: logger
+        logging.Logger: настроенный логгер.
     """
-    if level is None or level == 'None':
-        level = 'INFO'
+    global _global_error_handler
 
-        if Config.DEBUG:
-            level = 'DEBUG'
+    # Если логгер уже настроен — возвращаем как есть
+    logger = logging.getLogger(moduleName)
+    if logger.handlers:
+        return logger
 
+    # Создаём папку логов при необходимости
     if not os.path.exists(logDirectory):
         os.makedirs(logDirectory)
+
+    # Определяем уровень логирования
+    if level is None or str(level).upper() == 'NONE':
+        level = 'DEBUG' if Config.DEBUG else 'INFO'
+    else:
+        level = level.upper()
 
     logFile = os.path.join(logDirectory, f'{moduleName}.log')
     logErrors = os.path.join(logDirectory, 'errors.log')
 
-    loggingConfig = {
-        'version': 1,
-        'disable_existing_loggers': False,
-        'formatters': {
-            'standard': {
-                'format': '%(asctime)s.%(msecs)03d[%(levelname)s] %(message)s',
-                'datefmt': '%H:%M:%S'
-            },
-            'console_formatter': {
-                'format': '%(asctime)s.%(msecs)03d[%(levelname)s][%(name)s] %(message)s',
-                'datefmt': '%H:%M:%S'
-            },
-        },
-        'handlers': {
-            'error_file_handler': {  # Новый обработчик ошибок
-                'class': 'logging.handlers.TimedRotatingFileHandler',
-                'filename': logErrors,
-                'level': 'ERROR',
-                'formatter': 'console_formatter',
-                'when': 'midnight',
-                'interval': 1,
-                'backupCount': 7,  # Хранить последние 7 файлов логов
-                'encoding': 'utf-8',
-                'utc': False  # Использовать локальное время
-            },
-            f'{moduleName}_file_handler': {
-                'class': 'logging.handlers.TimedRotatingFileHandler',
-                'formatter': 'standard',
-                'filename': logFile,
-                'when': 'midnight',
-                'interval': 1,
-                'backupCount': 7,  # Хранить последние 7 файлов логов
-                'encoding': 'utf-8',
-                'utc': False  # Использовать локальное время
-            },
-            f'{moduleName}_console_handler': {
-                'class': 'logging.StreamHandler',
-                'formatter': 'console_formatter',
-                'level': level
-            },
-        },
-        'loggers': {
-            moduleName: {
-                'handlers': [f'{moduleName}_file_handler', f'{moduleName}_console_handler', 'error_file_handler'],
-                'level': level,
-                'propagate': False
-            },
-        }
-    }
+    # Общий формат для всех выводов
+    formatter = logging.Formatter(
+        '%(asctime)s.%(msecs)03d[%(levelname)s] %(message)s',
+        datefmt='%H:%M:%S'
+    )
+    # Формат для ошибок
+    formatter_error = logging.Formatter(
+        '%(asctime)s.%(msecs)03d[%(levelname)s][%(name)s] %(message)s',
+        datefmt='%H:%M:%S'
+    )
 
-    logging.config.dictConfig(loggingConfig)
-    return logging.getLogger(moduleName)
+    # Индивидуальный file handler для модуля
+    file_handler = logging.handlers.TimedRotatingFileHandler(
+        logFile,
+        when='midnight',
+        interval=1,
+        backupCount=7,
+        encoding='utf-8',
+        utc=False
+    )
+    file_handler.setFormatter(formatter)
 
-# Пример использования в модуле:
+    # Общий error handler (создаётся только один раз)
+    if _global_error_handler is None:
+        _global_error_handler = logging.handlers.TimedRotatingFileHandler(
+            logErrors,
+            when='midnight',
+            interval=1,
+            backupCount=7,
+            encoding='utf-8',
+            utc=False
+        )
+        _global_error_handler.setLevel(logging.ERROR)
+        _global_error_handler.setFormatter(formatter_error)
+
+    # Console handler
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(level)
+    console_handler.setFormatter(formatter)
+
+    # Настраиваем логгер
+    logger.setLevel(level)
+    logger.addHandler(file_handler)
+    logger.addHandler(_global_error_handler)
+    logger.addHandler(console_handler)
+    logger.propagate = False
+
+    return logger
+
+# Пример использования в модуле: 
 # logger = getLogger('module1')

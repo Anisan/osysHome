@@ -2,15 +2,13 @@
 import os
 import json
 from importlib import import_module
-from functools import lru_cache
 from flask import Flask, request, render_template, current_app, session, has_app_context
-#import flask_monitoringdashboard as dashboard
+# import flask_monitoringdashboard as dashboard
 from flask_login import current_user
 from flask import flash, redirect, url_for, abort
 from app.core.lib.object import getProperty
 from app import commands
 from app.exceptions import InvalidUsage
-from app.constants import LANGUAGES
 from app.extensions import db, login_manager, cors, bcrypt, toolbar, cache
 from app.core.main.PluginsHelper import registerPlugins
 from app.core.utils import CustomJSONEncoder, CustomJSONProvider
@@ -26,9 +24,9 @@ def createApp(config_object):
     :param config_object: The configuration object to use.
     """
     if config_object.DEBUG:
-        log = getLogger('werkzeug')
+        getLogger('werkzeug')
     else:
-        log = getLogger('werkzeug','ERROR')
+        getLogger('werkzeug','ERROR')
 
     _logger.info("Init app")
     app = Flask(__name__.split('.',maxsplit=1)[0])
@@ -36,7 +34,7 @@ def createApp(config_object):
     app.config.from_object(config_object)
     _logger.info("DB: %s", config_object.SQLALCHEMY_DATABASE_URI)
     app.config['SQLALCHEMY_DATABASE_URI'] = config_object.SQLALCHEMY_DATABASE_URI
-    app.config['SQLALCHEMY_POOL_SIZE'] = 20
+    app.config['SQLALCHEMY_POOL_SIZE'] = config_object.SQLALCHEMY_POOL_SIZE
 
 # Установка CustomJSONProvider как JSON-провайдера
     app.json_provider_class = CustomJSONProvider
@@ -67,7 +65,7 @@ def createApp(config_object):
     registerPlugins(app)
     sync_db(app)  # sync plugins tables
 
-    #if config_object.DEBUG:
+    # if config_object.DEBUG:
     #   dashboard.bind(app)
 
     @app.context_processor
@@ -185,6 +183,8 @@ def registerExtensions(app):
     """Register Flask extensions."""
     bcrypt.init_app(app)
     cache.init_app(app)
+    _logger.debug(f"Cache type: {type(cache.cache)}")
+    _logger.debug(f"Cache attributes: {dir(cache.cache)}")
     db.init_app(app)
     cors.init_app(app)
     login_manager.init_app(app)

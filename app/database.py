@@ -4,14 +4,13 @@ import time
 import random
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
-from tzlocal import get_localzone
 from flask_login import current_user
 from sqlalchemy.orm import relationship
 from sqlalchemy.orm import sessionmaker, scoped_session
 from contextlib import contextmanager
 from sqlalchemy import create_engine, exc, event, inspect, text, ForeignKey
 from sqlalchemy.exc import ProgrammingError
-from settings import Config
+from app.configuration import Config
 from .extensions import db
 from .logging_config import getLogger
 
@@ -65,7 +64,7 @@ def reference_col(tablename, nullable=False, pk_name='id', **kwargs):
 
 
 # define the database
-engine = create_engine(Config.SQLALCHEMY_DATABASE_URI, pool_size=20, max_overflow=30)
+engine = create_engine(Config.SQLALCHEMY_DATABASE_URI, pool_size=Config.SQLALCHEMY_POOL_SIZE, max_overflow=Config.SQLALCHEMY_POOL_SIZE + 10)
 Base.metadata.create_all(engine)
 Base.metadata.bind = engine
 DBSession = sessionmaker(bind=engine)
@@ -90,6 +89,7 @@ def normalize_column_type(column_type, dialect):
         },
         "postgresql": {
             "BOOLEAN": "BOOLEAN",
+            "DOUBLE PRECISION": "FLOAT",
             "INTEGER": "INTEGER",
             "BIGINT": "BIGINTEGER",
             "TEXT": "TEXT",
@@ -110,7 +110,7 @@ def sync_db(app):
         for class_name, model in db.Model.registry._class_registry.items():
             if hasattr(model, '__tablename__') and hasattr(model, '__table__'):
                 table_name = model.__tablename__
-                safe_table_name = f'"{table_name}"' if dialect == 'postgresql' else f'`{table_name}`'  
+                safe_table_name = f'"{table_name}"' if dialect == 'postgresql' else f'`{table_name}`'
 
                 if not inspector.has_table(table_name):
                     logger.info(f'✅ Create table: {table_name}')
@@ -280,7 +280,7 @@ def convert_utc_to_local(utc_time, timezone:str=None):
     if utc_time.tzinfo is None:
         utc_time = utc_time.replace(tzinfo=ZoneInfo("UTC"))
     if timezone is None:
-        timezone = get_localzone().zone
+        timezone = get_default_timezone()
     local_timezone = ZoneInfo(timezone)
     local_time = utc_time.astimezone(local_timezone)
     return local_time.replace(tzinfo=None)
@@ -294,11 +294,15 @@ def convert_local_to_utc(local_time, timezone:str=None):
     if timezone is None:
         timezone = getattr(current_user, 'timezone', None)
     if timezone is None:
-        timezone = get_localzone().zone
+        timezone = get_default_timezone()
     local_timezone = ZoneInfo(timezone)
     aware_local_time = local_time.replace(tzinfo=local_timezone)
     utc_time = aware_local_time.astimezone(ZoneInfo("UTC"))
     return utc_time.replace(tzinfo=None)
+
+def get_default_timezone():
+    from app.configuration import Config
+    return Config.DEFAULT_TIMEZONE
 
 def get_now_to_utc():
     return datetime.now(timezone.utc).replace(tzinfo=None)

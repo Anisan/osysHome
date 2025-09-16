@@ -89,16 +89,16 @@ done
 
 # Create the settings file
 echo "Creating the settings.py file..."
-if ! cp settings_sample.py settings.py; then
+if ! cp sample_config.yaml config.yaml; then
     echo "Error creating the settings file."
     exit 1
 fi
 
-echo "Setup complete. Please modify the database settings in settings.py."
+echo "Setup complete. Please modify the database settings in config.yaml."
 
 # Generate documentation using pdoc
 echo "Generating documentation with pdoc..."
-if ! pdoc --docformat google --no-show-source --output-dir docs settings_sample.py app plugins; then
+if ! pdoc --docformat google --no-show-source --output-dir docs app plugins; then
     echo "Error generating documentation."
     exit 1
 fi

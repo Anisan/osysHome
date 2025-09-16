@@ -1,0 +1,29 @@
+# Рабочая конфигурация osysHome  
+# Этот файл создается пользователем на основе config_sample.yaml  
+  
+application:  
+  default_language: 'en'  
+  default_timezone: 'Europe/Moscow'
+  secret_key: 'your-secret-key-here'  # Измените на уникальный ключ  
+  debug: false  
+  app_port: 5000  
+  env: 'production'
+  pool_size: 20
+  
+database:  
+  sqlalchemy_echo: false  
+  pool_size: 20
+  db_name: 'app.db'  
+  # Для SQLite используется db_name  
+  # Для других БД раскомментируйте connection_string:  
+  # connection_string: 'postgresql://osyshome:password@localhost/osyshome'  
+  # connection_string: 'mysql://osyshome:password@localhost/app'
+  
+cache:  
+  file_path: 'cache'  
+  type: 'simple'
+  timeout: 300
+  
+service:  
+  autorestart: False  
+  name: null # Или имя сервиса 'osyshome'  

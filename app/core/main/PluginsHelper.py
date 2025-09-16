@@ -105,7 +105,7 @@ def registerPlugins(app):
 
             groups = {}
             from app import safe_translate
-                
+
             for item in sidebar:
                 if item["custom_title"]:
                     item['title'] = item["custom_title"]
@@ -130,7 +130,7 @@ def registerPlugins(app):
             return groups
 
         def getListNotify(source):
-            data = Notify.query.filter(Notify.read == False, Notify.source == source).all()
+            data = Notify.query.filter(Notify.read == False, Notify.source == source).all()  # noqa
             res = []
             for rec in data:
                 item = row2dict(rec)

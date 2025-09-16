@@ -4,7 +4,7 @@ import os
 import json
 from threading import Thread, Event
 from flask import Blueprint, request, render_template
-from settings import Config
+from app.configuration import Config
 from app.core.models.Plugins import Plugin
 from app.core.lib.common import sendDataToWebsocket
 from app.database import session_scope, get_now_to_utc
@@ -131,6 +131,17 @@ class BasePlugin:
             return self.admin(request)
 
     def admin(self, request):
+        raise NotImplementedError(
+            "Subclasses must implement generate_web_content method"
+        )
+    
+    def route_page(self):
+        @self.blueprint.route("/page/" + self.name, methods=["GET", "POST"])
+        @handle_admin_required
+        def module_page():
+            return self.page(request)
+        
+    def page(self, request):
         raise NotImplementedError(
             "Subclasses must implement generate_web_content method"
         )

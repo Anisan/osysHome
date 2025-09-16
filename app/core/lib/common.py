@@ -12,8 +12,13 @@ from .constants import CategoryNotify
 from ..main.PluginsHelper import plugins
 from ..models.Tasks import Task
 from ..models.Plugins import Notify
+from app.core.MonitoredThreadPool import MonitoredThreadPool
 
 _logger = getLogger("common")
+
+# Глобальный пул потоков
+_poolSay = MonitoredThreadPool(thread_name_prefix="say")
+_poolPlaysound = MonitoredThreadPool(thread_name_prefix="playsound")
 
 
 def addScheduledJob(
@@ -174,6 +179,15 @@ def getModule(name: str):
         return None
     return plugins[name]["instance"]
 
+def getModulesByAction(action: str):
+    """Get modules by action
+    Args:
+        action (str): Action
+    Returns:
+        list: List of modules
+    """
+    return [module["instance"] for _, module in plugins.items() if action in module["instance"].actions]
+
 
 def callPluginFunction(plugin: str, func: str, args):
     """Call plugin function
@@ -209,12 +223,13 @@ def say(message: str, level: int = 0, args: dict = None):
     from .object import setProperty
     source = args.get("source", "osysHome") if args else "osysHome"
     setProperty("SystemVar.LastSay", message, source)
-    for _, plugin in plugins.items():
-        if "say" in plugin["instance"].actions:
-            try:
-                plugin["instance"].say(message, level, args)
-            except Exception as ex:
-                _logger.exception(ex)
+    modules_with_say = getModulesByAction("say")
+    for plugin in modules_with_say:
+        try:
+            # plugin.say(message, level, args) #todo poolthread
+            _poolSay.submit(plugin.say, f"say_{plugin.name}", message, level, args)
+        except Exception as ex:
+            _logger.exception(ex)
 
 
 def playSound(file_name: str, level: int = 0, args: dict = None):
@@ -225,12 +240,14 @@ def playSound(file_name: str, level: int = 0, args: dict = None):
         level (int, optional): Level. Defaults to 0.
         args (dict, optional): Arguments. Defaults to None.
     """
-    for _, plugin in plugins.items():
-        if "playsound" in plugin["instance"].actions:
-            try:
-                plugin["instance"].playSound(file_name, level, args)
-            except Exception as ex:
-                _logger.exception(ex)
+    modules_with_playsound = getModulesByAction("playsound")
+    for plugin in modules_with_playsound:
+        try:
+            # plugin.playSound(file_name, level, args) #todo poolthread
+            _poolPlaysound.submit(plugin.playSound, f"playsound_{plugin.name}", file_name, level, args)
+
+        except Exception as ex:
+            _logger.exception(ex)
 
 
 def addNotify(
@@ -340,7 +357,7 @@ def sendDataToWebsocket(typeData: str, data: any) -> bool:
     """
     if "wsServer" not in plugins:
         return False
-        
+
     plugin_obj = plugins["wsServer"]["instance"]
 
     if hasattr(plugin_obj, "sendData"):
@@ -420,20 +437,20 @@ def is_datetime_in_range(
     inclusive: Union[bool, str] = True,
 ) -> bool:
     """
-    Проверяет, находится ли check_dt между start_dt и end_dt.
-    
-    Параметры:
-        check_dt: Проверяемый момент времени.
-        start_dt: Начало диапазона (None = -∞).
-        end_dt: Конец диапазона (None = +∞).
-        inclusive: Включение границ:
-            - True (по умолчанию): границы включены [start_dt, end_dt].
-            - False: границы исключены (start_dt, end_dt).
-            - "left": только start_dt включен [start_dt, end_dt).
-            - "right": только end_dt включен (start_dt, end_dt].
-    
-    Возвращает:
-        bool: True, если check_dt попадает в диапазон.
+    Checks whether check_dt is between start_dt and end_dt.
+
+    Parameters:
+        check_dt: The datetime to check.
+        start_dt: The start of the range (None = -∞).
+        end_dt: The end of the range (None = +∞).
+        inclusive: Boundary inclusion:
+        - True (default): both boundaries are included [start_dt, end_dt].
+        - False: both boundaries are excluded (start_dt, end_dt).
+        - "left": only start_dt is included [start_dt, end_dt).
+        - "right": only end_dt is included (start_dt, end_dt].
+
+    Returns:
+        bool: True if check_dt falls within the range.
     """
     if start_dt is not None:
         if inclusive in (True, "left"):
@@ -442,7 +459,7 @@ def is_datetime_in_range(
         else:
             if check_dt <= start_dt:
                 return False
-    
+
     if end_dt is not None:
         if inclusive in (True, "right"):
             if check_dt > end_dt:
@@ -450,5 +467,5 @@ def is_datetime_in_range(
         else:
             if check_dt >= end_dt:
                 return False
-    
+
     return True
