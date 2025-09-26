@@ -3,7 +3,85 @@
 {% block title %} {{ _('Control panel')}} {% endblock %}
 
 <!-- Specific CSS goes HERE -->
-{% block stylesheets %}{% endblock stylesheets %}
+{% block stylesheets %}
+<style>
+    /* Скрыть контейнер до инициализации JavaScript */
+    #widgetsContainer {
+        opacity: 0;
+        transition: opacity 0.3s ease-in-out;
+    }
+    
+    #widgetsContainer.initialized {
+        opacity: 1;
+    }
+    
+    /* Стили для спинера */
+    .spinner-container {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 200px;
+        padding: 2rem;
+    }
+    
+    /* Явное задание ширины колонок */
+    .col-widgets-1 { width: 100%; max-width: 100%; flex: 0 0 100%; }
+    .col-widgets-2 { width: 50%; max-width: 50%; flex: 0 0 50%; }
+    .col-widgets-3 { width: 33.333333%; max-width: 33.333333%; flex: 0 0 33.333333%; }
+    .col-widgets-4 { width: 25%; max-width: 25%; flex: 0 0 25%; }
+    .col-widgets-5 { width: 20%; max-width: 20%; flex: 0 0 20%; }
+    .col-widgets-6 { width: 16.666666%; max-width: 16.666666%; flex: 0 0 16.666666%; }
+    
+    /* Адаптивность */
+    @media (max-width: 576px) {
+        .col-widgets-1, .col-widgets-2, .col-widgets-3, .col-widgets-4, .col-widgets-5, .col-widgets-6 {
+            width: 100%;
+            max-width: 100%;
+            flex: 0 0 100%;
+        }
+    }
+    
+    @media (min-width: 576px) and (max-width: 768px) {
+        .col-widgets-1, .col-widgets-2, .col-widgets-3, .col-widgets-4, .col-widgets-5, .col-widgets-6 {
+            width: 50%;
+            max-width: 50%;
+            flex: 0 0 50%;
+        }
+    }
+    
+    @media (min-width: 768px) {
+        .col-widgets-1 { width: 100%; max-width: 100%; flex: 0 0 100%; }
+        .col-widgets-2 { width: 50%; max-width: 50%; flex: 0 0 50%; }
+        .col-widgets-3 { width: 33.333333%; max-width: 33.333333%; flex: 0 0 33.333333%; }
+        .col-widgets-4 { width: 25%; max-width: 25%; flex: 0 0 25%; }
+        .col-widgets-5 { width: 20%; max-width: 20%; flex: 0 0 20%; }
+        .col-widgets-6 { width: 16.666666%; max-width: 16.666666%; flex: 0 0 16.666666%; }
+    }
+    
+    /* Стили для кнопок управления колонками */
+    .columns-controls {
+        display: inline-flex;
+        align-items: center;
+        margin-left: auto;
+        gap: 0.5rem;
+    }
+    
+    .columns-controls .btn {
+        padding: 0.25rem 0.5rem;
+        font-size: 1rem;
+        line-height: 1;
+    }
+    
+    .columns-display {
+        min-width: 30px;
+        text-align: center;
+        font-weight: bold;
+        padding: 0.25rem 0.5rem;
+        background-color: #e9ecef;
+        border-radius: 0.25rem;
+    }
+</style>
+{% endblock stylesheets %}
 
 <!-- [ Main Content ] start -->
 {% block content %}
@@ -14,14 +92,40 @@
     </ul>
 </div>
 <!-- [ breadcrumb ] end -->
-<h1>{{ _('Welcome!')}}</h1>
+
+<!-- Заголовок с кнопками управления колонками -->
+<div class="d-flex align-items-center justify-content-between mb-3">
+    <h1>{{ _('Welcome!')}}</h1>
+    <div class="columns-controls">
+        <button type="button" id="decreaseColumns" class="btn btn-outline-secondary">
+            <i class="feather icon-minus"></i>
+        </button>
+        <div id="columnsDisplay">3</div>
+        <button type="button" id="increaseColumns" class="btn btn-outline-secondary">
+            <i class="feather icon-plus"></i>
+        </button>
+    </div>
+</div>
 
 <!-- Widgets -->
 <div class="pcoded-main-container">
-    <div class="row mx-1">
+    <!-- Спинер -->
+    <div id="spinnerContainer" class="row mx-1">
+        <div class="col-12">
+            <div class="spinner-container">
+                <div class="d-flex align-items-center">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row mx-1" id="widgetsContainer" style="display: none;">
         {% for key,template in widgets.items()%}
           {% if template %}
-            <div class="col-sm-12 col-md-6 col-lg-4 mb-2 px-1">
+            <div class="widget-col col mb-2 px-1 col-widgets-3" data-widget-key="{{key}}">
               <div class="card p-2" style="height:100%;" id="widget_{{key}}">
                 {{template|safe}}
               </div>
@@ -34,4 +138,74 @@
 {% endblock %}
 
 <!-- Specific Page JS goes HERE  -->
-{% block javascripts %}{% endblock javascripts %}
+{% block javascripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const decreaseBtn = document.getElementById('decreaseColumns');
+    const increaseBtn = document.getElementById('increaseColumns');
+    const columnsDisplay = document.getElementById('columnsDisplay');
+    const widgetsContainer = document.getElementById('widgetsContainer');
+    const spinnerContainer = document.getElementById('spinnerContainer');
+    const widgetCols = document.querySelectorAll('.widget-col');
+    
+    // Загружаем сохраненное значение из localStorage
+    let currentColumns = 3; // значение по умолчанию
+    const savedColumns = localStorage.getItem('widgetColumns');
+    
+    if (savedColumns) {
+        currentColumns = parseInt(savedColumns);
+        columnsDisplay.textContent = currentColumns;
+    }
+    
+    // Функция обновления классов колонок
+    function updateColumnClasses(columns) {
+        widgetCols.forEach(col => {
+            // Удаляем все классы колонок
+            const classesToRemove = [];
+            for (let className of col.classList) {
+                if (className.startsWith('col-widgets-')) {
+                    classesToRemove.push(className);
+                }
+            }
+            
+            classesToRemove.forEach(className => {
+                col.classList.remove(className);
+            });
+            
+            // Добавляем новый класс
+            col.classList.add('col-widgets-' + columns);
+        });
+    }
+    
+    // Применяем начальные классы
+    updateColumnClasses(currentColumns);
+    
+    // Скрываем спинер и показываем виджеты
+    setTimeout(() => {
+        spinnerContainer.style.display = 'none';
+        widgetsContainer.style.display = 'flex';
+        widgetsContainer.classList.add('initialized');
+    }, 100);
+    
+    // Обработчик уменьшения количества колонок
+    decreaseBtn.addEventListener('click', function() {
+        if (currentColumns > 1) {
+            currentColumns--;
+            columnsDisplay.textContent = currentColumns;
+            localStorage.setItem('widgetColumns', currentColumns);
+            updateColumnClasses(currentColumns);
+        }
+    });
+    
+    // Обработчик увеличения количества колонок
+    increaseBtn.addEventListener('click', function() {
+        if (currentColumns < 6) {
+            currentColumns++;
+            columnsDisplay.textContent = currentColumns;
+            localStorage.setItem('widgetColumns', currentColumns);
+            updateColumnClasses(currentColumns);
+        }
+    });
+});
+</script>
+{% endblock javascripts %}

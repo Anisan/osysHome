@@ -77,7 +77,7 @@ def getLogger(moduleName, level=None, logDirectory='logs'):
     # Console handler
     console_handler = logging.StreamHandler()
     console_handler.setLevel(level)
-    console_handler.setFormatter(formatter)
+    console_handler.setFormatter(formatter_error)
 
     # Настраиваем логгер
     logger.setLevel(level)
