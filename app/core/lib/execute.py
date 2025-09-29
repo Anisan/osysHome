@@ -1,6 +1,6 @@
 import io
+import sys
 import traceback
-from contextlib import redirect_stdout
 from typing import Tuple
 
 MODULE_NAMES = [
@@ -12,7 +12,7 @@ MODULE_NAMES = [
 ]
 
 def execute_and_capture_output(code: str, variables: dict) -> Tuple[str, bool]:
-    """Execute Python code with provided variables and capture output/errors.
+    """Execute Python code with provided variables and capture output/errors via custom print.
 
     Executes the given code in a custom environment that includes:
     - Pre-imported specified modules
@@ -29,6 +29,7 @@ def execute_and_capture_output(code: str, variables: dict) -> Tuple[str, bool]:
     # Early return for empty code
     if not code:
         return "", False
+
     # Создаем окружение и добавляем в него переменные
     environment = globals().copy()
     environment.update(variables)
@@ -45,16 +46,29 @@ def execute_and_capture_output(code: str, variables: dict) -> Tuple[str, bool]:
     error_occurred = False
     output = ''
 
-    with redirect_stdout(buffer):
-        try:
-            exec(code, environment)
-            output = buffer.getvalue()
-        except Exception as e:
-            output = (
-                f"Execution error: {str(e)}\n"
-                f"Type: {type(e).__name__}\n"
-                f"Traceback:\n{traceback.format_exc()}"
-            )
-            error_occurred = True
+    # Переопределяем print в окружении
+    def custom_print(*args, sep=' ', end='\n', file=None, flush=False):
+        if file is None or file == __builtins__.get('stdout'):
+            buffer.write(sep.join(map(str, args)) + end)
+            print(*args, sep=sep, end=end, file=sys.stdout, flush=flush)
+            if flush:
+                buffer.flush()
+        else:
+            __builtins__['print'](*args, sep=sep, end=end, file=file, flush=flush)
+
+    # Заменяем print в окружении
+    environment['print'] = custom_print
+
+    try:
+        exec(code, environment)
+        output = buffer.getvalue()
+    except Exception as e:
+        output = (
+            f"{buffer.getvalue()}\n"
+            f"Execution error: {str(e)}\n"
+            f"Type: {type(e).__name__}\n"
+            f"Traceback:\n{traceback.format_exc()}"
+        )
+        error_occurred = True
 
     return output, error_occurred
