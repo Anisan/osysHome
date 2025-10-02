@@ -267,7 +267,7 @@ def addNotify(
     with session_scope() as session:
         notify = session.query(Notify).filter(Notify.name == name, Notify.description == description, Notify.read == False).first() # noqa
         if notify:
-            notify.count = notify.count if notify.count else 0 + 1
+            notify.count = (notify.count if notify.count else 0) + 1
         else:
             notify = Notify()
             notify.name = name
