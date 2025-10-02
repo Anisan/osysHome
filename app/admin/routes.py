@@ -4,6 +4,7 @@ from app.configuration import Config
 from app.logging_config import getLogger
 from app.authentication.handlers import handle_user_required, handle_editor_required
 from app.core.lib.common import getModulesByAction
+from app.core.lib.object import getObject, getProperty
 
 _logger = getLogger("main")
 
@@ -20,7 +21,18 @@ def control_panel():
         except Exception as ex:
             _logger.exception(ex)
 
-    content = {"widgets":widgets}
+    objects = getProperty("SystemVar.control_panel_objects")
+    object_render = {}
+    if objects:
+        for key in objects:
+            obj = getObject(key)
+            if not obj:
+                continue
+            render = obj.render()
+            if render:
+                object_render[key] = render
+
+    content = {"widgets":widgets, "objects":object_render}
     return render_template("control_panel.html", **content)
 
 @blueprint.route("/pages")

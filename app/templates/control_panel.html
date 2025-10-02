@@ -132,6 +132,15 @@
             </div>
           {%endif%}
         {%endfor%}
+        {% for key,template in objects.items()%}
+          {% if template %}
+            <div class="widget-col col mb-2 px-1 col-widgets-3" data-widget-key="{{key}}">
+                <div class="card p-2" style="height:100%;" id="obj:{{key}}">
+                    {{template|safe}}
+                </div>
+            </div>
+          {%endif%}
+        {%endfor%}
     </div>
 </div>  
 <!-- Widgets end -->
