@@ -1,5 +1,6 @@
 """ Common library """
-
+import threading
+from contextlib import contextmanager
 import datetime
 from typing import Optional, Union
 from sqlalchemy import update, delete
@@ -20,6 +21,23 @@ _logger = getLogger("common")
 _poolSay = MonitoredThreadPool(thread_name_prefix="say")
 _poolPlaysound = MonitoredThreadPool(thread_name_prefix="playsound")
 
+# Словарь для хранения блокировок, по одной на каждое имя задачи
+_task_locks = {}
+_task_locks_lock = threading.RLock()
+
+@contextmanager
+def get_task_lock(name: str):
+    with _task_locks_lock:
+        if name not in _task_locks:
+            _task_locks[name] = threading.Lock()
+        lock = _task_locks[name]
+    acquire_result = lock.acquire()
+    try:
+        yield
+    finally:
+        if acquire_result:
+            lock.release()
+
 
 def addScheduledJob(
     name: str, code: str, dt: datetime.datetime, expire: int = 1800
@@ -34,22 +52,23 @@ def addScheduledJob(
     Returns:
         int: ID job or None
     """
-    try:
-        with session_scope() as session:
-            task = session.query(Task).filter(Task.name == name).one_or_none()
-            if not task:
-                task = Task()
-                task.name = name
-                session.add(task)
-            task.code = code
-            utc_dt = convert_local_to_utc(dt)
-            task.runtime = utc_dt
-            task.expire = utc_dt + datetime.timedelta(seconds=expire)
-            session.commit()
-            return task.id
-    except Exception as ex:
-        _logger.exception(name, ex)
-        return None
+    with get_task_lock(name):
+        try:
+            with session_scope() as session:
+                task = session.query(Task).filter(Task.name == name).one_or_none()
+                if not task:
+                    task = Task()
+                    task.name = name
+                    session.add(task)
+                task.code = code
+                utc_dt = convert_local_to_utc(dt)
+                task.runtime = utc_dt
+                task.expire = utc_dt + datetime.timedelta(seconds=expire)
+                session.commit()
+                return task.id
+        except Exception as ex:
+            _logger.exception(name, ex)
+            return None
 
 
 def addCronJob(name: str, code: str, crontab: str = "* * * * *") -> int:
@@ -63,24 +82,25 @@ def addCronJob(name: str, code: str, crontab: str = "* * * * *") -> int:
     Returns:
         int: ID job or None
     """
-    try:
-        with session_scope() as session:
-            dt = nextStartCronJob(crontab)
-            task = session.query(Task).filter(Task.name == name).one_or_none()
-            if not task:
-                task = Task()
-                task.name = name
-                session.add(task)
-            task.code = code
-            utc_dt = convert_local_to_utc(dt)
-            task.runtime = utc_dt
-            task.expire = utc_dt + datetime.timedelta(1800)
-            task.crontab = crontab
-            session.commit()
-            return task.id
-    except Exception as ex:
-        _logger.exception(name, ex)
-        return None
+    with get_task_lock(name):
+        try:
+            with session_scope() as session:
+                dt = nextStartCronJob(crontab)
+                task = session.query(Task).filter(Task.name == name).one_or_none()
+                if not task:
+                    task = Task()
+                    task.name = name
+                    session.add(task)
+                task.code = code
+                utc_dt = convert_local_to_utc(dt)
+                task.runtime = utc_dt
+                task.expire = utc_dt + datetime.timedelta(1800)
+                task.crontab = crontab
+                session.commit()
+                return task.id
+        except Exception as ex:
+            _logger.exception(name, ex)
+            return None
 
 
 def getJob(name: str) -> dict:
@@ -123,23 +143,11 @@ def clearScheduledJob(name: str):
     Args:
         name (str): Name for search
     """
-    with session_scope() as session:
-        sql = delete(Task).where(Task.name.like(name))
-        session.execute(sql)
-        session.commit()
-
-
-def deleteScheduledJob(id: int):
-    """Delete job by id
-
-    Args:
-        id (int): ID job
-    """
-    with session_scope() as session:
-        sql = delete(Task).where(Task.id == id)  # todo
-        session.execute(sql)
-        session.commit()
-
+    with get_task_lock(name):
+        with session_scope() as session:
+            sql = delete(Task).where(Task.name.like(name))
+            session.execute(sql)
+            session.commit()
 
 def setTimeout(name: str, code: str, timeout: int = 0):
     """Set timeout for run code
