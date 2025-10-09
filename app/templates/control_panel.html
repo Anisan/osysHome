@@ -1,4 +1,4 @@
-{% extends "layouts/admin.html" %}
+{% extends "layouts/module_admin.html" %}
 
 {% block title %} {{ _('Control panel')}} {% endblock %}
 
@@ -84,15 +84,7 @@
 {% endblock stylesheets %}
 
 <!-- [ Main Content ] start -->
-{% block content %}
-<!-- [ breadcrumb ] start -->
-<div class="row align-items-center card ms-0 mb-2 p-2">
-    <ul class="breadcrumb mb-0">
-        <li class="breadcrumb-item"><a href="/admin"><i class="feather icon-home"></i></a></li>
-    </ul>
-</div>
-<!-- [ breadcrumb ] end -->
-
+{% block module %}
 <!-- Заголовок с кнопками управления колонками -->
 <div class="d-flex align-items-center justify-content-between mb-3">
     <h1>{{ _('Welcome!')}}</h1>
@@ -110,7 +102,7 @@
 <!-- Widgets -->
 <div class="pcoded-main-container">
     <!-- Спинер -->
-    <div id="spinnerContainer" class="row mx-1">
+    <div id="spinnerContainer" class="row mx-0">
         <div class="col-12">
             <div class="spinner-container">
                 <div class="d-flex align-items-center">
@@ -216,5 +208,29 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 });
+</script>
+    <script>
+      // Функция для обновления времени на всех компонентах
+      function updateAllTimes() {
+        var timeComponents = document.querySelectorAll('.time-component'); // Находим все компоненты времени
+    
+        // Обновляем время на каждом компоненте
+        timeComponents.forEach(function(component) {
+          // Получаем текущее время
+          var currentTime = new Date();
+          // Получаем начальное время из атрибута data-start-time
+          var startTime = new Date(component.dataset.startTime);
+          // Вычисляем разницу между текущим временем и начальным временем
+          var elapsedTime = currentTime - startTime;
+          // Обновляем время на компоненте
+          component.textContent = formatTimeDiff(elapsedTime);
+        });
+      }
+    
+      // Обновляем время каждую секунду
+      setInterval(updateAllTimes, 1000);
+    
+      // Запускаем функцию для обновления времени при загрузке страницы
+      updateAllTimes();
 </script>
 {% endblock javascripts %}
