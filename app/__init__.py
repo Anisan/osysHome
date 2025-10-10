@@ -12,6 +12,7 @@ from app.exceptions import InvalidUsage
 from app.extensions import db, login_manager, cors, bcrypt, toolbar, cache
 from app.core.main.PluginsHelper import registerPlugins
 from app.core.utils import CustomJSONEncoder, CustomJSONProvider
+from app.core.intelli import build_intelli_cache
 
 from .logging_config import getLogger
 _logger = getLogger('flask')
@@ -86,6 +87,33 @@ def createApp(config_object):
     @app.context_processor
     def inject_config():
         return dict(config=config_object)
+
+    # === Собираем IntelliSense-кэш ПОСЛЕ создания приложения ===
+    with app.app_context():
+        from app.core.lib import cache, common, object, execute, sql
+        # список модулей
+        modules_to_scan = [
+            cache,
+            common,
+            object,
+            execute,
+            sql,
+        ]
+
+        plugin_modules = []
+        # from app.core.main import ObjectManager, BasePlugin
+        # plugin_modules = [ObjectManager, BasePlugin]
+        # plugins = getModulesByAction('your_action_name')  # ← замените на ваш способ
+        # for plugin in plugins:
+        #     if hasattr(plugin, 'get_intelli_module'):
+        #         mod = plugin.get_intelli_module()
+        #         if mod:
+        #             plugin_modules.append(mod)
+
+        all_modules = modules_to_scan + plugin_modules
+
+        cache = build_intelli_cache(all_modules)
+        app.extensions['intelli_cache'] = cache
 
     return app
 

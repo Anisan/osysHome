@@ -1,9 +1,10 @@
-from flask import request, render_template
+from flask import request, render_template, jsonify, current_app
+import ast
 from flask_restx import Namespace, Resource, fields
 from sqlalchemy import func, case
 from app.core.models.Plugins import Notify
 from app.api.decorators import api_key_required
-from app.authentication.handlers import handle_admin_required
+from app.authentication.handlers import handle_admin_required, handle_user_required
 from app.logging_config import getLogger
 from app.extensions import cache
 from app.database import session_scope
@@ -102,11 +103,48 @@ class ReadNotifyAll(Resource):
         readNotifyAll(source)
         return {"success": True}, 200
 
+@utils_ns.route("/validate-python")
+class ValidateCode(Resource):
+    @api_key_required
+    @handle_admin_required
+    @utils_ns.doc(security="apikey")
+    def post(self):
+        code = request.json.get('code', '')
+        errors = []
+
+        try:
+            ast.parse(code, filename="<editor>")
+        except SyntaxError as e:
+            errors.append({
+                "row": e.lineno - 1,          # Ace использует 0-based индекс
+                "column": e.offset - 1 if e.offset else 0,
+                "text": str(e.msg),
+                "type": "error"
+            })
+        except Exception as e:
+            # Другие ошибки (например, неожиданный EOF)
+            errors.append({
+                "row": max(0, len(code.splitlines()) - 1),
+                "column": 0,
+                "text": str(e),
+                "type": "error"
+            })
+
+        return jsonify(errors)
+
+@utils_ns.route("/intelli-python")
+class IntelliPython(Resource):
+    @api_key_required
+    @handle_user_required
+    @utils_ns.doc(security="apikey")
+    def get(self):
+        cache = current_app.extensions.get('intelli_cache', [])
+        return {"symbols": cache}
+
 
 run_model = utils_ns.model(
     "CodeTextModel", {"code": fields.String(description="Python code", required=True)}
 )
-
 
 @utils_ns.route("/run")
 class RunCode(Resource):

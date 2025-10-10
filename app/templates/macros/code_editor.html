@@ -1,102 +1,287 @@
 {% macro render_editor(field_edit, syntax) %}
-
 <style>
-    #editor {
+    .ace-editor-container {
         width: 100%;
         min-height: 300px;
         border: 1px solid #ccc;
+        resize: vertical;
+        overflow: hidden;
+    }
+    /* Расширенный выпадающий список автодополнения */
+    .ace_autocomplete {
+        width: 650px !important;
+        max-width: 90% !important;
+        font-family: 'Segoe UI', system-ui, sans-serif !important;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important;
+        border: 1px solid #ccc !important;
+        border-radius: 4px !important;
+    }
+
+    .ace_autocomplete .ace_completion_item {
+        padding: 6px 10px !important;
+        font-size: 13px !important;
+    }
+
+    .ace_autocomplete .ace_rightAlignedText {
+        color: #666 !important;
+        font-size: 12px !important;
+        min-width: 120px !important;
+        text-align: right !important;
     }
 </style>
 
-<script src="{{ config.ASSETS_ROOT }}/plugins/ace/ace.js"></script>
-<!-- load ace language tools -->
-<script src="{{ config.ASSETS_ROOT }}/plugins/ace/ext-language_tools.js"></script>
-
-<textarea name="{{field_edit.name}}" id="{{field_edit.name}}" style="display:none;"></textarea>
-<div id="editor">{{ field_edit }}</div>
-
 <script>
-    ace.require("ace/ext/language_tools");
-    var buildDom = ace.require("ace/lib/dom").buildDom;
-    var editor = ace.edit("editor",
-        {
-            theme: "ace/theme/chrome",
-            mode: "ace/mode/{{syntax}}",
-            autoScrollEditorIntoView: true,
-            maxLines: 40,
-            minLines: 5
-        });
-    editor.session.setMode("ace/mode/{{syntax}}");
-    editor.setTheme("ace/theme/chrome");
-    editor.setFontSize(16);
-
-    // enable autocompletion and snippets
-    editor.setOptions({
-        enableBasicAutocompletion: true,
-        enableSnippets: true,
-        enableLiveAutocompletion: true
-    });
-
-    const inputElement = document.getElementById('editor');
-    const formElement = inputElement.closest('form');;
-    formElement.addEventListener('submit', function (event) {
-        var code = editor.getValue();
-        document.getElementById('{{field_edit.name}}').value = code;
-    });
-
-    
-    {%if syntax == 'python' %}
-    // TODO Custom keywords for autocompletion
-    var customKeywords = ["setProperty","callMethod", "say"]
-
-    var customCompleter = {
-        getCompletions: function(editor, session, pos, prefix, callback) {
-            if (prefix.length === 0) {
-                callback(null, []);
-                return;
-            }
-            var customWordList = customKeywords.map(function(word) {
-                return {
-                    caption: word,
-                    value: word,
-                    meta: "osysHome"
-                };
-            });
-            callback(null, customWordList);
-        }
-    };
-    // Add the custom completer to the completers array
-    editor.completers.push(customCompleter);
-
-    // Custom snippets
-    var customSnippets = [
-        {
-            content: "console.log('${1:message}');",
-            name: "log",
-            tabTrigger: "log",
-            scope: "python"
-        },
-        {
-            content: "function ${1:functionName}(${2:args}) {\n\t${3:// body}\n}",
-            name: "function",
-            tabTrigger: "func",
-            scope: "python"
-        }
-    ];
-
-    // TODO Добавление пользовательских сниппетов
-    var snippetManager = ace.require("ace/snippets").snippetManager;
-    var id = 'ace/mode/python';
-    var m = snippetManager.files[id];
-    console.log(snippetManager,snippetManager.files, id, m)
-    if (m) {
-        customSnippets.forEach(function(snippet) {
-            m.snippets.push(snippet);
-        });
-        snippetManager.register(m.snippets, m.scope);
+    if (typeof ace !== 'undefined') {
+        ace.config.set("useWorker", false);
     }
-
-    {%endif%}
 </script>
 
+<script src="{{ config.ASSETS_ROOT }}/plugins/ace/ace.js"></script>
+<script src="{{ config.ASSETS_ROOT }}/plugins/ace/ext-language_tools.js"></script>
+
+<textarea name="{{ field_edit.name }}" id="{{ field_edit.name }}" style="display:none;">{{ field_edit.data or '' }}</textarea>
+<div id="editor-{{ field_edit.name|replace('.', '_')|replace('[', '_')|replace(']', '_') }}" class="ace-editor-container">{{ field_edit.data or '' }}</div>
+
+<script>
+(function() {
+    var editor = ace.edit("editor-{{ field_edit.name|replace('.', '_')|replace('[', '_')|replace(']', '_') }}", {
+        theme: "ace/theme/chrome",
+        mode: "ace/mode/{{ syntax }}",
+        autoScrollEditorIntoView: true,
+        maxLines: 40,
+        minLines: 5,
+        fontSize: 16,
+        enableBasicAutocompletion: true,
+        enableSnippets: true,
+        enableLiveAutocompletion: true,
+        showPrintMargin: false,
+        useWorker: true
+    });
+
+    var formElement = document.getElementById("editor-{{ field_edit.name|replace('.', '_')|replace('[', '_')|replace(']', '_') }}").closest('form');
+    if (formElement) {
+        formElement.addEventListener('submit', function() {
+            document.getElementById('{{ field_edit.name }}').value = editor.getValue();
+        });
+    }
+
+    {% if syntax == 'python' %}
+    // === 1. Загрузка символов из библиотек (функции, классы, методы) ===
+    var librarySymbols = [];
+    fetch('/api/utils/intelli-python')
+        .then(response => response.json())
+        .then(data => {
+            librarySymbols = data.symbols || [];
+            updateCompleter();
+        })
+        .catch(err => console.warn("IntelliSense load failed:", err));
+
+    // === 2. Статические функции (ваш API) ===
+    var staticApi = [
+        { word: "setProperty", args: "(name, value)", doc: "Устанавливает свойство объекта." },
+        { word: "callMethod", args: "(name, *args)", doc: "Вызывает метод объекта с переданными аргументами." },
+        { word: "say", args: "(text)", doc: "Произносит переданный текст вслух." }
+    ];
+
+    var staticApiMap = {};
+    staticApi.forEach(item => staticApiMap[item.word] = item);
+
+    var builtinFunctions = [
+        "print", "len", "str", "int", "float", "bool", "list", "dict", "tuple", "set",
+        "range", "enumerate", "zip", "map", "filter", "open", "input", "type",
+        "isinstance", "hasattr", "getattr", "setattr", "dir"
+    ];
+
+    // === 3. Вспомогательная функция экранирования HTML ===
+    function escapeHtml(text) {
+        return String(text)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "<")
+            .replace(/>/g, ">")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+    }
+
+    // === 4. Обновляемый completer с поддержкой многострочных доков ===
+    function updateCompleter() {
+        var completer = {
+            getCompletions: function(editor, session, pos, prefix, callback) {
+                if (prefix.length === 0) return callback(null, []);
+
+                var completions = [];
+
+                // Статические функции
+                staticApi.forEach(function(item) {
+                    var docEsc = escapeHtml(item.doc);
+                    completions.push({
+                        caption: item.word + item.args,
+                        value: item.word,
+                        meta: "osysHome",
+                        docHTML: `
+<b>${item.word}</b>${item.args}
+<pre style="margin-top:4px; white-space:pre-wrap; font-family:system-ui, sans-serif; font-size:12px;">${docEsc}</pre>
+                        `
+                    });
+                });
+
+                // Символы из библиотек
+                librarySymbols.forEach(function(sym) {
+                    var displayName = sym.type === "method"
+                        ? sym.qualified_name
+                        : sym.name;
+                    var meta = "lib:" + (sym.module ? sym.module.split('.').pop() : "user");
+                    if (sym.type === "class") meta += " (class)";
+                    if (sym.type === "method") meta += " (method)";
+                    var docEsc = escapeHtml(sym.doc || "Без описания.");
+                    var moduleInfo = sym.module ? `<small style="color:#888">${sym.module}</small>` : "";
+                    completions.push({
+                        caption: displayName,
+                        value: sym.type === "method" ? sym.qualified_name : sym.name,
+                        meta: meta,
+                        docHTML: `
+<b>${displayName}</b>${sym.signature}
+<small>${moduleInfo}</small>
+<pre style="margin-top:4px; white-space:pre-wrap; font-family:system-ui, sans-serif; font-size:12px;">${docEsc}</pre>
+`
+                    });
+                });
+
+                // Встроенные функции
+                builtinFunctions.forEach(function(word) {
+                    completions.push({
+                        caption: word + "()",
+                        value: word,
+                        meta: "builtin",
+                        docHTML: `
+<b>${word}()</b>
+<pre style="margin-top:4px; white-space:pre-wrap; font-family:system-ui, sans-serif; font-size:12px;">Встроенная функция Python.</pre>
+                        `
+                    });
+                });
+
+                callback(null, completions);
+            }
+        };
+        editor.completers = [completer];
+    }
+
+    // Инициализация completer (пока без библиотек)
+    updateCompleter();
+
+    // === 5. Сниппеты ===
+    var customSnippets = [
+        { name: "print", tabTrigger: "pr", content: "print('${1:message}')", scope: "python" },
+        { name: "def", tabTrigger: "def", content: "def ${1:name}(${2:args}):\n    ${3:pass}", scope: "python" },
+        { name: "setProperty", tabTrigger: "setp", content: "setProperty('${1:name}', ${2:value})", scope: "python" },
+        { name: "callMethod", tabTrigger: "callm", content: "callMethod('${1:method}', ${2:args})", scope: "python" },
+        { name: "say", tabTrigger: "say", content: "say('${1:text}')", scope: "python" }
+    ];
+
+    var snippetManager = ace.require("ace/snippets").snippetManager;
+    var modeId = "ace/mode/python";
+    var snippetFile = snippetManager.files[modeId];
+    if (!snippetFile) {
+        snippetFile = snippetManager.files[modeId] = { snippets: [], scope: "python" };
+    }
+    customSnippets.forEach(snip => snippetFile.snippets.push(snip));
+    snippetManager.register(snippetFile.snippets, snippetFile.scope);
+
+    // === 6. Валидация синтаксиса ===
+    var validateTimeout;
+    var session = editor.getSession();
+
+    function validateCode() {
+        var code = editor.getValue();
+        if (!code.trim()) {
+            session.clearAnnotations();
+            return;
+        }
+
+        fetch('/api/utils/validate-python', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ code: code })
+        })
+        .then(response => response.json())
+        .then(errors => {
+            session.clearAnnotations();
+            if (errors.length > 0) {
+                session.setAnnotations(errors);
+            }
+        })
+        .catch(err => console.warn("Validation failed:", err));
+    }
+
+    editor.on('change', function() {
+        clearTimeout(validateTimeout);
+        validateTimeout = setTimeout(validateCode, 600);
+    });
+    validateCode();
+
+    // === 7. Hover для статических функций ===
+    var tooltipEl = null;
+    var hoverTimeout = null;
+
+    function createTooltip() {
+        if (!tooltipEl) {
+            tooltipEl = document.createElement("div");
+            tooltipEl.style.cssText = `
+                position: fixed;
+                z-index: 1000000;
+                padding: 6px 10px;
+                background: #2d2d30;
+                color: #fff;
+                border-radius: 4px;
+                font-size: 13px;
+                font-family: system-ui, -apple-system, sans-serif;
+                max-width: 400px;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+                pointer-events: none;
+                white-space: nowrap;
+                line-height: 1.4;
+            `;
+            document.body.appendChild(tooltipEl);
+        }
+        return tooltipEl;
+    }
+
+    function showTooltip(x, y, html) {
+        var tooltip = createTooltip();
+        tooltip.innerHTML = html;
+        tooltip.style.left = (x + 10) + "px";
+        tooltip.style.top = (y + 10) + "px";
+        tooltip.style.display = "block";
+    }
+
+    function hideTooltip() {
+        if (tooltipEl) tooltipEl.style.display = "none";
+    }
+
+    var editorContainer = editor.container;
+    editorContainer.addEventListener("mousemove", function(e) {
+        if (hoverTimeout) clearTimeout(hoverTimeout);
+
+        var rect = editorContainer.getBoundingClientRect();
+        var x = e.clientX - rect.left;
+        var y = e.clientY - rect.top;
+
+        var pos = editor.renderer.screenToTextCoordinates(x, y);
+        var token = editor.session.getTokenAt(pos.row, pos.column);
+
+        if (token && token.value && staticApiMap[token.value]) {
+            if (token.type && /identifier|variable/.test(token.type)) {
+                var item = staticApiMap[token.value];
+                var html = "<b>" + item.word + "</b>" + item.args + "<br>" + item.doc;
+                hoverTimeout = setTimeout(() => showTooltip(e.clientX, e.clientY, html), 300);
+                return;
+            }
+        }
+        hideTooltip();
+    });
+
+    editorContainer.addEventListener("mouseleave", hideTooltip);
+    window.addEventListener("scroll", hideTooltip);
+    {% endif %}
+})();
+</script>
 {% endmacro %}
