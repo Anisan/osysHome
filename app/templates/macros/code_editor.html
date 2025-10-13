@@ -72,6 +72,7 @@
         .then(response => response.json())
         .then(data => {
             librarySymbols = data.symbols || [];
+            librarySymbols.forEach(item => librarySymbolsMap[item.qualified_name] = item);
             updateCompleter();
         })
         .catch(err => console.warn("IntelliSense load failed:", err));
@@ -85,7 +86,8 @@
 
     var staticApiMap = {};
     staticApi.forEach(item => staticApiMap[item.word] = item);
-
+    var librarySymbolsMap = {};
+    
     var builtinFunctions = [
         "print", "len", "str", "int", "float", "bool", "list", "dict", "tuple", "set",
         "range", "enumerate", "zip", "map", "filter", "open", "input", "type",
@@ -225,20 +227,12 @@
     function createTooltip() {
         if (!tooltipEl) {
             tooltipEl = document.createElement("div");
+            tooltipEl.classList.add("card");
             tooltipEl.style.cssText = `
                 position: fixed;
-                z-index: 1000000;
                 padding: 6px 10px;
-                background: #2d2d30;
-                color: #fff;
-                border-radius: 4px;
-                font-size: 13px;
-                font-family: system-ui, -apple-system, sans-serif;
-                max-width: 400px;
-                box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-                pointer-events: none;
+                z-index: 1000000;
                 white-space: nowrap;
-                line-height: 1.4;
             `;
             document.body.appendChild(tooltipEl);
         }
@@ -258,26 +252,52 @@
     }
 
     var editorContainer = editor.container;
-    editorContainer.addEventListener("mousemove", function(e) {
-        if (hoverTimeout) clearTimeout(hoverTimeout);
+editorContainer.addEventListener("mousemove", function(e) {
+    if (hoverTimeout) clearTimeout(hoverTimeout);
 
-        var rect = editorContainer.getBoundingClientRect();
-        var x = e.clientX - rect.left;
-        var y = e.clientY - rect.top;
+    // Получаем координаты относительно контейнера редактора
+    const rect = editor.container.getBoundingClientRect();
+    const x = e.clientX // - rect.left;
+    const y = e.clientY //- rect.top;
 
-        var pos = editor.renderer.screenToTextCoordinates(x, y);
-        var token = editor.session.getTokenAt(pos.row, pos.column);
+    // Преобразуем экранную позицию в текстовую (row, column)
+    const pos = editor.renderer.screenToTextCoordinates(x, y);
 
-        if (token && token.value && staticApiMap[token.value]) {
-            if (token.type && /identifier|variable/.test(token.type)) {
-                var item = staticApiMap[token.value];
-                var html = "<b>" + item.word + "</b>" + item.args + "<br>" + item.doc;
-                hoverTimeout = setTimeout(() => showTooltip(e.clientX, e.clientY, html), 300);
-                return;
-            }
-        }
-        hideTooltip();
-    });
+    // Получаем диапазон слова в этой позиции
+    const session = editor.session;
+    const range = session.getWordRange(pos.row, pos.column);
+    const word = session.getTextRange(range);
+
+    // --- Проверка: есть ли перед словом "self."? ---
+    var line = session.getLine(pos.row);
+    var wordStart = range.start.column;
+    var wordEnd = range.end.column;
+
+    // Ищем "self." непосредственно перед словом (с возможными пробелами)
+    var prefix = line.substring(0, wordStart).trimEnd(); // всё до слова, без завершающих пробелов
+
+    var hasSelfPrefix = false;
+    if (prefix.endsWith('self.')) {
+        hasSelfPrefix = true;
+    }
+
+    //console.log("x:",x," y:",y," Word:", word, "at", pos, hasSelfPrefix,librarySymbolsMap);
+    if (word && hasSelfPrefix && librarySymbolsMap["ObjectManager."+word]) {
+        var item = librarySymbolsMap["ObjectManager."+word];
+        var html = "<b>" + escapeHtml(item.name) + "</b>" + escapeHtml(item.signature) + "<br>" + 
+        '<pre style="margin-top:4px; white-space:pre-wrap; font-family:system-ui, sans-serif; font-size:12px;">'+item.doc+"</pre>";
+        hoverTimeout = setTimeout(() => showTooltip(e.clientX, e.clientY, html), 300);
+        return;
+    }
+    if (word && !hasSelfPrefix && librarySymbolsMap[word]) {
+        var item = librarySymbolsMap[word];
+        var html = "<b>" + escapeHtml(item.name) + "</b>" + escapeHtml(item.signature) + "<br>" + 
+        '<pre style="margin-top:4px; white-space:pre-wrap; font-family:system-ui, sans-serif; font-size:12px;">'+item.doc+"</pre>";
+        hoverTimeout = setTimeout(() => showTooltip(e.clientX, e.clientY, html), 300);
+        return;
+    }
+    hideTooltip();
+});
 
     editorContainer.addEventListener("mouseleave", hideTooltip);
     window.addEventListener("scroll", hideTooltip);
