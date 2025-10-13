@@ -182,6 +182,9 @@ class ExportObject(Resource):
         Export object
         '''
         data = {}
+        data['objects'] = []
+        data['values'] = []
+        data['methods'] = []
         obj = Object.get_by_id(object_id)
         if obj.class_id:
             classes = getClassWithParents(obj.class_id)
@@ -191,9 +194,6 @@ class ExportObject(Resource):
         else:
             data = {}
             data['classes'] = []
-
-        data['objects'] = []
-        data['values'] = []
 
         data_object = getObjectInfo(obj.id)
         data['objects'].append(data_object['object'])
