@@ -182,18 +182,18 @@ class ExportObject(Resource):
         Export object
         '''
         data = {}
+        data['classes'] = []
         data['objects'] = []
         data['values'] = []
         data['methods'] = []
+        data['properties'] = []
+        
         obj = Object.get_by_id(object_id)
         if obj.class_id:
             classes = getClassWithParents(obj.class_id)
             for cls in classes:
                 temp = getClassInfo(cls)
                 data = dictsMerge(data, temp)
-        else:
-            data = {}
-            data['classes'] = []
 
         data_object = getObjectInfo(obj.id)
         data['objects'].append(data_object['object'])
