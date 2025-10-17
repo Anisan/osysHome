@@ -569,6 +569,10 @@ class ObjectManager:
         return self.getProperty(name, 'changed')
 
     def __getattr__(self, name):
+        if name in self.methods:
+            def dynamic_method(args=None, source: str = '') -> str:
+                return self.callMethod(name, args=args, source=source)
+            return dynamic_method
         if name in self.__dict__['properties']:
             if not self._check_permissions(TypeOperation.Get, name, None):
                 raise (f"You don't have permission to get property {name}")
