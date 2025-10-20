@@ -464,6 +464,9 @@ class ObjectManager:
                     self._addProperty(prop)
             prop = self.properties[name]
             old = prop.getValue()
+            if source is None or source == '':
+                if self._current_execution_source is not None:
+                    source = self._current_execution_source
             prop.setValue(value, source, save_history=save_history)
             value = prop.getValue()
             if prop.method:
@@ -582,15 +585,12 @@ class ObjectManager:
             raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{name}'")
 
     def __setattr__(self, name, value):
-        if name not in ['properties', 'templates']:
-            self._check_permissions(TypeOperation.Set, name, None)
+        if name.startswith('_') or name in ('properties', 'methods', 'object_id', 'name', 'description', 'parents'):
+            super().__setattr__(name, value)
+            return
 
-        if name == "properties":
-            super().__setattr__(name, value)
-        elif "properties" in self.__dict__ and name in self.properties:
-            self.setProperty(name,value)
-        else:
-            super().__setattr__(name, value)
+        self._check_permissions(TypeOperation.Set, name, None)
+        self.setProperty(name, value)
 
     def _addMethod(self, method: MethodManager):
         self.methods[method.name] = method
@@ -618,6 +618,8 @@ class ObjectManager:
 
         self._check_permissions(TypeOperation.Call, None, name)
 
+        source = source if source else "self."+name
+        self._current_execution_source = source
         try:
             variables = {
                 'self': self,
@@ -642,6 +644,7 @@ class ObjectManager:
                 if source != '':
                     source += ':'
                 source += username
+
             self.methods[name].source = source
             self.methods[name].executed = get_now_to_utc()
             self.methods[name].exec_params = args
@@ -660,6 +663,8 @@ class ObjectManager:
         except Exception as ex:
             _logger.exception(ex)
             return str(ex)
+        finally:
+            self._current_execution_source = None
 
     def _setTemplates(self, templates):
         object.__setattr__(self, "__templates", templates)
