@@ -38,6 +38,7 @@
 
 <script src="{{ config.ASSETS_ROOT }}/plugins/ace/ace.js"></script>
 <script src="{{ config.ASSETS_ROOT }}/plugins/ace/ext-language_tools.js"></script>
+<script src="{{ config.ASSETS_ROOT }}/plugins/ace/mode-json.js"></script>
 
 <textarea name="{{ field_edit.name }}" id="{{ field_edit.name }}" style="display:none;">{{ field_edit.data or '' }}</textarea>
 <div id="editor-{{ field_edit.name|replace('.', '_')|replace('[', '_')|replace(']', '_') }}" class="ace-editor-container">{{ field_edit.data or '' }}</div>
@@ -302,6 +303,7 @@ editorContainer.addEventListener("mousemove", function(e) {
     editorContainer.addEventListener("mouseleave", hideTooltip);
     window.addEventListener("scroll", hideTooltip);
     {% endif %}
+
 })();
 </script>
 {% endmacro %}
