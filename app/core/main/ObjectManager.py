@@ -350,6 +350,7 @@ class ObjectManager:
         object.__setattr__(self, "__inited", False)
         object.__setattr__(self, "__permissions", None)
         object.__setattr__(self, "__templates", {})
+        object.__setattr__(self, "_current_execution_source", None)
         self.object_id = obj.id
         self.name = obj.name
         self.description = obj.description
@@ -618,7 +619,7 @@ class ObjectManager:
 
         self._check_permissions(TypeOperation.Call, None, name)
 
-        source = source if source else "self."+name
+        source = source if source else "self." + name
         self._current_execution_source = source
         try:
             variables = {
