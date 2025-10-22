@@ -9,6 +9,7 @@ application:
   app_port: 5000  
   env: 'production'
   pool_size: 20
+  pool_timeout_threshold: 60.0
   
 database:  
   sqlalchemy_echo: false  
