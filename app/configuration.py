@@ -26,7 +26,8 @@ class ConfigLoader(object):
         self.DEFAULT_TIMEZONE = "Europe/Moscow"
 
         self.POOL_SIZE = 30  # Размер пула потоков
-        
+        self.POOL_TIMEOUT_THRESHOLD = 60.0,
+
         # DB settings
         self.SQLALCHEMY_ECHO = False  # SQL log
         DB_NAME = 'app.db'
@@ -69,6 +70,7 @@ class ConfigLoader(object):
         self.APP_PORT = app_config.get('app_port', 5000)
         self.ENV = app_config.get('env', 'dev')
         self.POOL_SIZE = app_config.get('pool_size', 20)
+        self.POOL_TIMEOUT_THRESHOLD = app_config.get('pool_timeout_threshold', 60.0)
 
         db_config = self._config_data.get('database', {})
         self.SQLALCHEMY_ECHO = db_config.get('sqlalchemy_echo', False)
