@@ -20,8 +20,11 @@
           <a class="nav-link" href="/api"><i class="fas fa-info me-2"></i>API</a>
         </li>
       </ul>
+      {%if getProperty("SystemVar.UnreadNotify") == True %}
+      <h4 class="mt-1 me-3"><span class=" blink badge bg-warning text-black"><i class="fas fa-bell me-2"></i>{{ _('Unreaded notify')}}</span></h4>
+      {%endif%}
       {%if getProperty("SystemVar.NeedRestart") == True %}
-      <h4 class="mt-1 me-3"><span class=" blink badge bg-warning text-black">{{ _('Need restart osysHome')}}</span></h4>
+      <h4 class="mt-1 me-3"><span class=" blink badge bg-warning text-black"><i class="fas fa-power-off me-2"></i>{{ _('Need restart osysHome')}}</span></h4>
       {%endif%}
       {% if 'admin' in request.path %}
       <button class="btn btn-outline-secondary me-2" data-bs-toggle="modal" data-bs-target="#consoleModal"><i class="fa-solid fa-terminal me-2"></i>{{ _('Console')}}</button>

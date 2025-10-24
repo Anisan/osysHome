@@ -234,7 +234,6 @@ def say(message: str, level: int = 0, args: dict = None):
     modules_with_say = getModulesByAction("say")
     for plugin in modules_with_say:
         try:
-            # plugin.say(message, level, args) #todo poolthread
             _poolSay.submit(plugin.say, f"say_{plugin.name}", message, level, args)
         except Exception as ex:
             _logger.exception(ex)
@@ -251,9 +250,7 @@ def playSound(file_name: str, level: int = 0, args: dict = None):
     modules_with_playsound = getModulesByAction("playsound")
     for plugin in modules_with_playsound:
         try:
-            # plugin.playSound(file_name, level, args) #todo poolthread
             _poolPlaysound.submit(plugin.playSound, f"playsound_{plugin.name}", file_name, level, args)
-
         except Exception as ex:
             _logger.exception(ex)
 
@@ -284,6 +281,16 @@ def addNotify(
             notify.source = source
             notify.created = get_now_to_utc()
             session.add(notify)
+
+    from .object import setProperty
+    data = {
+        "name": name,
+        "description": description,
+        "category": category.value,
+        "source": source,
+    }
+    setProperty("SystemVar.LastNotify", data, source)
+    setProperty("SystemVar.UnreadNotify", True, source)
     # todo send to websocket
     # callPluginFunction()
 
@@ -298,6 +305,13 @@ def readNotify(notify_id: int):
         sql = update(Notify).where(Notify.id == notify_id).values(read=True)
         session.execute(sql)
         session.commit()
+        findUnread = session.query(Notify).filter(Notify.read == False).first()  # noqa
+        from .object import updateProperty
+        if findUnread:
+            updateProperty("SystemVar.UnreadNotify", True)
+        else:
+            updateProperty("SystemVar.UnreadNotify", False)
+
         return True
 
 def readNotifyAll(source: str):
@@ -310,6 +324,13 @@ def readNotifyAll(source: str):
         sql = update(Notify).where(Notify.source == source).values(read=True)
         session.execute(sql)
         session.commit()
+
+        findUnread = session.query(Notify).filter(Notify.read == False).first()  # noqa
+        from .object import updateProperty
+        if findUnread:
+            updateProperty("SystemVar.UnreadNotify", True)
+        else:
+            updateProperty("SystemVar.UnreadNotify", False)
 
 
 def getUrl(url) -> str:
