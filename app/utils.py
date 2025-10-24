@@ -57,7 +57,9 @@ def initSystemVar():
     addObjectProperty('Started','SystemVar',"Datetime starting system",0,PropertyType.Datetime,"isStarted")
     addObjectProperty('NeedRestart','SystemVar',"Need restart system",0,PropertyType.Bool)
     addObjectProperty('LastSay','SystemVar',"Last 'say' message",7,PropertyType.String)
-    
+    addObjectProperty('UnreadNotify','SystemVar',"Flag indicating the presence of an unread notification",0,PropertyType.Bool)
+    addObjectProperty('LastNotify','SystemVar',"Last 'notify' message",7,PropertyType.Dictionary)
+
     users = getObjectsByClass('Users')
     if users:
         initPermissions()
