@@ -549,6 +549,9 @@ class ObjectManager:
             any: Value
         """
         self._check_permissions(TypeOperation.Get, name, None)
+        
+        if name == 'description':
+            return self.description
 
         if name in self.properties:
             prop = self.properties[name]
