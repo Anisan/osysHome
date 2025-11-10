@@ -12,6 +12,7 @@ from app.core.lib.common import setTimeout
 from app.core.lib.execute import execute_and_capture_output
 from app.logging_config import getLogger
 from app.core.MonitoredThreadPool import MonitoredThreadPool
+from app.configuration import Config
 import threading
 from dataclasses import dataclass
 from typing import Optional
@@ -231,7 +232,7 @@ class BatchWriter:
 
 
 # Глобальный экземпляр батчера
-_batch_writer = BatchWriter(flush_interval=0.5)
+_batch_writer = BatchWriter(flush_interval=Config.BATCH_WRITER_FLUSH_INTERVAL)
 
 
 def shutdown_batch_writer():
