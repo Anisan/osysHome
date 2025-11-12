@@ -3,7 +3,7 @@ import time
 from enum import Enum
 from dateutil import parser
 import json
-from sqlalchemy import update, delete
+from sqlalchemy import delete
 from flask_login import current_user
 from app.database import session_scope,row2dict, convert_utc_to_local, convert_local_to_utc, get_now_to_utc
 from app.core.lib.common import getModule, getModulesByAction
@@ -12,12 +12,233 @@ from app.core.lib.common import setTimeout
 from app.core.lib.execute import execute_and_capture_output
 from app.logging_config import getLogger
 from app.core.MonitoredThreadPool import MonitoredThreadPool
+from app.configuration import Config
+import threading
+from dataclasses import dataclass
+from typing import Optional
 
 _logger = getLogger('object')
 
 # Глобальный пул потоков
-_poolSaveHistory = MonitoredThreadPool(thread_name_prefix="saveHistory")
 _poolLinkedProperty = MonitoredThreadPool(thread_name_prefix="linkedProperty")
+
+
+@dataclass
+class ValueUpdate:
+    """Структура для хранения обновления значения"""
+    value_id: int
+    value: str
+    changed: datetime.datetime
+    source: str
+    save_history: bool
+    history_value: Optional[str] = None
+
+
+class BatchWriter:
+    """Батчер для групповой записи значений и истории в БД"""
+
+    def __init__(self, flush_interval: float = 0.5):
+        """
+        Args:
+            flush_interval: Интервал в секундах для принудительной записи батча
+        """
+        self.flush_interval = flush_interval
+        self._lock = threading.Lock()
+        self._batch: list[ValueUpdate] = []
+        self._stop_event = threading.Event()
+        self._worker_thread: Optional[threading.Thread] = None
+        # Статистика
+        self._total_added = 0  # Всего добавлено записей
+        self._total_flushed = 0  # Всего выполнено записей в БД
+        self._total_values_updated = 0  # Всего обновлено значений
+        self._total_history_inserted = 0  # Всего вставлено записей истории
+        self._total_errors = 0  # Всего ошибок
+        self._flush_times = []  # Времена выполнения записей (последние 100)
+        self._last_flush_time: Optional[datetime.datetime] = None
+        self._last_error: Optional[str] = None
+        self._last_error_time: Optional[datetime.datetime] = None
+        self._start_worker()
+
+    def _start_worker(self):
+        """Запускает фоновый поток для периодической записи батчей"""
+        def worker():
+            while not self._stop_event.is_set():
+                self._stop_event.wait(timeout=self.flush_interval)
+                if not self._stop_event.is_set():
+                    # Выполняем запись напрямую в этом потоке
+                    self._flush_internal()
+
+        self._worker_thread = threading.Thread(target=worker, daemon=True, name="BatchWriter")
+        self._worker_thread.start()
+
+    def add(self, value_update: ValueUpdate):
+        """Добавляет запись в батч"""
+        with self._lock:
+            self._batch.append(value_update)
+            self._total_added += 1
+
+    def flush(self):
+        """Принудительно записывает текущий батч (асинхронно)"""
+        # Запускаем запись в отдельном потоке, чтобы не блокировать вызывающий поток
+        thread = threading.Thread(target=self._flush_internal, daemon=True, name="BatchWriterFlush")
+        thread.start()
+
+    def _flush_internal(self):
+        """Внутренний метод для записи батча (вызывается в отдельном потоке)"""
+        start_time = time.time()
+        values_count = 0
+        history_count = 0
+
+        with self._lock:
+            if not self._batch:
+                return
+            batch = self._batch[:]
+            self._batch.clear()
+
+        if not batch:
+            return
+
+        try:
+            with session_scope() as session:
+                # Группируем обновления по value_id (последнее значение для каждого value_id)
+                value_updates = {}
+                history_records = []
+
+                for update_item in batch:
+                    # Сохраняем последнее значение для каждого value_id
+                    value_updates[update_item.value_id] = {
+                        'value': update_item.value,
+                        'changed': update_item.changed,
+                        'source': update_item.source
+                    }
+
+                    # Собираем записи истории
+                    if update_item.save_history and update_item.history_value is not None:
+                        history_records.append({
+                            'value_id': update_item.value_id,
+                            'value': update_item.history_value,
+                            'added': update_item.changed,
+                            'source': update_item.source
+                        })
+
+                # Bulk update для значений
+                if value_updates:
+                    values_count = len(value_updates)
+                    # Используем bulk_update_mappings для эффективности
+                    # Если не поддерживается, используем цикл с update
+                    try:
+                        update_mappings = [
+                            {
+                                'id': value_id,
+                                'value': data['value'],
+                                'changed': data['changed'],
+                                'source': data['source']
+                            }
+                            for value_id, data in value_updates.items()
+                        ]
+                        session.bulk_update_mappings(Value, update_mappings)
+                    except (AttributeError, TypeError):
+                        # Fallback для старых версий SQLAlchemy
+                        from sqlalchemy import update
+                        for value_id, data in value_updates.items():
+                            stmt = update(Value).where(Value.id == value_id).values(
+                                value=data['value'],
+                                changed=data['changed'],
+                                source=data['source']
+                            )
+                            session.execute(stmt)
+
+                # Bulk insert для истории
+                if history_records:
+                    history_count = len(history_records)
+                    session.bulk_insert_mappings(History, history_records)
+
+                session.commit()
+                
+                # Обновляем статистику при успехе
+                execution_time = time.time() - start_time
+                with self._lock:
+                    self._total_flushed += 1
+                    self._total_values_updated += values_count
+                    self._total_history_inserted += history_count
+                    self._last_flush_time = get_now_to_utc()
+                    # Сохраняем последние 100 времен выполнения
+                    self._flush_times.append(execution_time)
+                    if len(self._flush_times) > 100:
+                        self._flush_times.pop(0)
+
+        except Exception as ex:
+            error_msg = str(ex)
+            _logger.exception("Error in batch write: %s", ex, exc_info=True)
+            # Обновляем статистику ошибок
+            with self._lock:
+                self._total_errors += 1
+                self._last_error = error_msg
+                self._last_error_time = get_now_to_utc()
+
+    def shutdown(self, wait: bool = True):
+        """Корректное завершение работы батчера"""
+        self._stop_event.set()
+        # Принудительно записываем оставшиеся данные
+        self.flush()
+        # Ждем завершения всех задач записи
+        if wait:
+            # Даем время на завершение текущей записи
+            time.sleep(0.1)
+            # Выполняем финальную запись синхронно, если есть данные
+            with self._lock:
+                if self._batch:
+                    batch = self._batch[:]
+                    self._batch.clear()
+                else:
+                    batch = []
+            if batch:
+                self._flush_internal()
+        # Ждем завершения фонового потока
+        if self._worker_thread and self._worker_thread.is_alive():
+            self._worker_thread.join(timeout=2.0)
+    
+    def get_stats(self):
+        """Возвращает статистику работы батчера"""
+        with self._lock:
+            current_batch_size = len(self._batch)
+            avg_flush_time = sum(self._flush_times) / len(self._flush_times) if self._flush_times else 0
+            min_flush_time = min(self._flush_times) if self._flush_times else 0
+            max_flush_time = max(self._flush_times) if self._flush_times else 0
+
+            return {
+                "flush_interval": self.flush_interval,
+                "current_batch_size": current_batch_size,
+                "worker_thread_alive": self._worker_thread.is_alive() if self._worker_thread else False,
+                "total_added": self._total_added,
+                "total_flushed": self._total_flushed,
+                "total_values_updated": self._total_values_updated,
+                "total_history_inserted": self._total_history_inserted,
+                "total_errors": self._total_errors,
+                "last_flush_time": convert_utc_to_local(self._last_flush_time).isoformat() if self._last_flush_time else None,
+                "last_error": self._last_error,
+                "last_error_time": convert_utc_to_local(self._last_error_time).isoformat() if self._last_error_time else None,
+                "execution_time": {
+                    "avg_seconds": round(avg_flush_time, 4),
+                    "min_seconds": round(min_flush_time, 4),
+                    "max_seconds": round(max_flush_time, 4),
+                    "count": len(self._flush_times)
+                },
+                "efficiency": {
+                    "avg_batch_size": round(self._total_added / self._total_flushed, 2) if self._total_flushed > 0 else 0,
+                    "error_rate": round((self._total_errors / self._total_flushed * 100), 2) if self._total_flushed > 0 else 0
+                }
+            }
+
+
+# Глобальный экземпляр батчера
+_batch_writer = BatchWriter(flush_interval=Config.BATCH_WRITER_FLUSH_INTERVAL)
+
+
+def shutdown_batch_writer():
+    """Функция для корректного завершения работы батчера при остановке приложения"""
+    _batch_writer.shutdown(wait=True)
+
 
 class TypeOperation(Enum):
     """ Type operation """
@@ -167,27 +388,24 @@ class PropertyManager():
 
         stringValue = self._encodeValue()
 
-        def create_wrapper(value, changed, source, save_history):
-            def wrapper():
-                try:
-                    with session_scope() as session:
-                        sql = update(Value).where(Value.id == self.value_id).values(value=value, changed=changed, source=source)
-                        session.execute(sql)
-                        # save history
-                        if (self.history > 0 and (save_history is None or save_history)) or (self.history < 0 and save_history is not None and save_history):
-                            hist = History()
-                            hist.value_id = self.value_id
-                            hist.added = changed
-                            hist.value = stringValue
-                            hist.source = source
-                            session.add(hist)
-                        session.commit()
-                except Exception as ex:
-                    _logger.exception(ex, exc_info=True)
-            return wrapper
+        # Определяем, нужно ли сохранять историю
+        should_save_history = False
+        if (self.history > 0 and (save_history is None or save_history)) or \
+           (self.history < 0 and save_history is not None and save_history):
+            should_save_history = True
 
-        wrapper = create_wrapper(stringValue, self.changed, self.source, save_history)
-        _poolSaveHistory.submit(wrapper, f"history_{self.value_id}.{self.name}")
+        # Создаем запись для батчера
+        value_update = ValueUpdate(
+            value_id=self.value_id,
+            value=stringValue,
+            changed=self.changed,
+            source=self.source,
+            save_history=should_save_history,
+            history_value=stringValue if should_save_history else None
+        )
+
+        # Добавляем в батчер (асинхронная запись)
+        _batch_writer.add(value_update)
 
     def cleanHistory(self):
         with session_scope() as session:

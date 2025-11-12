@@ -9,7 +9,9 @@ application:
   app_port: 5000  
   env: 'production'
   pool_size: 20
+  pool_max_size: 100
   pool_timeout_threshold: 60.0
+  batch_writer_flush_interval: 0.5
   
 database:  
   sqlalchemy_echo: false  

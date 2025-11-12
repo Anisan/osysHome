@@ -29,7 +29,7 @@ class MonitoredThreadPool:
         self,
         max_workers: int = Config.POOL_SIZE,
         thread_name_prefix: str = "Worker",
-        max_queue_size: Optional[int] = None,
+        max_queue_size: Optional[int] = Config.POOL_MAX_SIZE,
         task_timeout_threshold: float = Config.POOL_TIMEOUT_THRESHOLD,      # секунд — порог "зависания"
         health_check_interval: float = 10.0       # секунд — интервал проверки
     ):
@@ -41,7 +41,7 @@ class MonitoredThreadPool:
 
         self._max_workers = max_workers
         self._thread_name_prefix = thread_name_prefix
-        self._max_queue_size = max_queue_size or (2 * max_workers)
+        self._max_queue_size = max_queue_size or (5 * max_workers)
         self._task_timeout_threshold = task_timeout_threshold
         self._health_check_interval = health_check_interval
 
