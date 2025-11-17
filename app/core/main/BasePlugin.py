@@ -407,7 +407,13 @@ class BasePlugin:
         """
         pass
 
-    def widget(self) -> str:
+    def widgets(self):
+        # [
+        # {"name":"info", "description":"Get information"}
+        # ]
+        return []
+
+    def widget(self, name:str=None) -> str:
         """Generates a dashboard widget for modules with `actions="widget"` configuration.
 
         This function is automatically called by the system to render a widget component
@@ -415,6 +421,7 @@ class BasePlugin:
 
         Returns:
             str: Rendered HTML content of the widget
+            name: Name widget
 
         Key Features:
             - Displays essential module information in compact form

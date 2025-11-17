@@ -1,0 +1,1319 @@
+{% extends "layouts/module_admin.html" %}
+
+{% block module %}
+<link rel="stylesheet" href="{{ config.ASSETS_ROOT }}/plugins/gridstack/gridstack.min.css"/>
+<script src="{{ config.ASSETS_ROOT }}/plugins/gridstack/gridstack-all.js"></script>
+<style>
+  .grid-stack-item-content {
+    overflow: visible;
+    position: relative;
+  }
+  .grid-stack-item .card {
+    height: 100%;
+    margin: 0;
+  }
+  .widget-card {
+    position: relative;
+    padding: 0.75rem;
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+  .grid-stack.grid-stack-animate {
+    transition: height 0.3s;
+  }
+  .edit-mode-indicator {
+    position: fixed;
+    top: 70px;
+    right: 20px;
+    z-index: 1000;
+    background: #ffc107;
+    color: #000;
+    padding: 8px 16px;
+    border-radius: 4px;
+    font-weight: bold;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+  }
+  /* Ручка для перетаскивания */
+  .widget-drag-handle {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    z-index: 10;
+    cursor: move;
+    color: rgba(0, 0, 0, 0.3);
+    font-size: 18px;
+    padding: 4px;
+    background: rgba(255, 255, 255, 0.7);
+    border-radius: 4px;
+    transition: all 0.2s;
+    opacity: 0;
+    display: none;
+  }
+  .edit-mode .widget-drag-handle {
+    display: block;
+    opacity: 0.5;
+  }
+  .edit-mode .grid-stack-item:hover .widget-drag-handle {
+    opacity: 1;
+    color: rgba(0, 0, 0, 0.6);
+    background: rgba(255, 255, 255, 0.9);
+  }
+  /* Кнопка удаления */
+  .widget-delete-btn {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    z-index: 10;
+    cursor: pointer;
+    background: rgba(220, 53, 69, 0.8);
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    transition: all 0.2s;
+    opacity: 0;
+  }
+  .grid-stack-item:hover .widget-delete-btn {
+    opacity: 1;
+  }
+  .widget-delete-btn:hover {
+    background: rgba(220, 53, 69, 1);
+    transform: scale(1.1);
+  }
+  .list-scroll {
+    max-height: 400px;
+    overflow-y: auto;
+  }
+  .widget-refresh-btn {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    z-index: 10;
+    cursor: pointer;
+    background: rgba(13, 110, 253, 0.8);
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    transition: all 0.2s;
+    opacity: 0;
+  }
+  .grid-stack-item:hover .widget-refresh-btn {
+    opacity: 1;
+  }
+  .widget-refresh-btn:hover {
+    background: rgba(13, 110, 253, 1);
+    transform: scale(1.1);
+  }
+  /* Скрывает элементы до инициализации Vue */
+  [v-cloak] {
+    position: relative;
+    min-height: 200px;
+  }
+  [v-cloak] > * {
+    display: none !important;
+  }
+  /* Показываем спиннер пока v-cloak активен */
+  [v-cloak]::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 3rem;
+    height: 3rem;
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid #0d6efd;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    display: block;
+    z-index: 1000;
+  }
+  @keyframes spin {
+    0% { transform: translate(-50%, -50%) rotate(0deg); }
+    100% { transform: translate(-50%, -50%) rotate(360deg); }
+  }
+</style>
+<main id="app" v-cloak>
+  <!-- Индикатор режима редактирования -->
+  <div v-if="editMode" class="edit-mode-indicator">
+    <i class="feather icon-edit-2"></i> {{ _('Edit Mode') }}
+  </div>
+  
+  <div class="d-flex align-items-center justify-content-between mb-1">
+    <h1>{{ _('Welcome!')}}</h1>
+    <span v-if="info" class="ms-3 text-muted" v-text="info"></span>
+    <div class="d-flex align-items-center gap-2">
+      <!-- Кнопка переключения режима редактирования -->
+      <button 
+        type="button" 
+        class="btn" 
+        :class="editMode ? 'btn-warning' : 'btn-outline-primary'"
+        @click="toggleEditMode()"
+        :title="editMode ? '{{ _('Exit Edit Mode') }}' : '{{ _('Edit Mode') }}'">
+        <i class="feather" :class="editMode ? 'icon-save' : 'icon-edit-2'"></i>
+      </button>
+      
+      <!-- Кнопки редактирования (только в режиме редактирования) -->
+      <template v-if="editMode">
+        <button 
+          type="button" 
+          class="btn btn-primary" 
+          @click="showAddWidgetModal()"
+          title="{{ _('Add Widget') }}">
+          <i class="feather icon-plus"></i>
+        </button>
+        <div class="d-inline-flex align-items-center ms-2 gap-2">
+          <button 
+            type="button" 
+            class="btn btn-outline-secondary btn-sm" 
+            @click="decreaseColumns()" 
+            :disabled="columns <= 1"
+            title="{{ _('Decrease Columns') }}">
+            <i class="feather icon-minus"></i>
+          </button>
+          <span id="columnsDisplay" class="badge bg-secondary" style="min-width: 2rem;">[[ columns ]]</span>
+          <button 
+            type="button" 
+            class="btn btn-outline-secondary btn-sm" 
+            @click="increaseColumns()" 
+            :disabled="columns >= 12"
+            title="{{ _('Increase Columns') }}">
+            <i class="feather icon-plus"></i>
+          </button>
+        </div>
+      </template>
+    </div>
+  </div>
+  <div class="grid-stack"></div>
+    <!-- Модальное окно для добавления виджета -->
+    <div class="modal fade" id="addWidgetModal" tabindex="-1" aria-labelledby="addWidgetModalLabel" aria-hidden="true" ref="addWidgetModal">
+      <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="addWidgetModalLabel">
+              {{ _('Add Widget') }}
+            </h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <ul class="nav nav-tabs mb-3" role="tablist">
+              <li class="nav-item" role="presentation">
+                <button 
+                  class="nav-link" 
+                  :class="{ active: activeTab === 'modules' }"
+                  @click="activeTab = 'modules'"
+                  type="button" 
+                  role="tab">
+                  {{ _('Modules') }}
+                </button>
+              </li>
+              <li class="nav-item" role="presentation">
+                <button 
+                  class="nav-link" 
+                  :class="{ active: activeTab === 'objects' }"
+                  @click="activeTab = 'objects'"
+                  type="button" 
+                  role="tab">
+                  {{ _('Objects') }}
+                </button>
+              </li>
+            </ul>
+            <div class="tab-content">
+              <div class="mb-3">
+                <input 
+                  type="text" 
+                  class="form-control" 
+                  v-model="widgetFilter" 
+                  :placeholder="'{{ _('Search widgets...') }}'">
+              </div>
+              <!-- Модули -->
+              <div v-if="activeTab === 'modules'" class="tab-pane" :class="{ 'show active': activeTab === 'modules' }" key="modules-tab">
+                <div v-if="loadingWidgets" class="text-center p-3">
+                  <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">{{ _('Loading...') }}</span>
+                  </div>
+                  <p class="mt-2 text-muted">{{ _('Loading modules...') }}</p>
+                </div>
+                
+                <div v-else-if="!showModulesList" class="text-center p-3 text-muted">
+                  <p>{{ _('No available modules') }}</p>
+                </div>
+                
+                <div v-else class="list-group list-scroll">
+                  <template v-for="(module, index) in filteredModules" :key="'mod-' + index">
+                    <!-- Если у модуля есть список виджетов -->
+                    <div v-if="module.widgets && module.widgets.length > 0" class="list-group-item">
+                      <div class="d-flex w-100 justify-content-between mb-2">
+                        <h6 class="mb-1">[[ module.title || module.key || "{{ _('No name')}}" ]]</h6>
+                        <small class="text-muted">[[ module.category || '' ]]</small>
+                      </div>
+                      <p class="mb-1 small">[[ module.description || "{{ _('No description')}}" ]]</p>
+                      <div class="mt-2">
+                        <a 
+                          v-for="(widget, widgetIndex) in module.widgets" 
+                          :key="'widget-' + index + '-' + widgetIndex"
+                          href="#" 
+                          class="btn btn-sm btn-outline-primary me-2 mb-2"
+                          @click.prevent="selectWidget(module, widget.name)">
+                          <span>[[ widget.name ]]</span>
+                          <small v-if="widget.description" class="d-block text-muted" style="font-size: 0.75rem;">[[ widget.description ]]</small>
+                        </a>
+                      </div>
+                    </div>
+                    <!-- Если у модуля нет списка виджетов, используем виджет по умолчанию -->
+                    <a 
+                      v-else
+                      href="#" 
+                      class="list-group-item list-group-item-action"
+                      @click.prevent="selectWidget(module)">
+                      <div class="d-flex w-100 justify-content-between">
+                        <h6 class="mb-1">[[ module.title || module.key || "{{ _('No name')}}" ]]</h6>
+                        <small class="text-muted">[[ module.category || '' ]]</small>
+                      </div>
+                      <p class="mb-1">[[ module.description || "{{ _('No description') }}" ]]</p>
+                    </a>
+                  </template>
+                </div>
+              </div>
+              <!-- Объекты -->
+              <div v-if="activeTab === 'objects'" class="tab-pane" :class="{ 'show active': activeTab === 'objects' }" key="objects-tab">
+                <div v-if="loadingWidgets" class="text-center p-3">
+                  <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">{{ _('Loading...') }}</span>
+                  </div>
+                  <p class="mt-2 text-muted">{{ _('Loading objects...') }}</p>
+                </div>
+                <div v-else-if="!availableObjects || availableObjects.length === 0" class="text-center p-3 text-muted">
+                  <p>{{ _('No available objects') }}</p>
+                  <small>{{ _('Loaded:') }} [[ availableObjects ? availableObjects.length : 0 ]]</small>
+                </div>
+                <div v-else class="list-group list-scroll">
+                  <a 
+                    v-for="(obj, index) in filteredObjects" 
+                    :key="'object-' + index + '-' + (obj.key || '')"
+                    href="#" 
+                    class="list-group-item list-group-item-action"
+                    @click.prevent="selectWidget(obj)">
+                    <div class="d-flex w-100 justify-content-between">
+                      <h6 class="mb-1">[[ obj.title || obj.key || "{{ _('No name')}}" ]]</h6>
+                      <small class="text-muted">[[ obj.category || '' ]]</small>
+                    </div>
+                    <p class="mb-1">[[ obj.description || "{{ _('No description')}}" ]]</p>
+                  </a>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ _('Close') }}</button>
+          </div>
+        </div>
+      </div>
+  </div>
+</main>
+
+  <script src="{{ config.ASSETS_ROOT }}/plugins/vue/vue@2.js"></script>
+  <script type="module">
+    //import Vue from "{{ config.ASSETS_ROOT }}/plugins/vue/vue@2.js";
+
+    let app = new Vue({
+      el: "#app",
+      delimiters: ['[[', ']]'],
+      data: {
+        // Reference to the GridStack instance to access it later
+        grid: undefined,
+        count: 0,
+        info: "",
+        timerId: undefined,
+        addWidgetModal: undefined,
+        activeTab: 'modules',
+        loadingWidgets: false,
+        availableModules: [],
+        availableObjects: [],
+        savingLayout: false,
+        columns: {{ columns|default(12) }},
+        editMode: false,
+        items: [],
+        widgetFilter: '',
+      },
+      computed: {
+        /**
+         * Проверяет, нужно ли показывать список модулей
+         */
+        showModulesList: function() {
+          return !this.loadingWidgets && this.availableModules && this.availableModules.length > 0;
+        },
+        /**
+         * Проверяет, нужно ли показывать список объектов
+         */
+        showObjectsList: function() {
+          return !this.loadingWidgets && this.availableObjects && this.availableObjects.length > 0;
+        },
+        filteredModules: function() {
+          const term = this.widgetFilter ? this.widgetFilter.toLowerCase() : '';
+          if (!term) return this.availableModules || [];
+          return (this.availableModules || []).filter(module => {
+            const title = (module.title || module.key || '').toLowerCase();
+            const description = (module.description || '').toLowerCase();
+            return title.includes(term) || description.includes(term);
+          });
+        },
+        filteredObjects: function() {
+          const term = this.widgetFilter ? this.widgetFilter.toLowerCase() : '';
+          if (!term) return this.availableObjects || [];
+          return (this.availableObjects || []).filter(obj => {
+            const title = (obj.title || obj.key || '').toLowerCase();
+            const description = (obj.description || '').toLowerCase();
+            return title.includes(term) || description.includes(term);
+          });
+        },
+      },
+      watch: {
+        /**
+         * Clear the info text after a two second timeout. Clears previous timeout first.
+         */
+        info: function (newVal, oldVal) {
+          if (newVal.length === 0) return;
+
+          window.clearTimeout(this.timerId);
+          this.timerId = window.setTimeout(() => {
+            this.info = "";
+          }, 2000);
+        },
+        /**
+         * Управляет режимом редактирования GridStack
+         */
+        editMode: function (newVal, oldVal) {
+          if (!this.grid) return;
+          
+          // Добавляем/удаляем класс edit-mode к элементу main
+          const mainElement = document.getElementById('app');
+          const gridStackElement = document.querySelector('.grid-stack');
+          if (mainElement) {
+            if (newVal) {
+              mainElement.classList.add('edit-mode');
+            } else {
+              mainElement.classList.remove('edit-mode');
+            }
+          }
+          if (gridStackElement) {
+            if (newVal) {
+              gridStackElement.classList.add('edit-mode');
+            } else {
+              gridStackElement.classList.remove('edit-mode');
+            }
+          }
+          
+          // Обновляем все виджеты для показа/скрытия кнопок удаления и ручек перетаскивания
+          this.updateWidgetActionButtons();
+          this.updateWidgetDragHandles();
+          
+          // Включаем/выключаем редактирование через GridStack API
+          if (newVal) {
+            this.grid.enable();
+          } else {
+            this.grid.disable();
+          }
+        },
+      },
+      mounted: function () {
+        // Provides access to the GridStack instance across the Vue component.
+        // По умолчанию редактирование отключено
+        this.grid = GridStack.init({ 
+          float: true, 
+          cellHeight: '50px', 
+          minRow: 1,
+          margin: 2,
+          column: this.columns || 12,
+          disableOneColumnMode: true,
+          draggable: {
+            handle: '.widget-drag-handle',
+            appendTo: 'parent',
+            scroll: false
+          },
+          resizable: {
+            handles: 'e, se, s, sw, w'
+          }
+        });
+        if (this.grid.setDragHandle) {
+          this.grid.setDragHandle('.widget-drag-handle');
+        }
+        
+        // Изначально отключаем редактирование
+        this.grid.disable();
+        
+        // Инициализируем модальное окно Bootstrap
+        const modalElement = document.getElementById('addWidgetModal');
+        if (modalElement) {
+          this.addWidgetModal = new bootstrap.Modal(modalElement);
+        }
+        
+        // Сохраняем ссылку на Vue-экземпляр для функции удаления
+        const self = this;
+        
+        // Функция для удаления карточки (используется в кнопке закрытия)
+        window.removeCard = function(button) {
+          // Проверяем режим редактирования
+          if (!self.editMode) {
+            self.info = '{{ _('Enable edit mode to delete widgets') }}';
+            return;
+          }
+          
+          const gridItem = button.closest('.grid-stack-item');
+          if (gridItem && self.grid) {
+            self.grid.removeWidget(gridItem, true);
+            self.info = '{{ _('Widget deleted') }}';
+          }
+        };
+        
+        // Функция для обновления карточки
+        window.refreshCard = function(button) {
+          const gridItem = button.closest('.grid-stack-item');
+          if (gridItem) {
+            self.refreshWidget(gridItem);
+          }
+        };
+        
+        // Функция для выполнения скриптов из HTML
+        window.executeScripts = function(container) {
+          const scripts = container.querySelectorAll('script');
+          scripts.forEach(oldScript => {
+            let scriptContent = oldScript.textContent || oldScript.innerHTML;
+            
+            // Если скрипт содержит DOMContentLoaded, выполняем код сразу
+            // (так как DOM уже загружен, когда виджет добавляется динамически)
+            if (scriptContent.includes('document.addEventListener(\'DOMContentLoaded\'')) {
+              scriptContent = scriptContent.trim();
+              
+              // Заменяем всю конструкцию document.addEventListener... на немедленный вызов
+              // Находим начало и конец функции
+              const regex = /document\.addEventListener\s*\(\s*['"]DOMContentLoaded['"]\s*,\s*function\s*\([^)]*\)\s*\{([\s\S]*)\}\s*\)\s*\);?\s*$/m;
+              const match = scriptContent.match(regex);
+              
+              if (match && match[1]) {
+                // match[1] содержит тело функции без внешних скобок
+                const functionBody = match[1];
+                // Обертываем в немедленно вызываемую функцию
+                scriptContent = '(function() {' + functionBody + '})();';
+              } else {
+                // Fallback: старая логика, если regex не сработал
+                scriptContent = scriptContent.replace(
+                  /document\.addEventListener\s*\(\s*['"]DOMContentLoaded['"]\s*,\s*function\s*\([^)]*\)\s*\{/g,
+                  '(function() {'
+                );
+                // Удаляем последнюю }); от addEventListener
+                scriptContent = scriptContent.replace(/\}\s*\)\s*\);?\s*$/m, '');
+                scriptContent = scriptContent.trim();
+                // Добавляем правильное завершение
+                if (!scriptContent.endsWith('})();')) {
+                  if (scriptContent.endsWith('}')) {
+                    scriptContent = scriptContent + '})();';
+                  } else {
+                    scriptContent = scriptContent.replace(/}\s*\);?\s*$/, '})();');
+                  }
+                }
+              }
+              
+              // Выполняем модифицированный скрипт напрямую
+              try {
+                (new Function(scriptContent))();
+              } catch (error) {
+                console.error('Error executing widget script:', error);
+                console.error('Script content:', scriptContent);
+              }
+            } else {
+              // Для обычных скриптов создаем новый элемент script
+              const newScript = document.createElement('script');
+              // Копируем атрибуты
+              Array.from(oldScript.attributes).forEach(attr => {
+                newScript.setAttribute(attr.name, attr.value);
+              });
+              // Копируем содержимое
+              newScript.textContent = oldScript.textContent;
+              // Заменяем старый скрипт на новый
+              oldScript.parentNode.replaceChild(newScript, oldScript);
+            }
+          });
+        };
+        
+        // Загружаем сохраненный layout
+        this.loadLayout().then(savedLayout => {
+          if (savedLayout && Array.isArray(savedLayout) && savedLayout.length > 0) {
+            // Восстанавливаем виджеты из сохраненного layout
+            this.restoreWidgetsFromLayout(savedLayout);
+          } else {
+            this.$nextTick(() => {
+              this.updateWidgetActionButtons();
+              this.updateWidgetDragHandles();
+            });
+          }
+        });
+
+        // Событие при перетаскивании
+        this.grid.on("dragstop", (event, element) => {
+          const node = element.gridstackNode;
+          this.info = `{{ _('Widget') }} #${node.id} {{ _('moved to position') }} ${node.x},${node.y}`;
+        });
+        
+        // Событие при изменении размера
+        this.grid.on("resizestop", (event, element) => {
+          const node = element.gridstackNode;
+          this.info = `{{ _('Widget') }} #${node.id} {{ _('resized to') }} ${node.w}x${node.h}`;
+        });
+      },
+      methods: {
+        /**
+         * Переключает режим редактирования
+         */
+        toggleEditMode: function () {
+          if (this.editMode) {
+            // Выходим из режима редактирования - сохраняем layout
+            this.saveLayout();
+          }
+          this.editMode = !this.editMode;
+          
+          // Обновляем состояние GridStack
+          if (this.grid) {
+            if (this.editMode) {
+              this.grid.enable();
+            } else {
+              this.grid.disable();
+            }
+          }
+        },
+        
+        /**
+         * Формирует HTML содержимого карточки
+         */
+        buildCardInnerHtml: function (contentHtml) {
+          return contentHtml;
+        },
+        
+        /**
+         * Обновляет кнопки удаления во всех виджетах
+         */
+        updateWidgetActionButtons: function () {
+          if (!this.grid) return;
+          
+          const allWidgets = this.grid.engine.nodes || [];
+          allWidgets.forEach(node => {
+            if (node.el) {
+              const card = node.el.querySelector('.widget-card');
+              if (card) {
+                const deleteButton = card.querySelector('.widget-delete-btn');
+                const refreshButton = card.querySelector('.widget-refresh-btn');
+                
+                if (this.editMode && !deleteButton) {
+                  // Добавляем кнопку удаления
+                  const newDeleteButton = document.createElement('button');
+                  newDeleteButton.type = 'button';
+                  newDeleteButton.className = 'widget-delete-btn';
+                  newDeleteButton.onclick = function() { window.removeCard(this); };
+                  newDeleteButton.title = '{{ _('Delete Widget') }}';
+                  newDeleteButton.innerHTML = '<i class="feather icon-x"></i>';
+                  card.appendChild(newDeleteButton);
+                } else if (!this.editMode && deleteButton) {
+                  // Удаляем кнопку
+                  deleteButton.remove();
+                }
+                
+                if (!this.editMode && !refreshButton) {
+                  const newRefreshButton = document.createElement('button');
+                  newRefreshButton.type = 'button';
+                  newRefreshButton.className = 'widget-refresh-btn';
+                  newRefreshButton.onclick = function() { window.refreshCard(this); };
+                  newRefreshButton.title = '{{ _('Refresh Widget') }}';
+                  newRefreshButton.innerHTML = '<i class="feather icon-rotate-cw"></i>';
+                  card.appendChild(newRefreshButton);
+                } else if (this.editMode && refreshButton) {
+                  refreshButton.remove();
+                }
+              }
+            }
+          });
+        },
+        
+        /**
+         * Обновляет ручки перетаскивания во всех виджетах
+         */
+        updateWidgetDragHandles: function () {
+          if (!this.grid) return;
+          
+          const allWidgets = this.grid.engine.nodes || [];
+          allWidgets.forEach(node => {
+            if (node.el) {
+              const card = node.el.querySelector('.widget-card');
+              if (card) {
+                const dragHandle = card.querySelector('.widget-drag-handle');
+                
+                if (this.editMode && !dragHandle) {
+                  // Добавляем ручку перетаскивания
+                  const newDragHandle = document.createElement('div');
+                  newDragHandle.className = 'widget-drag-handle';
+                  newDragHandle.setAttribute('data-gs-handle', 'true');
+                  newDragHandle.innerHTML = '<i class="feather icon-move"></i>';
+                  card.insertBefore(newDragHandle, card.firstChild);
+                } else if (!this.editMode && dragHandle) {
+                  // Удаляем ручку
+                  dragHandle.remove();
+                }
+              }
+            }
+          });
+        },
+        
+        /**
+         * Обновляет содержимое виджета
+         */
+        refreshWidget: function (widgetElement) {
+          if (!widgetElement || !this.grid) {
+            this.info = '{{ _('Unable to refresh widget') }}';
+            return;
+          }
+          
+          const widgetType = widgetElement.getAttribute('data-widget-type');
+          const widgetKey = widgetElement.getAttribute('data-widget-key');
+          if (!widgetType || !widgetKey) {
+            this.info = '{{ _('Unable to refresh widget') }}';
+            return;
+          }
+          
+          const widgetName = widgetElement.getAttribute('data-widget-name');
+          let url = `/admin/widget-content?type=${widgetType}&key=${encodeURIComponent(widgetKey)}`;
+          if (widgetName) {
+            url += `&widget_name=${encodeURIComponent(widgetName)}`;
+          }
+          
+          const settings = {};
+          Array.from(widgetElement.attributes).forEach(attr => {
+            const attrName = attr.name;
+            if (attrName.startsWith('data-') &&
+                !attrName.startsWith('data-gs-') &&
+                attrName !== 'data-widget-type' &&
+                attrName !== 'data-widget-key' &&
+                attrName !== 'data-widget-name') {
+              const settingKey = attrName.replace('data-', '');
+              settings[settingKey] = attr.value;
+            }
+          });
+          if (Object.keys(settings).length > 0) {
+            url += `&settings=${encodeURIComponent(JSON.stringify(settings))}`;
+          }
+          
+          const cardElement = widgetElement.querySelector('.widget-card');
+          if (cardElement) {
+            cardElement.innerHTML = this.buildCardInnerHtml(`
+              <div class="text-center p-3">
+                <i class="fas fa-spinner fa-spin text-primary" style="font-size: 2rem;"></i>
+              </div>
+            `);
+            this.$nextTick(() => {
+              this.updateWidgetActionButtons();
+              this.updateWidgetDragHandles();
+            });
+          }
+          
+          fetch(url)
+            .then(response => response.json())
+            .then(data => {
+              if (data.success && data.html) {
+                if (cardElement) {
+                  cardElement.innerHTML = this.buildCardInnerHtml(data.html);
+                  if (window.executeScripts) {
+                    window.executeScripts(cardElement);
+                  }
+                  this.$nextTick(() => {
+                    this.updateWidgetActionButtons();
+                    this.updateWidgetDragHandles();
+                  });
+                }
+                this.info = '{{ _('Widget refreshed') }}';
+              } else {
+                this.info = '{{ _('Error refreshing widget') }}';
+              }
+            })
+            .catch(error => {
+              this.info = '{{ _('Error refreshing widget') }}';
+            });
+        },
+        
+        /**
+         * Открывает модальное окно для выбора виджета
+         */
+        showAddWidgetModal: function () {
+          if (!this.editMode) {
+            this.info = '{{ _('Enable edit mode to add widgets') }}';
+            return;
+          }
+          
+          if (this.addWidgetModal) {
+            this.widgetFilter = '';
+            // Загружаем виджеты перед открытием
+            this.loadAvailableWidgets();
+            
+            // Открываем модальное окно
+            this.addWidgetModal.show();
+            
+            // Обновляем Vue после открытия модального окна
+            const modalElement = document.getElementById('addWidgetModal');
+            if (modalElement) {
+              const handleShown = () => {
+                // Принудительно обновляем Vue после открытия модального окна
+                this.$nextTick(() => {
+                  this.$forceUpdate();
+                  
+                  // Дополнительное обновление через небольшую задержку
+                  setTimeout(() => {
+                    this.$forceUpdate();
+                  }, 100);
+                });
+              };
+              modalElement.addEventListener('shown.bs.modal', handleShown, { once: true });
+            }
+          }
+        },
+        
+        /**
+         * Загружает список доступных виджетов из API
+         */
+        loadAvailableWidgets: function () {
+          this.loadingWidgets = true;
+          // Очищаем предыдущие данные
+          this.availableModules = [];
+          this.availableObjects = [];
+          
+          fetch('/admin/available-widgets')
+            .then(response => {
+              if (!response.ok) {
+                throw new Error('Network response was not ok');
+              }
+              return response.json();
+            })
+            .then(data => {
+              if (data.success) {
+                // Создаем новый массив для обеспечения реактивности Vue 2
+                const modulesArray = Array.isArray(data.modules) ? data.modules : [];
+                const objectsArray = Array.isArray(data.objects) ? data.objects : [];
+                
+                // Используем splice для замены массива и сохранения реактивности
+                this.availableModules.splice(0, this.availableModules.length, ...modulesArray);
+                this.availableObjects.splice(0, this.availableObjects.length, ...objectsArray);
+              } else {
+                this.info = '{{ _('Error loading widgets:') }} ' + (data.error || '{{ _('Unknown error') }}');
+              }
+            })
+            .catch(error => {
+              this.info = '{{ _('Error loading widgets:') }} ' + error.message;
+            })
+            .finally(() => {
+              this.loadingWidgets = false;
+              
+              // Принудительно обновляем после завершения загрузки
+              this.$nextTick(() => {
+                this.$forceUpdate();
+                
+                // Дополнительное обновление через небольшую задержку для надежности
+                setTimeout(() => {
+                  this.$forceUpdate();
+                  
+                  // Если Vue не рендерит элементы, создаем их вручную
+                  setTimeout(() => {
+                    const modulesTab = document.querySelector('#addWidgetModal .tab-pane');
+                    const listGroup = modulesTab ? modulesTab.querySelector('.list-group') : null;
+                    const listItems = listGroup ? listGroup.querySelectorAll('a.list-group-item') : null;
+                    
+                    if ((!listItems || listItems.length === 0) && listGroup && this.availableModules && this.availableModules.length > 0) {
+                      listGroup.innerHTML = '';
+                      this.availableModules.forEach((module, index) => {
+                        const item = document.createElement('a');
+                        item.href = '#';
+                        item.className = 'list-group-item list-group-item-action';
+                        item.innerHTML = `
+                          <div class="d-flex w-100 justify-content-between">
+                            <h6 class="mb-1">${module.title || module.key || '{{ _('No Title') }}'}</h6>
+                            <small class="text-muted">${module.category || ''}</small>
+                          </div>
+                          <p class="mb-1">${module.description || '{{ _('No Description') }}'}</p>
+                          <small class="text-muted">${module.key}</small>
+                        `;
+                        item.addEventListener('click', (e) => {
+                          e.preventDefault();
+                          this.selectWidget(module);
+                        });
+                        listGroup.appendChild(item);
+                      });
+                    }
+                  }, 50);
+                }, 100);
+              });
+            });
+        },
+        
+        /**
+         * Выбирает виджет и добавляет его в GridStack
+         * @param {Object} widget - Объект виджета (модуль или объект)
+         * @param {string} widgetName - Имя виджета (опционально, используется для модулей с несколькими виджетами)
+         */
+        selectWidget: function (widget, widgetName) {
+          if (!this.editMode) {
+            this.info = '{{ _('Enable edit mode to add widgets') }}';
+            return;
+          }
+          
+          if (!this.grid) {
+            this.info = '{{ _('Panel is not ready yet. Please wait...') }}';
+            return;
+          }
+          
+          // Генерируем уникальный ID для виджета
+          const baseId = widgetName ? `${widget.type}_${widget.key}_${widgetName}` : `${widget.type}_${widget.key}`;
+          let widgetId = baseId;
+          let counter = 1;
+          
+          // Проверяем существующие ID
+          const currentLayout = this.grid.save();
+          const existingIds = new Set(currentLayout.map(item => item.id));
+          while (existingIds.has(widgetId)) {
+            widgetId = `${baseId}_${counter}`;
+            counter++;
+          }
+          
+          // Формируем URL для загрузки виджета
+          let url = `/admin/widget-content?type=${widget.type}&key=${encodeURIComponent(widget.key)}`;
+          if (widgetName) {
+            url += `&widget_name=${encodeURIComponent(widgetName)}`;
+          }
+          
+          // Загружаем HTML контент виджета
+          fetch(url)
+            .then(response => response.json())
+            .then(data => {
+              if (data.success && data.html) {
+                // Создаем DOM-элемент для виджета
+                const widgetDiv = document.createElement('div');
+                widgetDiv.className = 'grid-stack-item';
+                widgetDiv.setAttribute('gs-id', widgetId);
+                
+                // Сохраняем информацию о виджете в data-атрибутах для последующего сохранения
+                widgetDiv.setAttribute('data-widget-type', widget.type);
+                widgetDiv.setAttribute('data-widget-key', widget.key);
+                if (widgetName) {
+                  widgetDiv.setAttribute('data-widget-name', widgetName);
+                }
+                
+                const contentDiv = document.createElement('div');
+                contentDiv.className = 'grid-stack-item-content';
+                
+                const cardElement = document.createElement('div');
+                cardElement.className = 'card h-100 shadow-sm widget-card p-2';
+                if (widget.type === 'object') {
+                  cardElement.setAttribute('id', `obj:${widget.key}`);
+                }
+                cardElement.innerHTML = this.buildCardInnerHtml(data.html);
+                
+                contentDiv.appendChild(cardElement);
+                widgetDiv.appendChild(contentDiv);
+                
+                // Выполняем скрипты из загруженного HTML
+                if (window.executeScripts) {
+                  window.executeScripts(contentDiv);
+                }
+                
+                // Определяем позицию для нового виджета (в конец)
+                const currentLayout = this.grid.save();
+                let maxY = 0;
+                currentLayout.forEach(item => {
+                  if (item.y + item.h > maxY) {
+                    maxY = item.y + item.h;
+                  }
+                });
+                
+                // Добавляем элемент в GridStack контейнер
+                const gridContainer = document.querySelector('.grid-stack');
+                gridContainer.appendChild(widgetDiv);
+                
+                // Преобразуем элемент в виджет GridStack
+                this.grid.makeWidget(widgetDiv);
+                
+                // Устанавливаем позицию и размер
+                this.grid.update(widgetDiv, {
+                  x: 0,
+                  y: maxY,
+                  w: 3,
+                  h: 3,
+                  id: widgetId
+                });
+
+                if (widget.type === 'object'){
+                  var objectList = [];
+                  objectList.push(widget.key);
+                  socket.emit('subscribeObjects', objectList);
+                }
+                
+                // Закрываем модальное окно
+                if (this.addWidgetModal) {
+                  this.addWidgetModal.hide();
+                }
+                
+                this.updateWidgetActionButtons();
+                this.updateWidgetDragHandles();
+
+                this.info = `{{ _('Widget added:') }} ${widget.title || widget.key}`;
+              } else {
+                this.info = '{{ _('Error loading widget content:') }} ' + (data.error || '{{ _('Unknown error') }}');
+              }
+            })
+            .catch(error => {
+              this.info = '{{ _('Error loading widget content') }}';
+            });
+        },
+        
+        /**
+         * Загружает сохраненный layout с сервера
+         */
+        loadLayout: function () {
+          return fetch('/admin/widgets-layout')
+            .then(response => response.json())
+            .then(data => {
+              if (data.success) {
+                // Обновляем количество столбцов, если оно сохранено
+                if (data.columns) {
+                  const columns = parseInt(data.columns) || 12;
+                  this.columns = columns;
+                  if (this.grid) {
+                    this.grid.column(columns, 'noMove');
+                  }
+                }
+                return data.layout || null;
+              }
+              return null;
+            })
+            .catch(error => {
+              console.error('Error loading layout:', error);
+              return null;
+            });
+        },
+        
+        /**
+         * Восстанавливает виджеты из сохраненного layout
+         */
+        restoreWidgetsFromLayout: function (savedLayout) {
+          const self = this;
+          
+          savedLayout.forEach((savedItem, index) => {
+            if (!savedItem.type || !savedItem.key) {
+              console.warn('Skipping widget without type or key:', savedItem);
+              return;
+            }
+            
+            const widgetId = savedItem.id || `widget_${savedItem.type}_${savedItem.key}_${index}`;
+            
+            // Восстанавливаем имя виджета из settings
+            const savedWidgetName = savedItem.settings && savedItem.settings.widget_name ? savedItem.settings.widget_name : null;
+            
+            // Создаем DOM-элемент для виджета
+            const widgetDiv = document.createElement('div');
+            widgetDiv.className = 'grid-stack-item';
+            widgetDiv.setAttribute('gs-id', widgetId);
+            widgetDiv.setAttribute('data-widget-type', savedItem.type);
+            widgetDiv.setAttribute('data-widget-key', savedItem.key);
+            if (savedWidgetName) {
+              widgetDiv.setAttribute('data-widget-name', savedWidgetName);
+            }
+            
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'grid-stack-item-content';
+            
+            const cardElement = document.createElement('div');
+            cardElement.className = 'card h-100 shadow-sm widget-card p-2';
+            if (savedItem.type === 'object') {
+              cardElement.setAttribute('id', `obj:${savedItem.key}`);
+            }
+            cardElement.innerHTML = self.buildCardInnerHtml(`
+              <div class="text-center p-3">
+                <i class="fas fa-spinner fa-spin text-primary" style="font-size: 2rem;"></i>
+              </div>
+            `);
+            
+            contentDiv.appendChild(cardElement);
+            widgetDiv.appendChild(contentDiv);
+            
+            // Добавляем элемент в GridStack контейнер
+            const gridContainer = document.querySelector('.grid-stack');
+            gridContainer.appendChild(widgetDiv);
+            
+            // Преобразуем элемент в виджет GridStack
+            this.grid.makeWidget(widgetDiv);
+            
+            // Устанавливаем позицию и размер
+            this.grid.update(widgetDiv, {
+              x: savedItem.x !== undefined ? savedItem.x : 0,
+              y: savedItem.y !== undefined ? savedItem.y : 0,
+              w: savedItem.w !== undefined ? savedItem.w : 3,
+              h: savedItem.h !== undefined ? savedItem.h : 3,
+              id: widgetId
+            });
+
+            if (savedItem.type === 'object'){
+              var objectList = [];
+              objectList.push(savedItem.key);
+              socket.emit('subscribeObjects', objectList);
+            }
+            
+            // Восстанавливаем настройки из data-атрибутов
+            if (savedItem.settings) {
+              Object.keys(savedItem.settings).forEach(settingKey => {
+                widgetDiv.setAttribute(`data-${settingKey}`, savedItem.settings[settingKey]);
+              });
+            }
+            
+            // Загружаем HTML контент виджета
+            let url = `/admin/widget-content?type=${savedItem.type}&key=${encodeURIComponent(savedItem.key)}`;
+            if (savedWidgetName) {
+              url += `&widget_name=${encodeURIComponent(savedWidgetName)}`;
+            }
+            if (savedItem.settings && Object.keys(savedItem.settings).length > 0) {
+              const settingsParam = encodeURIComponent(JSON.stringify(savedItem.settings));
+              url += `&settings=${settingsParam}`;
+            }
+            
+            fetch(url)
+              .then(response => response.json())
+              .then(data => {
+                if (data.success && data.html) {
+                  const card = contentDiv.querySelector('.widget-card');
+                  if (card) {
+                    card.innerHTML = self.buildCardInnerHtml(data.html);
+                    if (window.executeScripts) {
+                      window.executeScripts(card);
+                    }
+                    self.$nextTick(() => {
+                      self.updateWidgetActionButtons();
+                      self.updateWidgetDragHandles();
+                    });
+                  }
+                } else {
+                  const card = contentDiv.querySelector('.widget-card');
+                  if (card) {
+                    card.innerHTML = self.buildCardInnerHtml('<p class="text-muted">{{ _('Error loading widget content') }}</p>');
+                    self.$nextTick(() => {
+                      self.updateWidgetActionButtons();
+                      self.updateWidgetDragHandles();
+                    });
+                  }
+                }
+              })
+              .catch(error => {
+                console.error('Error loading widget content:', error);
+                const card = contentDiv.querySelector('.widget-card');
+                if (card) {
+                  card.innerHTML = self.buildCardInnerHtml('<p class="text-muted">Ошибка загрузки содержимого виджета</p>');
+                  self.$nextTick(() => {
+                    self.updateWidgetActionButtons();
+                    self.updateWidgetDragHandles();
+                  });
+                }
+              });
+          });
+          
+          this.$nextTick(() => {
+            this.updateWidgetActionButtons();
+            this.updateWidgetDragHandles();
+          });
+        },
+        
+        /**
+         * Сохраняет layout виджетов на сервер
+         */
+        saveLayout: function () {
+          if (!this.grid) {
+            this.info = '{{ _('Panel is not ready') }}';
+            return;
+          }
+          
+          this.savingLayout = true;
+          
+          // Получаем layout из GridStack
+          const layout = this.grid.save();
+          const columns = this.columns || 12;
+          
+          // Обогащаем layout данными о виджетах
+          const allWidgets = this.grid.engine.nodes || [];
+          const widgetsMapById = new Map();
+          
+          allWidgets.forEach(node => {
+            if (node.id && node.el) {
+              widgetsMapById.set(String(node.id), node);
+            }
+          });
+          
+          const enrichedLayout = layout.map((item, layoutIndex) => {
+            let widgetElement = null;
+            let gridNode = null;
+            
+            // Ищем виджет по id
+            if (item.id) {
+              gridNode = widgetsMapById.get(String(item.id));
+            }
+            
+            // Если не нашли по id, пробуем найти по позиции
+            if (!gridNode && item.x !== undefined && item.y !== undefined) {
+              gridNode = allWidgets.find(node => 
+                node.x === item.x && 
+                node.y === item.y && 
+                node.el
+              );
+            }
+            
+            // Если не нашли, используем индекс
+            if (!gridNode && layoutIndex < allWidgets.length) {
+              gridNode = allWidgets[layoutIndex];
+            }
+            
+            if (gridNode && gridNode.el) {
+              widgetElement = gridNode.el;
+              
+              // Получаем данные виджета из атрибутов
+              const widgetType = widgetElement.getAttribute('data-widget-type') || null;
+              const widgetKey = widgetElement.getAttribute('data-widget-key') || null;
+              const widgetName = widgetElement.getAttribute('data-widget-name') || null;
+              
+              const widgetData = {
+                ...item,
+                id: item.id || (gridNode.id ? String(gridNode.id) : `widget_${layoutIndex}`),
+                type: widgetType,
+                key: widgetKey,
+                settings: {}
+              };
+              
+              // Сохраняем имя виджета в settings, если оно есть
+              if (widgetName) {
+                widgetData.settings.widget_name = widgetName;
+              }
+              
+              // Собираем настройки из data-атрибутов
+              const allAttributes = widgetElement.attributes;
+              for (let i = 0; i < allAttributes.length; i++) {
+                const attr = allAttributes[i];
+                const attrName = attr.name;
+                
+                if (attrName.startsWith('data-') && 
+                    !attrName.startsWith('data-gs-') && 
+                    attrName !== 'data-widget-type' && 
+                    attrName !== 'data-widget-key' && 
+                    attrName !== 'data-widget-name') {
+                  const settingKey = attrName.replace('data-', '');
+                  widgetData.settings[settingKey] = attr.value;
+                }
+              }
+              
+              return widgetData;
+            }
+            
+            // Если не нашли элемент, возвращаем базовые данные
+            return {
+              ...item,
+              id: item.id || `unknown_${layoutIndex}`,
+              type: null,
+              key: null,
+              settings: {}
+            };
+          });
+          
+          // Отправляем layout на сервер
+          fetch('/admin/widgets-layout', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              layout: enrichedLayout,
+              columns: columns
+            })
+          })
+          .then(response => response.json())
+          .then(data => {
+            if (data.success) {
+              this.info = '{{ _('Layout saved successfully') }}';
+            } else {
+              this.info = '{{ _('Error saving:') }} ' + (data.error || '{{ _('Unknown error') }}');
+            }
+          })
+          .catch(error => {
+            this.info = '{{ _('Error saving layout') }}';
+          })
+          .finally(() => {
+            this.savingLayout = false;
+          });
+        },
+        
+        /**
+         * Уменьшает количество колонок
+         */
+        decreaseColumns: function () {
+          if (!this.editMode) {
+            this.info = '{{ _('Enable edit mode to change number of columns') }}';
+            return;
+          }
+          
+          if (this.columns > 1 && this.grid) {
+            this.columns--;
+            this.grid.column(this.columns, 'noMove');
+            this.saveLayout();
+          }
+        },
+        
+        /**
+         * Увеличивает количество колонок
+         */
+        increaseColumns: function () {
+          if (!this.editMode) {
+            this.info = '{{ _('Enable edit mode to change number of columns') }}';
+            return;
+          }
+          
+          if (this.columns < 12 && this.grid) {
+            this.columns++;
+            this.grid.column(this.columns, 'noMove');
+            this.saveLayout();
+          }
+        },
+      },
+    });
+  </script>
+  <script>
+        // Функция для обновления времени на всех компонентах
+        function updateAllTimes() {
+          var timeComponents = document.querySelectorAll('.time-component'); // Находим все компоненты времени
+      
+          // Обновляем время на каждом компоненте
+          timeComponents.forEach(function(component) {
+            // Получаем текущее время
+            var currentTime = new Date();
+            // Получаем начальное время из атрибута data-start-time
+            var startTime = new Date(component.dataset.startTime);
+            // Вычисляем разницу между текущим временем и начальным временем
+            var elapsedTime = currentTime - startTime;
+            // Обновляем время на компоненте
+            component.textContent = formatTimeDiff(elapsedTime);
+          });
+        }
+      
+        // Обновляем время каждую секунду
+        setInterval(updateAllTimes, 1000);
+      
+        // Запускаем функцию для обновления времени при загрузке страницы
+        updateAllTimes();
+  </script>
+  {% endblock %}
