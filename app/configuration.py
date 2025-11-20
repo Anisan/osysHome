@@ -87,7 +87,7 @@ class ConfigLoader(object):
             self.SQLALCHEMY_DATABASE_URI = f'sqlite:///{DB_PATH}'
 
         cache_config = self._config_data.get('cache', {})
-        self.CACHE_FILE_PATH = cache_config.get('file_path', 'cache')
+        self.CACHE_FILE_PATH = os.path.abspath(os.path.join(self.APP_DIR, cache_config.get('file_path', 'cache')))
         self.CACHE_TYPE = cache_config.get('type', 'simple')
         self.CACHE_DEFAULT_TIMEOUT = cache_config.get('timeout', 300)
 
