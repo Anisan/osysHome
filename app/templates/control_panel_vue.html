@@ -178,7 +178,7 @@
             type="button" 
             class="btn btn-outline-secondary btn-sm" 
             @click="decreaseColumns()" 
-            :disabled="columns <= 1"
+            :disabled="columns <= 1 || isMobile"
             title="{{ _('Decrease Columns') }}">
             <i class="feather icon-minus"></i>
           </button>
@@ -187,7 +187,7 @@
             type="button" 
             class="btn btn-outline-secondary btn-sm" 
             @click="increaseColumns()" 
-            :disabled="columns >= 12"
+            :disabled="columns >= 12 || isMobile"
             title="{{ _('Increase Columns') }}">
             <i class="feather icon-plus"></i>
           </button>
@@ -346,8 +346,15 @@
         editMode: false,
         items: [],
         widgetFilter: '',
+        windowWidth: window.innerWidth,
       },
       computed: {
+        /**
+         * Проверяет, является ли устройство мобильным
+         */
+        isMobile: function() {
+          return this.windowWidth <= 768;
+        },
         /**
          * Проверяет, нужно ли показывать список модулей
          */
@@ -436,7 +443,7 @@
           minRow: 1,
           margin: 2,
           column: this.columns || 12,
-          disableOneColumnMode: true,
+          disableOneColumnMode: false, // Включаем responsive режим для маленьких экранов
           draggable: {
             handle: '.widget-drag-handle',
             appendTo: 'parent',
@@ -449,6 +456,24 @@
         if (this.grid.setDragHandle) {
           this.grid.setDragHandle('.widget-drag-handle');
         }
+        
+        // Функция для определения мобильного устройства и переключения колонок
+        const updateColumnsForScreenSize = () => {
+          this.windowWidth = window.innerWidth;
+          const isMobile = this.windowWidth <= 768;
+          const targetColumns = isMobile ? 1 : (this.columns || 12);
+          
+          if (this.grid && this.grid.column() !== targetColumns) {
+            this.grid.column(targetColumns, 'noMove');
+            this.columns = targetColumns;
+          }
+        };
+        
+        // Вызываем при загрузке
+        updateColumnsForScreenSize();
+        
+        // Отслеживаем изменение размера окна
+        window.addEventListener('resize', updateColumnsForScreenSize);
         
         // Изначально отключаем редактирование
         this.grid.disable();
@@ -988,11 +1013,19 @@
             .then(data => {
               if (data.success) {
                 // Обновляем количество столбцов, если оно сохранено
-                if (data.columns) {
+                // Но учитываем размер экрана - на мобильных всегда 1 колонка
+                // Обновляем windowWidth перед проверкой
+                this.windowWidth = window.innerWidth;
+                if (data.columns && !this.isMobile) {
                   const columns = parseInt(data.columns) || 12;
                   this.columns = columns;
                   if (this.grid) {
                     this.grid.column(columns, 'noMove');
+                  }
+                } else if (this.isMobile) {
+                  this.columns = 1;
+                  if (this.grid) {
+                    this.grid.column(1, 'noMove');
                   }
                 }
                 return data.layout || null;
@@ -1267,6 +1300,11 @@
             return;
           }
           
+          // На мобильных устройствах не позволяем изменять количество колонок
+          if (this.isMobile) {
+            return;
+          }
+          
           if (this.columns > 1 && this.grid) {
             this.columns--;
             this.grid.column(this.columns, 'noMove');
@@ -1280,6 +1318,11 @@
         increaseColumns: function () {
           if (!this.editMode) {
             this.info = '{{ _('Enable edit mode to change number of columns') }}';
+            return;
+          }
+          
+          // На мобильных устройствах не позволяем изменять количество колонок
+          if (this.isMobile) {
             return;
           }
           
