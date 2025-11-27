@@ -216,7 +216,8 @@ def registerExtensions(app):
     db.init_app(app)
     cors.init_app(app)
     login_manager.init_app(app)
-    toolbar.init_app(app)
+    if toolbar:
+        toolbar.init_app(app)
 
 def registerBlueprints(app):
     """Register Flask blueprints."""
