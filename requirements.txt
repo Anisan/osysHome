@@ -4,24 +4,15 @@ SQLAlchemy
 Flask_SQLAlchemy
 Flask-Cors
 flask_apispec
-
 flask-restx
 Flask-Bcrypt
 flask-login
 flask_socketio
 flask_wtf
 Flask-Caching
-
 psycopg2-binary
-
 pdoc
-
 croniter #cron
 tzdata
 requests
-
-# profiling
-flask-debugtoolbar
-Flask-MonitoringDashboard
-
 pycryptodome
