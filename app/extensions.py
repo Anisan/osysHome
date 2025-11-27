@@ -6,7 +6,10 @@ from flask_caching import Cache
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager
-from flask_debugtoolbar import DebugToolbarExtension
+try:
+    from flask_debugtoolbar import DebugToolbarExtension
+except ImportError:  # pragma: no cover - optional dependency
+    DebugToolbarExtension = None
 
 class CRUDMixin(object):
     """Mixin that adds convenience methods for CRUD (create, read, update, delete) operations."""
@@ -40,7 +43,7 @@ bcrypt = Bcrypt()
 db = SQLAlchemy(model_class=CRUDMixin)
 cache = Cache()
 cors = CORS()
-toolbar = DebugToolbarExtension()
+toolbar = DebugToolbarExtension() if DebugToolbarExtension else None
 
 from .utils import load_user  # noqa
 
