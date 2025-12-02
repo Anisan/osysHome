@@ -1,4 +1,5 @@
 """API blueprint configuration."""
+from app.utils import get_current_version
 from flask import Blueprint
 from flask_restx import Api, Resource
 from app.logging_config import getLogger
@@ -46,6 +47,7 @@ class AboutResource(Resource):
         return {
             'name': 'osysHome',
             'author': 'Eraser',
+            'version': get_current_version(),
             'email':'eraser1981@gmail.com',
         }
 

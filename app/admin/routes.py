@@ -71,7 +71,10 @@ def docs_file(filename):
 @blueprint.route("/about")
 @handle_user_required
 def about():
-    return render_template("about.html", LANGUAGES=current_app.config['LANGUAGES'])
+    content = {
+        'LANGUAGES':current_app.config['LANGUAGES']
+    }
+    return render_template("about.html", **content)
 
 @blueprint.route('/set_lang/<lang>')
 def set_lang(lang):

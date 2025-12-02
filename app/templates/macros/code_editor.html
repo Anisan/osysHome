@@ -203,7 +203,7 @@
     
     .ace-editor-wrapper.fullscreen .ace-editor-container {
         flex: 1;
-        min-height: calc(100vh - 130px);
+        min-height: 0;
         border-radius: 6px;
     }
     
@@ -445,12 +445,28 @@
     
     // === Инициализация редактора ===
     var currentBootstrapTheme = getBootstrapTheme();
+    var DEFAULT_MIN_LINES = 5;
+    var DEFAULT_MAX_LINES = 40;
+    function computeFullscreenLines() {
+        var toolbar = editorWrapper ? editorWrapper.querySelector('.ace-editor-toolbar') : null;
+        var toolbarHeight = toolbar ? toolbar.offsetHeight : 0;
+        var wrapperStyles = editorWrapper ? window.getComputedStyle(editorWrapper) : null;
+        var paddingTop = wrapperStyles ? parseFloat(wrapperStyles.paddingTop || 0) : 0;
+        var paddingBottom = wrapperStyles ? parseFloat(wrapperStyles.paddingBottom || 0) : 0;
+        var availableHeight = window.innerHeight - toolbarHeight - paddingTop - paddingBottom - 10;
+        if (availableHeight < 200) {
+            availableHeight = 200;
+        }
+        var lineHeight = editor.renderer.lineHeight || 16;
+        return Math.max(Math.floor(availableHeight / lineHeight), DEFAULT_MIN_LINES);
+    }
+    
     var editor = ace.edit(editorId, {
         theme: getAceTheme(currentBootstrapTheme),
         mode: "ace/mode/{{ syntax }}",
         autoScrollEditorIntoView: true,
-        maxLines: 40,
-        minLines: 5,
+        maxLines: DEFAULT_MAX_LINES,
+        minLines: DEFAULT_MIN_LINES,
         fontSize: 16,
         enableBasicAutocompletion: true,
         enableSnippets: true,
@@ -566,11 +582,23 @@
                 icon.classList.toggle('fa-compress', nextState);
             }
         }
+        if (nextState) {
+            var fullscreenLines = computeFullscreenLines();
+            editor.setOption('maxLines', fullscreenLines);
+            editor.setOption('minLines', fullscreenLines);
+            editorElement.style.height = '';
+        } else {
+            editor.setOption('maxLines', DEFAULT_MAX_LINES);
+            editor.setOption('minLines', DEFAULT_MIN_LINES);
+        }
         editor.resize(true);
     }
     
     window.addEventListener('resize', function() {
         if (isFullscreen) {
+            var fullscreenLines = computeFullscreenLines();
+            editor.setOption('maxLines', fullscreenLines);
+            editor.setOption('minLines', fullscreenLines);
             editor.resize(true);
         }
     });

@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 """Helper utilities and decorators."""
+from pathlib import Path
+import subprocess
 import datetime
 from app.core.models.Users import User  # noqa
 from app.core.lib.constants import PropertyType
@@ -77,3 +79,17 @@ def startSystemVar():
     from app.core.lib.object import setProperty
     setProperty("SystemVar.Started",datetime.datetime.now(), "osysHome")
     setProperty("SystemVar.NeedRestart", False, "osysHome")
+
+def get_current_version():
+    ver_file = Path("VERSION")
+    if ver_file.is_file():
+        return ver_file.read_text().strip()
+    # fallback: git describe
+    try:
+        desc = subprocess.check_output(
+            ["git", "describe", "--tags", "--dirty", "--always"],
+            stderr=subprocess.DEVNULL, text=True
+        ).strip()
+        return desc.replace("-", "+", 1).replace("-", ".")  # v1.2.3-4-gabc → v1.2.3+4.gabc
+    except:
+        return "unknown"

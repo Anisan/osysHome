@@ -13,6 +13,7 @@ from app.extensions import db, login_manager, cors, bcrypt, toolbar, cache
 from app.core.main.PluginsHelper import registerPlugins
 from app.core.utils import CustomJSONEncoder, CustomJSONProvider
 from app.core.intelli import build_intelli_cache
+from app.utils import get_current_version
 
 from .logging_config import getLogger
 _logger = getLogger('flask')
@@ -74,7 +75,8 @@ def createApp(config_object):
         return {
             '_': safe_translate,
             'gettext': safe_translate,  # Дополнительный алиас
-            'current_language': get_current_language
+            'current_language': get_current_language,
+            'osysHome_version': get_current_version(),
         }
 
     @app.context_processor
