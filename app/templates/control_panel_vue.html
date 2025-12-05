@@ -513,34 +513,38 @@
         // Функция для выполнения скриптов из HTML
         window.executeScripts = function(container) {
           const scripts = container.querySelectorAll('script');
-          scripts.forEach(oldScript => {
+          const scriptsArr = Array.from(scripts);
+
+          function runNext(index) {
+            if (index >= scriptsArr.length) return;
+
+            const oldScript = scriptsArr[index];
+            
+            // Пропускаем скрипты, которые уже были обработаны (если вдруг такое случится)
+            if (oldScript.dataset.executed === 'true') {
+               runNext(index + 1);
+               return;
+            }
+
             let scriptContent = oldScript.textContent || oldScript.innerHTML;
             
-            // Если скрипт содержит DOMContentLoaded, выполняем код сразу
-            // (так как DOM уже загружен, когда виджет добавляется динамически)
+            // Специальная обработка для DOMContentLoaded
             if (scriptContent.includes('document.addEventListener(\'DOMContentLoaded\'')) {
               scriptContent = scriptContent.trim();
               
-              // Заменяем всю конструкцию document.addEventListener... на немедленный вызов
-              // Находим начало и конец функции
               const regex = /document\.addEventListener\s*\(\s*['"]DOMContentLoaded['"]\s*,\s*function\s*\([^)]*\)\s*\{([\s\S]*)\}\s*\)\s*\);?\s*$/m;
               const match = scriptContent.match(regex);
               
               if (match && match[1]) {
-                // match[1] содержит тело функции без внешних скобок
                 const functionBody = match[1];
-                // Обертываем в немедленно вызываемую функцию
                 scriptContent = '(function() {' + functionBody + '})();';
               } else {
-                // Fallback: старая логика, если regex не сработал
                 scriptContent = scriptContent.replace(
                   /document\.addEventListener\s*\(\s*['"]DOMContentLoaded['"]\s*,\s*function\s*\([^)]*\)\s*\{/g,
                   '(function() {'
                 );
-                // Удаляем последнюю }); от addEventListener
                 scriptContent = scriptContent.replace(/\}\s*\)\s*\);?\s*$/m, '');
                 scriptContent = scriptContent.trim();
-                // Добавляем правильное завершение
                 if (!scriptContent.endsWith('})();')) {
                   if (scriptContent.endsWith('}')) {
                     scriptContent = scriptContent + '})();';
@@ -550,26 +554,45 @@
                 }
               }
               
-              // Выполняем модифицированный скрипт напрямую
               try {
                 (new Function(scriptContent))();
               } catch (error) {
                 console.error('Error executing widget script:', error);
                 console.error('Script content:', scriptContent);
               }
+              
+              runNext(index + 1);
             } else {
-              // Для обычных скриптов создаем новый элемент script
+              // Для обычных и внешних скриптов
               const newScript = document.createElement('script');
-              // Копируем атрибуты
               Array.from(oldScript.attributes).forEach(attr => {
                 newScript.setAttribute(attr.name, attr.value);
               });
-              // Копируем содержимое
+              
               newScript.textContent = oldScript.textContent;
-              // Заменяем старый скрипт на новый
-              oldScript.parentNode.replaceChild(newScript, oldScript);
+              newScript.dataset.executed = 'true'; // Маркер выполнения
+
+              const isExternal = newScript.hasAttribute('src');
+              
+              if (isExternal) {
+                newScript.onload = function() { runNext(index + 1); };
+                newScript.onerror = function() { 
+                    console.error('Failed to load script:', newScript.src);
+                    runNext(index + 1); 
+                };
+              }
+
+              if (oldScript.parentNode) {
+                  oldScript.parentNode.replaceChild(newScript, oldScript);
+              }
+              
+              if (!isExternal) {
+                  runNext(index + 1);
+              }
             }
-          });
+          }
+
+          runNext(0);
         };
         
         // Загружаем сохраненный layout
