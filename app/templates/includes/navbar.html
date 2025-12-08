@@ -57,7 +57,7 @@
             <li><a class="dropdown-item" href="/about"><i class="fas fa-info-circle me-2"></i>{{ _('About')}}</a></li>
             {% if config.SERVICE_NAME or config.SERVICE_AUTORESTART%}
             <li><hr class="dropdown-divider"></li>
-            <li><a class="dropdown-item" href="#" onclick="restart_system()"><i class="fas fa-gears me-2"></i>{{ _('Restart')}}</a></li>
+            <li><a class="dropdown-item" href="#" onclick="if(confirm('{{ _('Are you sure you want to restart the system?') }}')) restart_system()"><i class="fas fa-gears me-2"></i>{{ _('Restart')}}</a></li>
             {%endif%}
             <li><hr class="dropdown-divider"></li>
             <li><a class="dropdown-item" href="/logout"><i class="fas fa-sign-out-alt me-2"></i>{{ _('Logout')}}</a></li>

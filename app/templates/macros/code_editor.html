@@ -1,4 +1,4 @@
-{% macro render_editor(field_edit, syntax) %}
+{% macro render_editor(field_edit, syntax, object_name=None) %}
 <style>
     .ace-editor-container {
         width: 100%;
@@ -363,6 +363,7 @@
     var hiddenField = document.getElementById('{{ field_edit.name }}');
     var editorElement = document.getElementById(editorId);
     var formElement = editorElement ? editorElement.closest('form') : null;
+    var currentObjectName = {{ object_name|tojson if object_name else 'null' }};
     
     // === Функция для определения текущей темы Bootstrap ===
     function getBootstrapTheme() {
@@ -798,6 +799,17 @@
     {% if syntax == 'python' %}
     // === 1. Загрузка символов из библиотек (функции, классы, методы) ===
     var librarySymbols = [];
+    var objectsDetailsMap = {};
+
+    fetch('/api/object/list/details')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                objectsDetailsMap = data.result;
+            }
+        })
+        .catch(err => console.warn("Objects details load failed:", err));
+
     fetch('/api/utils/intelli-python')
         .then(response => response.json())
         .then(data => {
@@ -810,7 +822,15 @@
     // === 2. Статические функции (ваш API) ===
     var staticApi = [
         { word: "setProperty", args: "(name, value)", doc: "Устанавливает свойство объекта." },
+        { word: "getProperty", args: "(name, default=None)", doc: "Получает значение свойства объекта." },
+        { word: "setPropertyTimeout", args: "(name, value, timeout)", doc: "Устанавливает свойство объекта с задержкой (в секундах)." },
+        { word: "setPropertyThread", args: "(name, value)", doc: "Устанавливает свойство объекта в отдельном потоке." },
+        { word: "updateProperty", args: "(name, value)", doc: "Обновляет свойство объекта (вызывает связанные события)." },
+        { word: "updatePropertyTimeout", args: "(name, value, timeout)", doc: "Обновляет свойство объекта с задержкой (в секундах)." },
+        { word: "updatePropertyThread", args: "(name, value)", doc: "Обновляет свойство объекта в отдельном потоке." },
         { word: "callMethod", args: "(name, *args)", doc: "Вызывает метод объекта с переданными аргументами." },
+        { word: "callMethodTimeout", args: "(name, timeout, *args)", doc: "Вызывает метод объекта с задержкой (в секундах)." },
+        { word: "callMethodThread", args: "(name, *args)", doc: "Вызывает метод объекта в отдельном потоке." },
         { word: "say", args: "(text)", doc: "Произносит переданный текст вслух." }
     ];
 
@@ -838,6 +858,196 @@
     function updateCompleter() {
         var completer = {
             getCompletions: function(editor, session, pos, prefix, callback) {
+
+                var line = session.getLine(pos.row);
+                var lineUpToCursor = line.substring(0, pos.column);
+                
+                // Поддержка функций работы со свойствами
+                // Обновленный regex: ловит (необязательно self.) + имя функции + (['"]) + (текст внутри)
+                var propMatch = lineUpToCursor.match(/(?:(?:self|object)\.)?(set|get|update)Property(Timeout|Thread)?\s*\(\s*(['"])([^'"]*)$/);
+                // Поддержка функций работы с методами
+                var methodMatch = lineUpToCursor.match(/(?:(?:self|object)\.)?callMethod(Timeout|Thread)?\s*\(\s*(['"])([^'"]*)$/);
+
+                if (propMatch || methodMatch) {
+                    var match = propMatch || methodMatch;
+                    var isMethod = !!methodMatch;
+                    var textInString = match[match.length - 1]; // Последняя группа захвата - текст внутри кавычек
+                    var trimmedMatch = match[0].trim();
+                    var isContextCall = trimmedMatch.startsWith("self.") || trimmedMatch.startsWith("object.");
+
+                    var completions = [];
+                    
+                    if (isContextCall) {
+                        // Логика для self. и object. идентична в контексте текущего объекта
+                        // Если вызов через self./object. и у нас есть имя текущего объекта, фильтруем по нему
+                        if (currentObjectName && objectsDetailsMap[currentObjectName]) {
+                            var items = isMethod ? objectsDetailsMap[currentObjectName].methods : objectsDetailsMap[currentObjectName].properties;
+                            var type = isMethod ? "method" : "property";
+                            
+                            for (var key in items) {
+                                var desc = items[key] || type;
+                                var descShort = desc.length > 50 ? desc.substring(0, 50) + "..." : desc;
+                                var caption = key + " (" + descShort + ")";
+                                
+                                var meta = isMethod ? "Method" : "Property";
+                                completions.push({
+                                    caption: caption,
+                                    value: key,
+                                    meta: meta,
+                                    score: 1000,
+                                    docHTML: `<b>${key}</b><br><pre style="margin-top:4px; white-space:pre-wrap; font-family:system-ui, sans-serif; font-size:12px;">${escapeHtml(items[key] || "")}</pre>`
+                                });
+                            }
+                        } else {
+                            // Если имя объекта неизвестно, собираем ВСЕ уникальные свойства/методы (старое поведение)
+                            var uniqueItems = new Set();
+                            var itemsMap = {}; // для хранения описаний
+                            
+                            for (var objName in objectsDetailsMap) {
+                                var items = isMethod ? objectsDetailsMap[objName].methods : objectsDetailsMap[objName].properties;
+                                for (var key in items) {
+                                    if (!uniqueItems.has(key)) {
+                                        uniqueItems.add(key);
+                                        itemsMap[key] = items[key];
+                                    }
+                                }
+                            }
+
+                            var type = isMethod ? "method" : "property";
+                            uniqueItems.forEach(key => {
+                                var desc = itemsMap[key] || type;
+                                var descShort = desc.length > 50 ? desc.substring(0, 50) + "..." : desc;
+                                var caption = key + " (" + descShort + ")";
+                                var meta = isMethod ? "Method" : "Property";
+
+                                completions.push({
+                                    caption: caption,
+                                    value: key,
+                                    meta: meta, 
+                                    score: 1000,
+                                    docHTML: `<b>${key}</b><br><pre style="margin-top:4px; white-space:pre-wrap; font-family:system-ui, sans-serif; font-size:12px;">${escapeHtml(itemsMap[key] || "")}</pre>`
+                                });
+                            });
+                        }
+                        
+                         if (completions.length > 0) {
+                            return callback(null, completions);
+                        }
+                    }
+
+                    var dotIndex = textInString.indexOf('.');
+
+                    if (dotIndex !== -1) {
+                        var objectName = textInString.substring(0, dotIndex);
+                        // Поиск объекта без учета регистра
+                        var foundObjName = Object.keys(objectsDetailsMap).find(key => key.toLowerCase() === objectName.toLowerCase());
+
+                        if (foundObjName && objectsDetailsMap[foundObjName]) {
+                            // Если это методы (callMethod...), берем методы, иначе свойства
+                            var items = isMethod ? objectsDetailsMap[foundObjName].methods : objectsDetailsMap[foundObjName].properties;
+                            var type = isMethod ? "method" : "property";
+                            
+                            for (var key in items) {
+                                var desc = items[key] || type;
+                                var descShort = desc.length > 50 ? desc.substring(0, 50) + "..." : desc;
+                                var caption = key + " (" + descShort + ")";
+                                var meta = isMethod ? "Method" : "Property";
+
+                                completions.push({
+                                    caption: caption,
+                                    value: key,
+                                    meta: meta,
+                                    score: 1000,
+                                    docHTML: `<b>${key}</b><br><pre style="margin-top:4px; white-space:pre-wrap; font-family:system-ui, sans-serif; font-size:12px;">${escapeHtml(items[key] || "")}</pre>`
+                                });
+                            }
+                        }
+                    } else {
+                        // Если точки нет, показываем список объектов
+                        for (var objName in objectsDetailsMap) {
+                            var desc = objectsDetailsMap[objName].description || "object";
+                            var descShort = desc.length > 50 ? desc.substring(0, 50) + "..." : desc;
+                            var caption = objName + " (" + descShort + ")";
+                            var meta = "Object";
+                            completions.push({
+                                caption: caption,
+                                value: objName,
+                                meta: meta,
+                                score: 1000,
+                                docHTML: `<b>${objName}</b><br><pre style="margin-top:4px; white-space:pre-wrap; font-family:system-ui, sans-serif; font-size:12px;">${escapeHtml(objectsDetailsMap[objName].description || "")}</pre>`
+                            });
+                        }
+                    }
+                    if (completions.length > 0) {
+                        return callback(null, completions);
+                    }
+                }
+
+                // === Новая логика: автодополнение после self. или object. ===
+                var lineBeforePrefix = lineUpToCursor.substring(0, lineUpToCursor.length - prefix.length);
+                var selfAccessMatch = lineBeforePrefix.match(/(?:^|[^a-zA-Z0-9_])(self|object)\.$/);
+                
+                if (selfAccessMatch) {
+                    var completions = [];
+                    
+                    // 1. Свойства и методы текущего объекта (если известен)
+                    if (currentObjectName && objectsDetailsMap[currentObjectName]) {
+                        var obj = objectsDetailsMap[currentObjectName];
+                        
+                        // Свойства
+                        if (obj.properties) {
+                             for (var key in obj.properties) {
+                                 var desc = obj.properties[key] || "property";
+                                 var descShort = desc.length > 50 ? desc.substring(0, 50) + "..." : desc;
+                                 var caption = key + " (" + descShort + ")";
+                                 var meta = "Property";
+
+                                 completions.push({
+                                     caption: caption,
+                                     value: key,
+                                     meta: meta,
+                                     score: 1100,
+                                     docHTML: `<b>${key}</b> (property)<br><pre style="margin-top:4px; white-space:pre-wrap; font-family:system-ui, sans-serif; font-size:12px;">${escapeHtml(desc)}</pre>`
+                                 });
+                             }
+                        }
+                        
+                        // Методы
+                        if (obj.methods) {
+                             for (var key in obj.methods) {
+                                 var desc = obj.methods[key] || "method";
+                                 var descShort = desc.length > 50 ? desc.substring(0, 50) + "..." : desc;
+                                 var caption = key + " (" + descShort + ")";
+                                 var meta = "Method";
+
+                                 completions.push({
+                                     caption: caption,
+                                     value: key, 
+                                     meta: meta,
+                                     score: 1100,
+                                     docHTML: `<b>${key}</b> (method)<br><pre style="margin-top:4px; white-space:pre-wrap; font-family:system-ui, sans-serif; font-size:12px;">${escapeHtml(desc)}</pre>`
+                                 });
+                             }
+                        }
+                    }
+                    
+                    // 2. Базовые методы (staticApi)
+                    staticApi.forEach(function(item) {
+                        var docEsc = escapeHtml(item.doc);
+                        completions.push({
+                            caption: item.word,
+                            value: item.word,
+                            meta: "base method",
+                            score: 1000,
+                            docHTML: `<b>${item.word}</b>${item.args}<br><pre style="margin-top:4px; white-space:pre-wrap; font-family:system-ui, sans-serif; font-size:12px;">${docEsc}</pre>`
+                        });
+                    });
+                    
+                    if (completions.length > 0) {
+                        return callback(null, completions);
+                    }
+                }
+
                 if (prefix.length === 0) return callback(null, []);
 
                 var completions = [];
@@ -895,6 +1105,30 @@
             }
         };
         editor.completers = [completer];
+        
+        // Добавляем обработчик ввода точки или кавычек для вызова автодополнения
+        editor.commands.on("afterExec", function (e) {
+            if (e.command.name === "insertstring") {
+                if (e.args === "." || e.args === '"' || e.args === "'") {
+                    editor.execCommand("startAutocomplete");
+                }
+            }
+        });
+
+        // Отслеживание нажатия пробела для вызова автодополнения после self.callMethod
+        editor.container.addEventListener("keydown", function(e) {
+             if (e.key === ' ' && e.ctrlKey) {
+                 editor.execCommand("startAutocomplete");
+             }
+        });
+
+        // Отслеживание нажатия пробела для вызова автодополнения после self.callMethod
+        editor.container.addEventListener("keydown", function(e) {
+             if (e.key === ' ' && e.ctrlKey) {
+                 editor.execCommand("startAutocomplete");
+             }
+        });
+
     }
 
     // Инициализация completer (пока без библиотек)
@@ -905,7 +1139,11 @@
         { name: "print", tabTrigger: "pr", content: "print('${1:message}')", scope: "python" },
         { name: "def", tabTrigger: "def", content: "def ${1:name}(${2:args}):\n    ${3:pass}", scope: "python" },
         { name: "setProperty", tabTrigger: "setp", content: "setProperty('${1:name}', ${2:value})", scope: "python" },
+        { name: "getProperty", tabTrigger: "getp", content: "getProperty('${1:name}')", scope: "python" },
+        { name: "setPropertyTimeout", tabTrigger: "setpt", content: "setPropertyTimeout('${1:name}', ${2:value}, ${3:timeout})", scope: "python" },
+        { name: "updateProperty", tabTrigger: "upp", content: "updateProperty('${1:name}', ${2:value})", scope: "python" },
         { name: "callMethod", tabTrigger: "callm", content: "callMethod('${1:method}', ${2:args})", scope: "python" },
+        { name: "callMethodTimeout", tabTrigger: "callmt", content: "callMethodTimeout('${1:method}', ${2:timeout}, ${3:args})", scope: "python" },
         { name: "say", tabTrigger: "say", content: "say('${1:text}')", scope: "python" }
     ];
 
