@@ -1,0 +1,853 @@
+{% macro render_editor(field_edit, syntax, object_name=None) %}
+<style>
+    .monaco-editor-wrapper {
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        overflow: visible;
+        background-color: #fff;
+        margin-bottom: 1rem;
+        position: relative;
+    }
+
+    [data-bs-theme="dark"] .monaco-editor-wrapper {
+        border-color: #495057;
+        background-color: #1b1f24;
+    }
+
+    .monaco-editor-toolbar {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        padding: 8px 12px;
+        background-color: #f8f9fa;
+        border-bottom: 1px solid #ccc;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        row-gap: 12px;
+    }
+
+    [data-bs-theme="dark"] .monaco-editor-toolbar {
+        background-color: #212529;
+        border-color: #495057;
+    }
+
+    .monaco-editor-toolbar .toolbar-left,
+    .monaco-editor-toolbar .toolbar-right {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+
+    .monaco-editor-toolbar .btn {
+        padding: 4px 8px;
+        font-size: 13px;
+    }
+
+    .monaco-editor-toolbar .btn i {
+        pointer-events: none;
+    }
+
+    .monaco-editor-toolbar .btn.active {
+        background-color: #0d6efd;
+        border-color: #0d6efd;
+        color: #fff;
+    }
+
+    .monaco-editor-container {
+        width: 100%;
+        min-height: 300px;
+        height: 300px;
+        position: relative;
+        overflow: visible;
+    }
+
+    .monaco-editor-wrapper.fullscreen {
+        position: fixed;
+        inset: 0;
+        z-index: 1060;
+        background-color: #0f1115;
+        padding: 12px;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .monaco-editor-wrapper.fullscreen .monaco-editor-toolbar {
+        border-radius: 6px;
+        margin-bottom: 10px;
+    }
+
+    .monaco-editor-wrapper.fullscreen .monaco-editor-container {
+        flex: 1;
+        min-height: 0;
+    }
+
+    body.monaco-editor-lock-scroll {
+        overflow: hidden;
+    }
+
+    .monaco-editor-resizer {
+        height: 10px;
+        cursor: ns-resize;
+        background: linear-gradient(90deg, transparent 0, #dee2e6 20%, #dee2e6 80%, transparent 100%);
+    }
+
+    [data-bs-theme="dark"] .monaco-editor-resizer {
+        background: linear-gradient(90deg, transparent 0, #495057 20%, #495057 80%, transparent 100%);
+    }
+
+    /* Expand Quick Fix dropdown to fit text */
+    .monaco-editor .action-widget {
+        min-width: 320px !important;
+        max-width: 640px !important;
+    }
+    .monaco-editor .action-widget .monaco-list {
+        width: auto !important;
+        min-width: 100%;
+    }
+    .monaco-editor .action-widget .monaco-list-row .monaco-icon-label {
+        width: auto !important;
+        white-space: normal;
+    }
+
+    @media (max-width: 768px) {
+        .monaco-editor-toolbar {
+            flex-direction: column;
+            align-items: flex-start;
+        }
+    }
+</style>
+
+<textarea name="{{ field_edit.name }}" id="{{ field_edit.name }}" style="display:none;">{{ field_edit.data or '' }}</textarea>
+<div id="monaco-wrapper-{{ field_edit.name|replace('.', '_')|replace('[', '_')|replace(']', '_') }}" class="monaco-editor-wrapper" data-object-name="{{ object_name or '' }}">
+    <div class="monaco-editor-toolbar">
+        <div class="toolbar-left">
+            <div class="btn-group btn-group-sm" role="group" aria-label="{{ gettext('Editing actions') }}">
+                <button type="button" class="btn btn-outline-secondary" id="monaco-btn-undo-{{ field_edit.name|replace('.', '_')|replace('[', '_')|replace(']', '_') }}" title="{{ gettext('Undo (Ctrl+Z)') }}">
+                    <i class="fa-solid fa-rotate-left"></i>
+                </button>
+                <button type="button" class="btn btn-outline-secondary" id="monaco-btn-redo-{{ field_edit.name|replace('.', '_')|replace('[', '_')|replace(']', '_') }}" title="{{ gettext('Redo (Ctrl+Shift+Z)') }}">
+                    <i class="fa-solid fa-rotate-right"></i>
+                </button>
+                <button type="button" class="btn btn-outline-secondary" id="monaco-btn-copy-{{ field_edit.name|replace('.', '_')|replace('[', '_')|replace(']', '_') }}" title="{{ gettext('Copy entire code') }}">
+                    <i class="fa-solid fa-copy"></i>
+                </button>
+                <button type="button" class="btn btn-outline-secondary" id="monaco-btn-find-{{ field_edit.name|replace('.', '_')|replace('[', '_')|replace(']', '_') }}" title="{{ gettext('Find/replace (Ctrl+F)') }}">
+                    <i class="fa-solid fa-magnifying-glass"></i>
+                </button>
+                <button type="button" class="btn btn-outline-secondary" id="monaco-btn-save-{{ field_edit.name|replace('.', '_')|replace('[', '_')|replace(']', '_') }}" title="{{ gettext('Save template') }}">
+                    <i class="fa-solid fa-floppy-disk"></i>
+                </button>
+                <button type="button" class="btn btn-outline-secondary" id="monaco-btn-help-{{ field_edit.name|replace('.', '_')|replace('[', '_')|replace(']', '_') }}" title="{{ gettext('Documentation') }}">
+                    <i class="fa-solid fa-circle-question"></i>
+                </button>
+                {% if syntax == 'python' %}
+                <button type="button" class="btn btn-outline-success" id="monaco-btn-validate-{{ field_edit.name|replace('.', '_')|replace('[', '_')|replace(']', '_') }}" title="{{ gettext('Validate syntax') }}">
+                    <i class="fa-solid fa-check-double"></i>
+                </button>
+                {% endif %}
+            </div>
+            <div class="btn-group btn-group-sm" role="group" aria-label="{{ gettext('View options') }}">
+                <button type="button" class="btn btn-outline-secondary" id="monaco-btn-wrap-{{ field_edit.name|replace('.', '_')|replace('[', '_')|replace(']', '_') }}" title="{{ gettext('Toggle line wrap') }}">
+                    <i class="fa-solid fa-align-left"></i>
+                </button>
+                <button type="button" class="btn btn-outline-secondary" id="monaco-btn-gutter-{{ field_edit.name|replace('.', '_')|replace('[', '_')|replace(']', '_') }}" title="{{ gettext('Toggle line numbers') }}">
+                    <i class="fa-solid fa-list-ol"></i>
+                </button>
+                <button type="button" class="btn btn-outline-secondary" id="monaco-btn-minimap-{{ field_edit.name|replace('.', '_')|replace('[', '_')|replace(']', '_') }}" title="{{ gettext('Toggle minimap') }}">
+                    <i class="fa-solid fa-eye"></i>
+                </button>
+                <button type="button" class="btn btn-outline-secondary" id="monaco-btn-fullscreen-{{ field_edit.name|replace('.', '_')|replace('[', '_')|replace(']', '_') }}" title="{{ gettext('Fullscreen mode') }}">
+                    <i class="fa-solid fa-expand"></i>
+                </button>
+            </div>
+        </div>
+        <div class="toolbar-right">
+            <span class="text-muted small">{{ gettext('Monaco Editor') }}</span>
+        </div>
+    </div>
+    <div id="monaco-editor-{{ field_edit.name|replace('.', '_')|replace('[', '_')|replace(']', '_') }}" class="monaco-editor-container"></div>
+    <div id="monaco-resize-{{ field_edit.name|replace('.', '_')|replace('[', '_')|replace(']', '_') }}" class="monaco-editor-resizer"></div>
+</div>
+
+<script>
+(function() {
+    var editorKey = "{{ field_edit.name|replace('.', '_')|replace('[', '_')|replace(']', '_') }}";
+    var editorId = "monaco-editor-" + editorKey;
+    var wrapperId = "monaco-wrapper-" + editorKey;
+    var editorHelpUrl = "{{ config.get('CODE_EDITOR_HELP_URL', '/docs/index.html') }}";
+    var syntax = "{{ syntax }}";
+    var hiddenField = document.getElementById('{{ field_edit.name }}');
+    var container = document.getElementById(editorId);
+    var wrapper = document.getElementById(wrapperId);
+    var objectName = wrapper ? (wrapper.dataset.objectName || null) : null;
+    var resizer = document.getElementById("monaco-resize-" + editorKey);
+    var formElement = container ? container.closest('form') : null;
+    var isPython = syntax === "python";
+    var MONACO_BASE = "{{ config.ASSETS_ROOT }}/plugins/monaco/vs";
+    var MONACO_CDN_BASE = "https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.52.0/min/vs";
+    var currentDiagnostics = [];
+    var suppressedDiagCodes = JSON.parse(localStorage.getItem(prefKey('suppress-diags')) || "[]");
+    var currentDiagnostics = [];
+
+    function getBootstrapTheme() {
+        var bodyTag = document.querySelector('[data-tag="body"]') || document.body;
+        return bodyTag.getAttribute('data-bs-theme') || 'light';
+    }
+
+    function prefKey(name) {
+        return 'monaco-pref-' + editorKey + '-' + name;
+    }
+
+    function getPref(name, defaultValue) {
+        var raw = localStorage.getItem(prefKey(name));
+        if (raw === null) return defaultValue;
+        if (raw === 'true' || raw === 'false') return raw === 'true';
+        return raw;
+    }
+
+    function setPref(name, value) {
+        var normalized = typeof value === 'boolean' ? (value ? 'true' : 'false') : value;
+        localStorage.setItem(prefKey(name), normalized);
+    }
+
+    // === LSP helpers (HTTP + optional websocket fallback) ===
+    var lspPending = window.__monacoLspPending || {};
+    window.__monacoLspPending = lspPending;
+
+    function ensureSocketLspListener() {
+        if (!window.socket || window.__monacoLspBound) return;
+        window.__monacoLspBound = true;
+        window.socket.on('lsp', function(resp) {
+            if (!resp || !resp.requestId) return;
+            var entry = lspPending[resp.requestId];
+            if (!entry) return;
+            clearTimeout(entry.timeout);
+            delete lspPending[resp.requestId];
+            if (resp.success === false || resp.error) {
+                entry.reject(new Error(resp.error || 'LSP error'));
+                return;
+            }
+            entry.resolve(resp);
+        });
+    }
+
+    function lspRequest(action, payload) {
+        payload = payload || {};
+        payload.action = action;
+        if (objectName) {
+            payload.object_name = objectName;
+        }
+
+        var useSocket = window.socket && window.socket.connected;
+        if (useSocket) {
+            ensureSocketLspListener();
+            return new Promise(function(resolve, reject) {
+                var requestId = editorKey + "-" + Date.now() + "-" + Math.random().toString(16).slice(2);
+                var message = Object.assign({ requestId: requestId }, payload);
+                var timer = setTimeout(function() {
+                    delete lspPending[requestId];
+                    reject(new Error('LSP websocket timeout'));
+                }, 5000);
+                lspPending[requestId] = { resolve: resolve, reject: reject, timeout: timer };
+                try {
+                    window.socket.emit('lsp', message);
+                } catch (err) {
+                    clearTimeout(timer);
+                    delete lspPending[requestId];
+                    reject(err);
+                }
+            });
+        }
+
+        return fetch('/api/utils/lsp/python', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        }).then(function(resp) { return resp.json(); }).then(function(data) {
+            if (data && data.success === false) {
+                throw new Error(data.error || 'LSP request failed');
+            }
+            return data;
+        });
+    }
+
+    var toolbarButtons = {
+        undo: document.getElementById("monaco-btn-undo-" + editorKey),
+        redo: document.getElementById("monaco-btn-redo-" + editorKey),
+        copy: document.getElementById("monaco-btn-copy-" + editorKey),
+        find: document.getElementById("monaco-btn-find-" + editorKey),
+        save: document.getElementById("monaco-btn-save-" + editorKey),
+        help: document.getElementById("monaco-btn-help-" + editorKey),
+        validate: document.getElementById("monaco-btn-validate-" + editorKey),
+        wrap: document.getElementById("monaco-btn-wrap-" + editorKey),
+        gutter: document.getElementById("monaco-btn-gutter-" + editorKey),
+        minimap: document.getElementById("monaco-btn-minimap-" + editorKey),
+        fullscreen: document.getElementById("monaco-btn-fullscreen-" + editorKey)
+    };
+
+    function bindButton(button, handler) {
+        if (!button) return;
+        button.addEventListener('click', function(event) {
+            event.preventDefault();
+            handler();
+        });
+    }
+
+    function setButtonActive(button, state) {
+        if (!button) return;
+        button.classList.toggle('active', !!state);
+    }
+
+    function loadMonaco() {
+        if (window.__monacoLoadPromise) return window.__monacoLoadPromise;
+
+        function loadFromBase(baseUrl, onFail) {
+            function configureAndLoad() {
+                if (window.monaco && window.monaco.editor) {
+                    return Promise.resolve(window.monaco);
+                }
+
+                if (typeof require !== 'undefined' && require.config) {
+                    require.config({ paths: { 'vs': baseUrl } });
+                    return new Promise(function(resolve, reject) {
+                        require(['vs/editor/editor.main'], function(monaco) { resolve(monaco); }, function(err) {
+                            if (onFail) { onFail(err); } else { reject(err); }
+                        });
+                    });
+                }
+
+                return new Promise(function(resolve, reject) {
+                    var script = document.createElement('script');
+                    script.src = baseUrl + '/loader.js';
+                    script.onload = function() {
+                        if (typeof require === 'undefined' || !require.config) {
+                            if (onFail) return onFail(new Error('Require not available after loader'));
+                            return reject(new Error('Require not available after loader'));
+                        }
+                        require.config({ paths: { 'vs': baseUrl } });
+                        require(['vs/editor/editor.main'], function(monaco) { resolve(monaco); }, function(err) {
+                            if (onFail) { onFail(err); } else { reject(err); }
+                        });
+                    };
+                    script.onerror = function(err) {
+                        if (onFail) { onFail(err); } else { reject(err); }
+                    };
+                    document.head.appendChild(script);
+                });
+            }
+
+            return configureAndLoad();
+        }
+
+        window.__monacoLoadPromise = new Promise(function(resolve, reject) {
+            loadFromBase(MONACO_BASE, function() {
+                console.warn('Local Monaco load failed, falling back to CDN');
+                loadFromBase(MONACO_CDN_BASE, function(err) {
+                    reject(err || new Error('Monaco load failed (local and CDN)'));
+                }).then(resolve);
+            }).then(resolve);
+        });
+
+        return window.__monacoLoadPromise;
+    }
+
+    function languageForSyntax(value) {
+        var map = {
+            python: 'python',
+            js: 'javascript',
+            javascript: 'javascript',
+            ts: 'typescript',
+            typescript: 'typescript',
+            json: 'json',
+            html: 'html',
+            xml: 'xml',
+            css: 'css',
+            yaml: 'yaml',
+            yml: 'yaml',
+            txt: 'plaintext',
+            text: 'plaintext'
+        };
+        return map[value] || value || 'plaintext';
+    }
+
+    function copyAll(text) {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).catch(function(err) {
+                console.warn('Clipboard write failed', err);
+            });
+            return;
+        }
+        var tmp = document.createElement('textarea');
+        tmp.value = text;
+        document.body.appendChild(tmp);
+        tmp.select();
+        try { document.execCommand('copy'); } catch(e) { console.warn('Copy failed', e); }
+        document.body.removeChild(tmp);
+    }
+
+    loadMonaco().then(function(monaco) {
+        if (!container) return;
+
+        var storedHeight = getPref('height', '300px');
+        container.style.height = storedHeight;
+
+        var editor = monaco.editor.create(container, {
+            value: hiddenField ? (hiddenField.value || '') : '',
+            language: languageForSyntax(syntax),
+            automaticLayout: true,
+            wordWrap: getPref('wrap', true) ? 'on' : 'off',
+            lineNumbers: getPref('gutter', true) ? 'on' : 'off',
+            minimap: { enabled: getPref('minimap', false) },
+            theme: getBootstrapTheme() === 'dark' ? 'vs-dark' : 'vs'
+        });
+
+        function syncValue() {
+            if (hiddenField) {
+                hiddenField.value = editor.getValue();
+            }
+        }
+
+        editor.getModel().onDidChangeContent(syncValue);
+        syncValue();
+
+        function performSave() {
+            syncValue();
+            if (formElement) {
+                if (typeof formElement.requestSubmit === 'function') {
+                    formElement.requestSubmit();
+                } else {
+                    formElement.submit();
+                }
+            }
+        }
+
+        bindButton(toolbarButtons.undo, function() { editor.trigger('keyboard', 'undo', null); });
+        bindButton(toolbarButtons.redo, function() { editor.trigger('keyboard', 'redo', null); });
+        bindButton(toolbarButtons.copy, function() { copyAll(editor.getValue()); });
+        bindButton(toolbarButtons.find, function() { editor.getAction('actions.find').run(); });
+        bindButton(toolbarButtons.save, performSave);
+        bindButton(toolbarButtons.help, function() { window.open(editorHelpUrl, '_blank', 'noopener'); });
+
+        bindButton(toolbarButtons.wrap, function() {
+            var next = editor.getOption(monaco.editor.EditorOption.wordWrap) === 'off';
+            editor.updateOptions({ wordWrap: next ? 'on' : 'off' });
+            setPref('wrap', next);
+            setButtonActive(toolbarButtons.wrap, next);
+        });
+
+        bindButton(toolbarButtons.gutter, function() {
+            var raw = editor.getRawOptions();
+            var isOn = raw.lineNumbers !== 'off';
+            var nextOn = !isOn;
+            editor.updateOptions({ lineNumbers: nextOn ? 'on' : 'off' });
+            setPref('gutter', nextOn);
+            setButtonActive(toolbarButtons.gutter, nextOn);
+        });
+
+        bindButton(toolbarButtons.minimap, function() {
+            var rawOptions = editor.getRawOptions();
+            var current = rawOptions.minimap && rawOptions.minimap.enabled;
+            var next = !current;
+            editor.updateOptions({ minimap: { enabled: next } });
+            setPref('minimap', next);
+            setButtonActive(toolbarButtons.minimap, next);
+        });
+
+        var isFullscreen = false;
+        bindButton(toolbarButtons.fullscreen, function() {
+            isFullscreen = !isFullscreen;
+            wrapper.classList.toggle('fullscreen', isFullscreen);
+            document.body.classList.toggle('monaco-editor-lock-scroll', isFullscreen);
+            if (toolbarButtons.fullscreen) {
+                var icon = toolbarButtons.fullscreen.querySelector('i');
+                if (icon) {
+                    icon.classList.toggle('fa-expand', !isFullscreen);
+                    icon.classList.toggle('fa-compress', isFullscreen);
+                }
+            }
+            editor.layout();
+        });
+
+        setButtonActive(toolbarButtons.wrap, editor.getOption(monaco.editor.EditorOption.wordWrap) === 'on');
+        var initialGutter = editor.getRawOptions().lineNumbers !== 'off';
+        setButtonActive(toolbarButtons.gutter, initialGutter);
+        var initialMinimap = editor.getRawOptions().minimap && editor.getRawOptions().minimap.enabled;
+        setButtonActive(toolbarButtons.minimap, initialMinimap);
+        setButtonActive(toolbarButtons.fullscreen, false);
+
+        editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, function() {
+            performSave();
+        });
+
+        // === Python IntelliSense via LSP ===
+        if (isPython) {
+            var diagTimer = null;
+
+            function completionKind(kind) {
+                var map = {
+                    function: monaco.languages.CompletionItemKind.Function,
+                    class: monaco.languages.CompletionItemKind.Class,
+                    method: monaco.languages.CompletionItemKind.Method,
+                    variable: monaco.languages.CompletionItemKind.Variable,
+                    field: monaco.languages.CompletionItemKind.Field,
+                    property: monaco.languages.CompletionItemKind.Property,
+                    keyword: monaco.languages.CompletionItemKind.Keyword,
+                    module: monaco.languages.CompletionItemKind.Module,
+                    text: monaco.languages.CompletionItemKind.Text
+                };
+                return map[kind] || monaco.languages.CompletionItemKind.Text;
+            }
+
+            function toCompletion(item) {
+                var label = item.name || '';
+                var detail = item.signature || item.meta || '';
+                var doc = item.doc || '';
+                var documentation = doc ? { value: "**" + label + "** " + detail + "\n\n" + doc } : detail;
+                // Не вставляем параметры: используем чистое имя без хвоста после "("
+                var insertText = label.replace(/\(.*$/, '');
+                return {
+                    label: label,
+                    insertText: insertText,
+                    kind: completionKind(item.type),
+                    detail: detail,
+                    documentation: documentation
+                };
+            }
+
+            function mapSeverity(code) {
+                if (code === 1) return monaco.MarkerSeverity.Error;
+                if (code === 2) return monaco.MarkerSeverity.Warning;
+                if (code === 3) return monaco.MarkerSeverity.Info;
+                return monaco.MarkerSeverity.Hint;
+            }
+
+            function applyLspDiagnostics(diags) {
+                var model = editor.getModel();
+                if (!model) return;
+                currentDiagnostics = (diags || []).filter(function(d) {
+                    var code = (d.code || "").toString();
+                    return !(code && suppressedDiagCodes.indexOf(code) !== -1);
+                });
+                var markers = (currentDiagnostics || []).map(function(diag) {
+                    var rng = diag.range || {};
+                    var start = rng.start || {};
+                    var end = rng.end || start;
+                    return {
+                        startLineNumber: (start.line || 0) + 1,
+                        startColumn: (start.character || 0) + 1,
+                        endLineNumber: (end.line || start.line || 0) + 1,
+                        endColumn: (end.character || start.character || 0) + 1,
+                        message: diag.message || diag.msg || "Error",
+                        severity: mapSeverity(diag.severity)
+                    };
+                });
+                monaco.editor.setModelMarkers(model, "python-validate", markers);
+            }
+
+            function requestDiagnostics() {
+                var code = editor.getValue();
+                if (!code.trim()) {
+                    applyLspDiagnostics([]);
+                    return;
+                }
+                lspRequest('diagnostics', { code: code })
+                    .then(function(resp) {
+                        applyLspDiagnostics(resp.diagnostics || []);
+                    })
+                    .catch(function(err) {
+                        console.warn('Validation failed', err);
+                        applyLspDiagnostics([]);
+                    });
+            }
+
+            monaco.languages.registerCompletionItemProvider('python', {
+                triggerCharacters: ['.', '(', '"', "'"],
+                provideCompletionItems: function(model, position) {
+                    var payload = {
+                        code: model.getValue(),
+                        line: position.lineNumber,
+                        column: Math.max(0, position.column - 1)
+                    };
+                    return lspRequest('completion', payload)
+                        .then(function(resp) {
+                            var items = resp.items || [];
+                            return { suggestions: items.map(toCompletion) };
+                        })
+                        .catch(function(err) {
+                            console.warn('LSP completion failed', err);
+                            return { suggestions: [] };
+                        });
+                }
+            });
+
+            monaco.languages.registerHoverProvider('python', {
+                provideHover: function(model, position) {
+                    var payload = {
+                        code: model.getValue(),
+                        line: position.lineNumber,
+                        column: Math.max(0, position.column - 1)
+                    };
+                    return lspRequest('hover', payload)
+                        .then(function(resp) {
+                            var hover = resp.hover;
+                            if (!hover || !hover.contents) return null;
+                            var contentValue = typeof hover.contents === 'string'
+                                ? hover.contents
+                                : (hover.contents.value || "");
+                            var range = hover.range || {};
+                            var start = range.start || {};
+                            var end = range.end || start;
+                            return {
+                                contents: [{ value: contentValue }],
+                                range: range.start ? {
+                                    startLineNumber: (start.line || 0) + 1,
+                                    startColumn: (start.character || 0) + 1,
+                                    endLineNumber: (end.line || start.line || 0) + 1,
+                                    endColumn: (end.character || start.character || 0) + 1
+                                } : undefined
+                            };
+                        })
+                        .catch(function(err) {
+                            console.warn('LSP hover failed', err);
+                            return null;
+                        });
+                }
+            });
+
+            monaco.languages.registerSignatureHelpProvider('python', {
+                signatureHelpTriggerCharacters: ['(', ','],
+                provideSignatureHelp: function(model, position) {
+                    var payload = {
+                        code: model.getValue(),
+                        line: position.lineNumber,
+                        column: Math.max(0, position.column - 1)
+                    };
+                    return lspRequest('signature', payload)
+                        .then(function(resp) {
+                            var sig = resp.signature;
+                            if (!sig) {
+                                return {
+                                    value: { signatures: [], activeSignature: 0, activeParameter: 0 },
+                                    dispose: function() {}
+                                };
+                            }
+                            return {
+                                value: {
+                                    signatures: [{
+                                        label: sig.label || '',
+                                        documentation: sig.doc || '',
+                                        parameters: (sig.parameters || []).map(function(p) { return { label: p }; })
+                                    }],
+                                    activeSignature: 0,
+                                    activeParameter: sig.activeParameter || 0
+                                },
+                                dispose: function() {}
+                            };
+                        })
+                        .catch(function(err) {
+                            console.warn('LSP signature failed', err);
+                            return { value: { signatures: [], activeSignature: 0, activeParameter: 0 }, dispose: function() {} };
+                        });
+                }
+            });
+
+            editor.onDidChangeModelContent(function() {
+                clearTimeout(diagTimer);
+                diagTimer = setTimeout(requestDiagnostics, 700);
+            });
+
+            requestDiagnostics();
+            bindButton(toolbarButtons.validate, requestDiagnostics);
+
+            // === Quick-fix style actions for diagnostics (lightbulb) ===
+            var copyDiagCommand = editor.addCommand(0, function(_, args) {
+                var msg = args && args.message ? args.message : '';
+                if (!msg) return;
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(msg);
+                }
+            });
+
+            var suppressDiagCommand = editor.addCommand(0, function(_, args) {
+                var code = args && args.code ? args.code.toString() : '';
+                if (!code) return;
+                if (suppressedDiagCodes.indexOf(code) === -1) {
+                    suppressedDiagCodes.push(code);
+                    localStorage.setItem(prefKey('suppress-diags'), JSON.stringify(suppressedDiagCodes));
+                    requestDiagnostics();
+                }
+            });
+
+            var resetSuppressDiagCommand = editor.addCommand(0, function() {
+                suppressedDiagCodes = [];
+                localStorage.setItem(prefKey('suppress-diags'), JSON.stringify(suppressedDiagCodes));
+                requestDiagnostics();
+            });
+
+            var openDiagDocCommand = editor.addCommand(0, function(_, args) {
+                var code = args && args.code ? args.code.toString() : '';
+                if (!code) return;
+                var url = "https://www.flake8rules.com/rules/" + encodeURIComponent(code) + ".html"
+                window.open(url, "_blank", "noopener");
+            });
+
+            var trimWhitespaceCommand = editor.addCommand(0, function(_, args) {
+                var lineNumber = args && args.lineNumber;
+                if (!lineNumber) return;
+                var model = editor.getModel();
+                if (!model) return;
+                var lineText = model.getLineContent(lineNumber);
+                var trimmed = lineText.replace(/\s+$/, '');
+                if (trimmed === lineText) return;
+                editor.executeEdits('trim-whitespace', [{
+                    range: new monaco.Range(lineNumber, 1, lineNumber, lineText.length + 1),
+                    text: trimmed
+                }]);
+                requestDiagnostics();
+            });
+
+            monaco.languages.registerCodeActionProvider('python', {
+                providedCodeActionKinds: ['quickfix'],
+                provideCodeActions: function(model, range, context) {
+                    var actions = [];
+                    var line = range.startLineNumber;
+                    function addTrimWhitespaceAction(diag, startLine) {
+                        actions.push({
+                            title: "{{ gettext('Trim trailing whitespace') }}",
+                            kind: 'quickfix',
+                            diagnostics: [diag],
+                            command: {
+                                id: trimWhitespaceCommand,
+                                title: "{{ gettext('Trim trailing whitespace') }}",
+                                arguments: [{ lineNumber: startLine }]
+                            }
+                        });
+                    }
+                    currentDiagnostics.forEach(function(diag) {
+                        var rng = diag.range || {};
+                        var start = rng.start || {};
+                        var end = rng.end || start;
+                        var startLine = (start.line || 0) + 1;
+                        var endLine = (end.line || start.line || 0) + 1;
+                        if (line < startLine || line > endLine) return;
+                        var title = diag.message || diag.text || 'Diagnostic';
+                        var code = (diag.code || '').toString();
+                        var suppressed = code && suppressedDiagCodes.indexOf(code) !== -1;
+                        var isW293 = code === 'W293' || code === 'W291';
+                        actions.push({
+                            title: "{{ gettext('Copy diagnostic message') }}" + " " + code,
+                            kind: 'quickfix',
+                            diagnostics: [diag],
+                            command: {
+                                id: copyDiagCommand,
+                                title: "{{ gettext('Copy diagnostic message') }}",
+                                arguments: [{ message: title }]
+                            }
+                        });
+                        if (isW293) {
+                            addTrimWhitespaceAction(diag, startLine);
+                        }
+                        if (code && !suppressed) {
+                            actions.push({
+                                title: "{{ gettext('Suppress diagnostic code') }} " + code,
+                                kind: 'quickfix',
+                                diagnostics: [diag],
+                                command: {
+                                    id: suppressDiagCommand,
+                                    title: "{{ gettext('Suppress diagnostic code') }}",
+                                    arguments: [{ code: code }]
+                                }
+                            });
+                            actions.push({
+                                title: "{{ gettext('Open docs for code') }} " + code,
+                                kind: 'quickfix',
+                                diagnostics: [diag],
+                                command: {
+                                    id: openDiagDocCommand,
+                                    title: "{{ gettext('Open docs for code') }}",
+                                    arguments: [{ code: code }]
+                                }
+                            });
+                        }
+                    });
+                    return { actions: actions, dispose: function() {} };
+                }
+            });
+
+            editor.addAction({
+                id: 'reset-suppressed-diags',
+                label: "{{ gettext('Reset suppressed diagnostics') }}",
+                keybindings: [],
+                contextMenuGroupId: 'navigation',
+                contextMenuOrder: 1.5,
+                run: function() {
+                    suppressedDiagCodes = [];
+                    localStorage.setItem(prefKey('suppress-diags'), JSON.stringify(suppressedDiagCodes));
+                    requestDiagnostics();
+                }
+            });
+        }
+
+        if (formElement) {
+            formElement.addEventListener('submit', function() {
+                syncValue();
+            });
+        }
+
+        window.addEventListener('resize', function() {
+            editor.layout();
+        });
+
+        document.addEventListener('keydown', function(evt) {
+            if (isFullscreen && evt.key === 'Escape') {
+                toolbarButtons.fullscreen && toolbarButtons.fullscreen.click();
+            }
+        });
+
+        var bodyTag = document.querySelector('[data-tag="body"]') || document.body;
+        var themeObserver = new MutationObserver(function(mutations) {
+            mutations.forEach(function(mutation) {
+                if (mutation.type === 'attributes' && mutation.attributeName === 'data-bs-theme') {
+                    var theme = getBootstrapTheme() === 'dark' ? 'vs-dark' : 'vs';
+                    monaco.editor.setTheme(theme);
+                }
+            });
+        });
+
+        themeObserver.observe(bodyTag, {
+            attributes: true,
+            attributeFilter: ['data-bs-theme']
+        });
+
+        if (resizer) {
+            var startY = 0;
+            var startHeight = 0;
+
+            function onMove(e) {
+                var delta = e.clientY - startY;
+                var next = Math.max(200, startHeight + delta);
+                container.style.height = next + 'px';
+                setPref('height', container.style.height);
+                editor.layout();
+            }
+
+            function onUp() {
+                document.removeEventListener('mousemove', onMove);
+                document.removeEventListener('mouseup', onUp);
+            }
+
+            resizer.addEventListener('mousedown', function(e) {
+                startY = e.clientY;
+                startHeight = container.getBoundingClientRect().height;
+                document.addEventListener('mousemove', onMove);
+                document.addEventListener('mouseup', onUp);
+                e.preventDefault();
+            });
+        }
+    }).catch(function(err) {
+        console.error('Monaco init failed', err);
+    });
+})();
+</script>
+{% endmacro %}

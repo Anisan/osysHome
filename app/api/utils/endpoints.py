@@ -8,6 +8,7 @@ from app.authentication.handlers import handle_admin_required, handle_user_requi
 from app.logging_config import getLogger
 from app.extensions import cache
 from app.database import session_scope
+from app.core.lsp_client import run_lsp_action
 
 _logger = getLogger("api")
 
@@ -140,6 +141,47 @@ class IntelliPython(Resource):
     def get(self):
         cache = current_app.extensions.get('intelli_cache', [])
         return {"symbols": cache}
+
+
+lsp_request_model = utils_ns.model(
+    "LspPythonRequest",
+    {
+        "action": fields.String(required=True, description="completion | hover | diagnostics | signature"),
+        "code": fields.String(required=True, description="Python code to analyze"),
+        "line": fields.Integer(required=False, description="1-based line number for position-based actions"),
+        "column": fields.Integer(required=False, description="0-based column number for position-based actions"),
+        "object_name": fields.String(required=False, description="Object name for self binding"),
+    },
+)
+
+
+@utils_ns.route("/lsp/python")
+class LspPython(Resource):
+    @api_key_required
+    @handle_user_required
+    @utils_ns.expect(lsp_request_model, validate=False)
+    @utils_ns.doc(security="apikey")
+    def post(self):
+        """
+        Python LSP bridge (completion / hover / diagnostics / signature)
+        """
+        payload = request.get_json(force=True, silent=True) or {}
+        action = payload.get("action")
+        code = payload.get("code", "")
+        line = payload.get("line")
+        column = payload.get("column")
+        object_name = payload.get("object_name")
+
+        if not action:
+            return {"success": False, "error": "Action is required"}, 400
+
+        try:
+            result = run_lsp_action(action, code, line=line, column=column, object_name=object_name)
+            result["success"] = True
+            return result, 200
+        except Exception as ex:
+            _logger.exception(ex)
+            return {"success": False, "error": str(ex)}, 400
 
 
 run_model = utils_ns.model(

@@ -561,7 +561,9 @@ Attributes:
     methods: Dictionary of method managers.
 """
 class ObjectManager:
-    """ Object manager
+    """ 
+        Object manager
+
         Contain properties and methods
     """
     def __init__(self, obj: Object):
