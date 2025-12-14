@@ -151,6 +151,7 @@ lsp_request_model = utils_ns.model(
         "line": fields.Integer(required=False, description="1-based line number for position-based actions"),
         "column": fields.Integer(required=False, description="0-based column number for position-based actions"),
         "object_name": fields.String(required=False, description="Object name for self binding"),
+        "module_name": fields.String(required=False, description="Module path for self type (e.g., 'plugins.TelegramBot')"),
     },
 )
 
@@ -171,12 +172,13 @@ class LspPython(Resource):
         line = payload.get("line")
         column = payload.get("column")
         object_name = payload.get("object_name")
+        module_name = payload.get("module_name")
 
         if not action:
             return {"success": False, "error": "Action is required"}, 400
 
         try:
-            result = run_lsp_action(action, code, line=line, column=column, object_name=object_name)
+            result = run_lsp_action(action, code, line=line, column=column, object_name=object_name, module_name=module_name)
             result["success"] = True
             return result, 200
         except Exception as ex:

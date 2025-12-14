@@ -316,13 +316,19 @@ class PylspClient:
             self._context_cache[cache_key] = result
             return result
 
-    def _prepare_lsp_code(self, user_code: str, object_name: Optional[str] = None) -> tuple[str, int]:
+    def _prepare_lsp_code(self, user_code: str, object_name: Optional[str] = None, module_name: Optional[str] = None) -> tuple[str, int]:
         """
         Добавляет в пользовательский код пролог с импортами и подсказкой типа self.
         Возвращает готовый текст и смещение строк пролога.
         Использует кэширование для оптимизации производительности.
+        
+        Args:
+            user_code: Пользовательский код для анализа
+            object_name: Имя объекта (для self binding)
+            module_name: Путь к модулю для импорта класса (например, "plugins.TelegramBot")
+                         Если указан, используется вместо ObjectManager для типа self
         """
-        cache_key = (user_code, object_name)
+        cache_key = (user_code, object_name, module_name)
 
         # Проверяем кэш
         if cache_key in self._prepared_code_cache:
@@ -331,8 +337,12 @@ class PylspClient:
         # Создаем пролог
         prelude_lines = [f"from {mod} import *" for mod in MODULE_NAMES]
         if object_name:
+            # Используем ObjectManager по умолчанию
             prelude_lines.append("from app.core.main.ObjectManager import ObjectManager")
             prelude_lines.append("self: ObjectManager = None  # type: ignore")
+        if module_name:
+            prelude_lines.append(f"from plugins.{module_name} import {module_name}")
+            prelude_lines.append(f"self: {module_name} = None  # type: ignore")
         prelude_lines.append("")
         prelude_line_count = len(prelude_lines)
         full_code = "\n".join(prelude_lines + [user_code or ""])
@@ -997,6 +1007,7 @@ def run_lsp_action(
     column: Optional[int] = None,
     timeout: float = 2.5,
     object_name: Optional[str] = None,
+    module_name: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Выполняет действие LSP и возвращает унифицированный ответ для API / WS.
@@ -1006,12 +1017,14 @@ def run_lsp_action(
         line: номер строки (1-based)
         column: номер колонки (0-based)
         timeout: таймаут для diagnostics
+        object_name: имя объекта для self binding
+        module_name: путь к модулю для импорта класса (например, "plugins.TelegramBot")
     """
     normalized_action = (action or "").lower()
     safe_line = max(1, int(line or 1))
     safe_column = max(0, int(column or 0))
     obj_shape = pylsp_client._object_shape(object_name)
-    prepared_code, line_offset = pylsp_client._prepare_lsp_code(code, object_name)
+    prepared_code, line_offset = pylsp_client._prepare_lsp_code(code, object_name, module_name)
     adj_line = safe_line + line_offset
 
     if normalized_action == "completion":

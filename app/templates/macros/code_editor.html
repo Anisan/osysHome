@@ -1,9 +1,9 @@
-{% macro render_editor(field_edit, syntax, object_name=None) %}
+{% macro render_editor(field_edit, syntax, object_name=None, module_name=None) %}
 {# engine: "monaco" or "ace" (default) #}
 {% set engine = getProperty("SystemVar.code_editor") %}
 {% if engine == 'monaco' %}
     {% import 'macros/code_editor_monaco.html' as monaco_editor %}
-    {{ monaco_editor.render_editor(field_edit, syntax, object_name) }}
+    {{ monaco_editor.render_editor(field_edit, syntax, object_name, module_name) }}
 {% else %}
     {% import 'macros/code_editor_ace.html' as ace_editor %}
     {{ ace_editor.render_editor(field_edit, syntax, object_name) }}

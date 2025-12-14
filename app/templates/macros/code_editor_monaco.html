@@ -1,4 +1,4 @@
-{% macro render_editor(field_edit, syntax, object_name=None) %}
+{% macro render_editor(field_edit, syntax, object_name=None, module_name=None) %}
 <style>
     .monaco-editor-wrapper {
         border: 1px solid #ccc;
@@ -37,6 +37,66 @@
         align-items: center;
         flex-wrap: wrap;
         gap: 10px;
+    }
+
+    .monaco-editor-toolbar label {
+        margin: 0;
+        font-size: 13px;
+        font-weight: 500;
+        white-space: nowrap;
+        color: #212529;
+    }
+
+    [data-bs-theme="dark"] .monaco-editor-toolbar label {
+        color: #f8f9fa;
+    }
+
+    .monaco-editor-toolbar select {
+        font-size: 13px;
+        padding: 4px 8px;
+        border: 1px solid #ced4da;
+        border-radius: 4px;
+        background-color: #fff;
+        min-width: 140px;
+    }
+
+    [data-bs-theme="dark"] .monaco-editor-toolbar select {
+        background-color: #343a40;
+        border-color: #495057;
+        color: #f8f9fa;
+    }
+
+    .monaco-editor-toolbar .theme-selector {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .monaco-editor-toolbar .theme-selector[data-theme="dark"] {
+        display: none;
+    }
+
+    [data-bs-theme="dark"] .monaco-editor-toolbar .theme-selector[data-theme="light"] {
+        display: none;
+    }
+
+    [data-bs-theme="dark"] .monaco-editor-toolbar .theme-selector[data-theme="dark"] {
+        display: flex;
+    }
+
+    .monaco-editor-toolbar .divider {
+        width: 1px;
+        height: 24px;
+        background-color: #dee2e6;
+        margin: 0 4px;
+    }
+
+    [data-bs-theme="dark"] .monaco-editor-toolbar .divider {
+        background-color: #495057;
+    }
+
+    [data-bs-theme="dark"] .monaco-editor-toolbar .theme-divider {
+        display: none;
     }
 
     .monaco-editor-toolbar .btn {
@@ -115,11 +175,29 @@
             flex-direction: column;
             align-items: flex-start;
         }
+        
+        .monaco-editor-toolbar .divider {
+            display: none;
+        }
+        
+        .monaco-editor-toolbar .theme-selector {
+            width: 100%;
+        }
+        
+        .monaco-editor-toolbar select {
+            flex: 1;
+            min-width: auto;
+        }
+        
+        .monaco-editor-toolbar .toolbar-right {
+            width: 100%;
+            justify-content: flex-start;
+        }
     }
 </style>
 
 <textarea name="{{ field_edit.name }}" id="{{ field_edit.name }}" style="display:none;">{{ field_edit.data or '' }}</textarea>
-<div id="monaco-wrapper-{{ field_edit.name|replace('.', '_')|replace('[', '_')|replace(']', '_') }}" class="monaco-editor-wrapper" data-object-name="{{ object_name or '' }}">
+<div id="monaco-wrapper-{{ field_edit.name|replace('.', '_')|replace('[', '_')|replace(']', '_') }}" class="monaco-editor-wrapper" data-object-name="{{ object_name or '' }}" data-module-name="{{ module_name or '' }}">
     <div class="monaco-editor-toolbar">
         <div class="toolbar-left">
             <div class="btn-group btn-group-sm" role="group" aria-label="{{ gettext('Editing actions') }}">
@@ -163,7 +241,34 @@
             </div>
         </div>
         <div class="toolbar-right">
-            <span class="text-muted small">{{ gettext('Monaco Editor') }}</span>
+            <div class="theme-selector" data-theme="light">
+                <label for="monaco-theme-light-{{ field_edit.name|replace('.', '_')|replace('[', '_')|replace(']', '_') }}">{{ gettext('Light theme:') }}</label>
+                <select id="monaco-theme-light-{{ field_edit.name|replace('.', '_')|replace('[', '_')|replace(']', '_') }}" class="form-select form-select-sm" style="width: auto;">
+                    <option value="vs">Visual Studio</option>
+                    <option value="github">GitHub</option>
+                    <option value="xcode">Xcode</option>
+                    <option value="solarized-light">Solarized Light</option>
+                    <option value="tomorrow">Tomorrow</option>
+                    <option value="eclipse">Eclipse</option>
+                    <option value="clouds">Clouds</option>
+                    <option value="hc-light">High Contrast Light</option>
+                </select>
+            </div>
+            <div class="theme-selector" data-theme="dark">
+                <label for="monaco-theme-dark-{{ field_edit.name|replace('.', '_')|replace('[', '_')|replace(']', '_') }}">{{ gettext('Dark theme:') }}</label>
+                <select id="monaco-theme-dark-{{ field_edit.name|replace('.', '_')|replace('[', '_')|replace(']', '_') }}" class="form-select form-select-sm" style="width: auto;">
+                    <option value="vs-dark">Visual Studio Dark</option>
+                    <option value="monokai">Monokai</option>
+                    <option value="tomorrow-night">Tomorrow Night</option>
+                    <option value="dracula">Dracula</option>
+                    <option value="solarized-dark">Solarized Dark</option>
+                    <option value="twilight">Twilight</option>
+                    <option value="vibrant-ink">Vibrant Ink</option>
+                    <option value="merbivore">Merbivore</option>
+                    <option value="pastel-on-dark">Pastel on Dark</option>
+                    <option value="hc-black">High Contrast Dark</option>
+                </select>
+            </div>
         </div>
     </div>
     <div id="monaco-editor-{{ field_edit.name|replace('.', '_')|replace('[', '_')|replace(']', '_') }}" class="monaco-editor-container"></div>
@@ -175,19 +280,20 @@
     var editorKey = "{{ field_edit.name|replace('.', '_')|replace('[', '_')|replace(']', '_') }}";
     var editorId = "monaco-editor-" + editorKey;
     var wrapperId = "monaco-wrapper-" + editorKey;
+    var themeLightId = "monaco-theme-light-" + editorKey;
+    var themeDarkId = "monaco-theme-dark-" + editorKey;
     var editorHelpUrl = "{{ config.get('CODE_EDITOR_HELP_URL', '/docs/index.html') }}";
     var syntax = "{{ syntax }}";
     var hiddenField = document.getElementById('{{ field_edit.name }}');
     var container = document.getElementById(editorId);
     var wrapper = document.getElementById(wrapperId);
     var objectName = wrapper ? (wrapper.dataset.objectName || null) : null;
+    var moduleName = wrapper ? (wrapper.dataset.moduleName || null) : null;
     var resizer = document.getElementById("monaco-resize-" + editorKey);
     var formElement = container ? container.closest('form') : null;
     var isPython = syntax === "python";
     var MONACO_BASE = "{{ config.ASSETS_ROOT }}/plugins/monaco/vs";
     var MONACO_CDN_BASE = "https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.52.0/min/vs";
-    var currentDiagnostics = [];
-    var suppressedDiagCodes = JSON.parse(localStorage.getItem(prefKey('suppress-diags')) || "[]");
     var currentDiagnostics = [];
 
     function getBootstrapTheme() {
@@ -197,6 +303,32 @@
 
     function prefKey(name) {
         return 'monaco-pref-' + editorKey + '-' + name;
+    }
+
+    var suppressedDiagCodes = JSON.parse(localStorage.getItem(prefKey('suppress-diags')) || "[]");
+    var currentBootstrapTheme = getBootstrapTheme();
+
+    // === Функции для работы с темами ===
+    function getStoredTheme(themeType) {
+        var key = 'monaco-editor-theme-' + themeType + '-' + editorId;
+        return localStorage.getItem(key);
+    }
+
+    function setStoredTheme(themeType, themeName) {
+        var key = 'monaco-editor-theme-' + themeType + '-' + editorId;
+        localStorage.setItem(key, themeName);
+    }
+
+    function getMonacoTheme(bootstrapTheme) {
+        var storedTheme = getStoredTheme(bootstrapTheme);
+        if (storedTheme) {
+            return storedTheme;
+        }
+        // Значения по умолчанию
+        if (bootstrapTheme === 'dark') {
+            return 'vs-dark';
+        }
+        return 'vs';
     }
 
     function getPref(name, defaultValue) {
@@ -237,6 +369,9 @@
         payload.action = action;
         if (objectName) {
             payload.object_name = objectName;
+        }
+        if (moduleName) {
+            payload.module_name = moduleName;
         }
 
         var useSocket = window.socket && window.socket.connected;
@@ -389,8 +524,273 @@
     loadMonaco().then(function(monaco) {
         if (!container) return;
 
+        // === Определение кастомных тем ===
+        function defineCustomThemes() {
+            // GitHub Light
+            monaco.editor.defineTheme('github', {
+                base: 'vs',
+                inherit: true,
+                rules: [],
+                colors: {
+                    'editor.background': '#ffffff',
+                    'editor.foreground': '#24292e',
+                    'editorLineNumber.foreground': '#959da5',
+                    'editor.selectionBackground': '#c8e1ff',
+                    'editor.lineHighlightBackground': '#f6f8fa'
+                }
+            });
+
+            // Xcode
+            monaco.editor.defineTheme('xcode', {
+                base: 'vs',
+                inherit: true,
+                rules: [],
+                colors: {
+                    'editor.background': '#ffffff',
+                    'editor.foreground': '#000000',
+                    'editorLineNumber.foreground': '#828c96',
+                    'editor.selectionBackground': '#b5d5ff',
+                    'editor.lineHighlightBackground': '#f5f5f5'
+                }
+            });
+
+            // Solarized Light
+            monaco.editor.defineTheme('solarized-light', {
+                base: 'vs',
+                inherit: true,
+                rules: [
+                    { token: 'comment', foreground: '93a1a1', fontStyle: 'italic' },
+                    { token: 'keyword', foreground: '859900' },
+                    { token: 'string', foreground: '2aa198' },
+                    { token: 'number', foreground: 'd33682' }
+                ],
+                colors: {
+                    'editor.background': '#fdf6e3',
+                    'editor.foreground': '#657b83',
+                    'editorLineNumber.foreground': '#93a1a1',
+                    'editor.selectionBackground': '#eee8d5',
+                    'editor.lineHighlightBackground': '#fdf6e3'
+                }
+            });
+
+            // Tomorrow
+            monaco.editor.defineTheme('tomorrow', {
+                base: 'vs',
+                inherit: true,
+                rules: [
+                    { token: 'comment', foreground: '8e908c', fontStyle: 'italic' },
+                    { token: 'keyword', foreground: '8959a8' },
+                    { token: 'string', foreground: '718c00' },
+                    { token: 'number', foreground: 'f5871f' }
+                ],
+                colors: {
+                    'editor.background': '#ffffff',
+                    'editor.foreground': '#4d4d4c',
+                    'editorLineNumber.foreground': '#8e908c',
+                    'editor.selectionBackground': '#d6d6d6',
+                    'editor.lineHighlightBackground': '#efefef'
+                }
+            });
+
+            // Eclipse
+            monaco.editor.defineTheme('eclipse', {
+                base: 'vs',
+                inherit: true,
+                rules: [],
+                colors: {
+                    'editor.background': '#ffffff',
+                    'editor.foreground': '#000000',
+                    'editorLineNumber.foreground': '#808080',
+                    'editor.selectionBackground': '#316ac5',
+                    'editor.lineHighlightBackground': '#f0f0f0'
+                }
+            });
+
+            // Clouds
+            monaco.editor.defineTheme('clouds', {
+                base: 'vs',
+                inherit: true,
+                rules: [],
+                colors: {
+                    'editor.background': '#ffffff',
+                    'editor.foreground': '#000000',
+                    'editorLineNumber.foreground': '#888888',
+                    'editor.selectionBackground': '#b2d7ff',
+                    'editor.lineHighlightBackground': '#f5f5f5'
+                }
+            });
+
+            // Monokai
+            monaco.editor.defineTheme('monokai', {
+                base: 'vs-dark',
+                inherit: true,
+                rules: [
+                    { token: 'comment', foreground: '75715e', fontStyle: 'italic' },
+                    { token: 'keyword', foreground: 'f92672' },
+                    { token: 'string', foreground: 'e6db74' },
+                    { token: 'number', foreground: 'ae81ff' },
+                    { token: 'type', foreground: '66d9ef' },
+                    { token: 'function', foreground: 'a6e22e' }
+                ],
+                colors: {
+                    'editor.background': '#272822',
+                    'editor.foreground': '#f8f8f2',
+                    'editorLineNumber.foreground': '#75715e',
+                    'editor.selectionBackground': '#49483e',
+                    'editor.lineHighlightBackground': '#3e3d32'
+                }
+            });
+
+            // Tomorrow Night
+            monaco.editor.defineTheme('tomorrow-night', {
+                base: 'vs-dark',
+                inherit: true,
+                rules: [
+                    { token: 'comment', foreground: '969896', fontStyle: 'italic' },
+                    { token: 'keyword', foreground: 'b294bb' },
+                    { token: 'string', foreground: 'b5bd68' },
+                    { token: 'number', foreground: 'de935f' },
+                    { token: 'type', foreground: '81a2be' }
+                ],
+                colors: {
+                    'editor.background': '#1d1f21',
+                    'editor.foreground': '#c5c8c6',
+                    'editorLineNumber.foreground': '#969896',
+                    'editor.selectionBackground': '#373b41',
+                    'editor.lineHighlightBackground': '#282a2e'
+                }
+            });
+
+            // Dracula
+            monaco.editor.defineTheme('dracula', {
+                base: 'vs-dark',
+                inherit: true,
+                rules: [
+                    { token: 'comment', foreground: '6272a4', fontStyle: 'italic' },
+                    { token: 'keyword', foreground: 'ff79c6' },
+                    { token: 'string', foreground: 'f1fa8c' },
+                    { token: 'number', foreground: 'bd93f9' },
+                    { token: 'type', foreground: '8be9fd' },
+                    { token: 'function', foreground: '50fa7b' }
+                ],
+                colors: {
+                    'editor.background': '#282a36',
+                    'editor.foreground': '#f8f8f2',
+                    'editorLineNumber.foreground': '#6272a4',
+                    'editor.selectionBackground': '#44475a',
+                    'editor.lineHighlightBackground': '#313440'
+                }
+            });
+
+            // Solarized Dark
+            monaco.editor.defineTheme('solarized-dark', {
+                base: 'vs-dark',
+                inherit: true,
+                rules: [
+                    { token: 'comment', foreground: '586e75', fontStyle: 'italic' },
+                    { token: 'keyword', foreground: '859900' },
+                    { token: 'string', foreground: '2aa198' },
+                    { token: 'number', foreground: 'd33682' },
+                    { token: 'type', foreground: 'b58900' }
+                ],
+                colors: {
+                    'editor.background': '#002b36',
+                    'editor.foreground': '#839496',
+                    'editorLineNumber.foreground': '#586e75',
+                    'editor.selectionBackground': '#073642',
+                    'editor.lineHighlightBackground': '#073642'
+                }
+            });
+
+            // Twilight
+            monaco.editor.defineTheme('twilight', {
+                base: 'vs-dark',
+                inherit: true,
+                rules: [
+                    { token: 'comment', foreground: '5f5a60', fontStyle: 'italic' },
+                    { token: 'keyword', foreground: 'cda869' },
+                    { token: 'string', foreground: '8f9d6a' },
+                    { token: 'number', foreground: 'cf6a4c' },
+                    { token: 'type', foreground: '9b859d' }
+                ],
+                colors: {
+                    'editor.background': '#141414',
+                    'editor.foreground': '#f7f7f7',
+                    'editorLineNumber.foreground': '#5f5a60',
+                    'editor.selectionBackground': '#4a4a4a',
+                    'editor.lineHighlightBackground': '#1e1e1e'
+                }
+            });
+
+            // Vibrant Ink
+            monaco.editor.defineTheme('vibrant-ink', {
+                base: 'vs-dark',
+                inherit: true,
+                rules: [
+                    { token: 'comment', foreground: '9933cc', fontStyle: 'italic' },
+                    { token: 'keyword', foreground: 'ff6600' },
+                    { token: 'string', foreground: '66ff00' },
+                    { token: 'number', foreground: 'ffcc00' },
+                    { token: 'type', foreground: 'ffcc00' }
+                ],
+                colors: {
+                    'editor.background': '#000000',
+                    'editor.foreground': '#ffffff',
+                    'editorLineNumber.foreground': '#888888',
+                    'editor.selectionBackground': '#333333',
+                    'editor.lineHighlightBackground': '#1a1a1a'
+                }
+            });
+
+            // Merbivore
+            monaco.editor.defineTheme('merbivore', {
+                base: 'vs-dark',
+                inherit: true,
+                rules: [
+                    { token: 'comment', foreground: 'aeaeae', fontStyle: 'italic' },
+                    { token: 'keyword', foreground: 'cda869' },
+                    { token: 'string', foreground: '8f9d6a' },
+                    { token: 'number', foreground: 'cf6a4c' },
+                    { token: 'type', foreground: '9b859d' }
+                ],
+                colors: {
+                    'editor.background': '#161616',
+                    'editor.foreground': '#e6e1dc',
+                    'editorLineNumber.foreground': '#888888',
+                    'editor.selectionBackground': '#454545',
+                    'editor.lineHighlightBackground': '#1e1e1e'
+                }
+            });
+
+            // Pastel on Dark
+            monaco.editor.defineTheme('pastel-on-dark', {
+                base: 'vs-dark',
+                inherit: true,
+                rules: [
+                    { token: 'comment', foreground: '8c8c8c', fontStyle: 'italic' },
+                    { token: 'keyword', foreground: 'a8e1fe' },
+                    { token: 'string', foreground: 'b1d631' },
+                    { token: 'number', foreground: 'ffc66d' },
+                    { token: 'type', foreground: 'ffc66d' }
+                ],
+                colors: {
+                    'editor.background': '#2b2b2b',
+                    'editor.foreground': '#e6e1dc',
+                    'editorLineNumber.foreground': '#8c8c8c',
+                    'editor.selectionBackground': '#494949',
+                    'editor.lineHighlightBackground': '#323232'
+                }
+            });
+        }
+
+        // Определяем темы перед созданием редактора
+        defineCustomThemes();
+
         var storedHeight = getPref('height', '300px');
         container.style.height = storedHeight;
+
+        // Определяем начальную тему
+        var initialTheme = getMonacoTheme(currentBootstrapTheme);
 
         var editor = monaco.editor.create(container, {
             value: hiddenField ? (hiddenField.value || '') : '',
@@ -399,7 +799,7 @@
             wordWrap: getPref('wrap', true) ? 'on' : 'off',
             lineNumbers: getPref('gutter', true) ? 'on' : 'off',
             minimap: { enabled: getPref('minimap', false) },
-            theme: getBootstrapTheme() === 'dark' ? 'vs-dark' : 'vs'
+            theme: initialTheme
         });
 
         function syncValue() {
@@ -805,12 +1205,59 @@
             }
         });
 
+        // === Инициализация селектов тем ===
+        var themeLightSelect = document.getElementById(themeLightId);
+        var themeDarkSelect = document.getElementById(themeDarkId);
+
+        // Загружаем сохраненные темы в селекты
+        var storedLightTheme = getStoredTheme('light') || 'vs';
+        var storedDarkTheme = getStoredTheme('dark') || 'vs-dark';
+        
+        // Убеждаемся, что сохраненная тема существует в селекте
+        if (themeLightSelect && !themeLightSelect.querySelector('option[value="' + storedLightTheme + '"]')) {
+            storedLightTheme = 'vs';
+        }
+        if (themeDarkSelect && !themeDarkSelect.querySelector('option[value="' + storedDarkTheme + '"]')) {
+            storedDarkTheme = 'vs-dark';
+        }
+
+        if (themeLightSelect) {
+            themeLightSelect.value = storedLightTheme;
+            themeLightSelect.addEventListener('change', function() {
+                var selectedTheme = this.value;
+                setStoredTheme('light', selectedTheme);
+                if (currentBootstrapTheme === 'light') {
+                    monaco.editor.setTheme(selectedTheme);
+                }
+            });
+        }
+
+        if (themeDarkSelect) {
+            themeDarkSelect.value = storedDarkTheme;
+            themeDarkSelect.addEventListener('change', function() {
+                var selectedTheme = this.value;
+                setStoredTheme('dark', selectedTheme);
+                if (currentBootstrapTheme === 'dark') {
+                    monaco.editor.setTheme(selectedTheme);
+                }
+            });
+        }
+
+        // === Функция для переключения темы Monaco Editor ===
+        function updateMonacoTheme() {
+            var newBootstrapTheme = getBootstrapTheme();
+            if (newBootstrapTheme !== currentBootstrapTheme) {
+                currentBootstrapTheme = newBootstrapTheme;
+                var newMonacoTheme = getMonacoTheme(newBootstrapTheme);
+                monaco.editor.setTheme(newMonacoTheme);
+            }
+        }
+
         var bodyTag = document.querySelector('[data-tag="body"]') || document.body;
         var themeObserver = new MutationObserver(function(mutations) {
             mutations.forEach(function(mutation) {
                 if (mutation.type === 'attributes' && mutation.attributeName === 'data-bs-theme') {
-                    var theme = getBootstrapTheme() === 'dark' ? 'vs-dark' : 'vs';
-                    monaco.editor.setTheme(theme);
+                    updateMonacoTheme();
                 }
             });
         });
@@ -819,6 +1266,11 @@
             attributes: true,
             attributeFilter: ['data-bs-theme']
         });
+
+        // Применяем тему при инициализации
+        setTimeout(function() {
+            updateMonacoTheme();
+        }, 100);
 
         if (resizer) {
             var startY = 0;
