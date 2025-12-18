@@ -41,12 +41,12 @@ def getLogger(moduleName, level=None, logDirectory='logs'):
 
     # Общий формат для всех выводов
     formatter = logging.Formatter(
-        '%(asctime)s.%(msecs)03d[%(levelname)s] %(message)s',
+        '%(asctime)s.%(msecs)03d[%(levelname)s]%(message)s',
         datefmt='%H:%M:%S'
     )
     # Формат для ошибок
     formatter_error = logging.Formatter(
-        '%(asctime)s.%(msecs)03d[%(levelname)s][%(name)s] %(message)s',
+        '%(asctime)s.%(msecs)03d[%(levelname)s][%(name)s]%(message)s',
         datefmt='%H:%M:%S'
     )
 

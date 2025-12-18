@@ -47,6 +47,7 @@ class Property(SurrogatePK, db.Model):
     history = Column(db.Integer, default=0)
     # TODO type and validator
     type = Column(db.String(100))
+    params = Column(db.Text)  # JSON parameters for property (e.g., enum values)
 
 class Method(SurrogatePK, db.Model):
     __tablename__ = 'methods'

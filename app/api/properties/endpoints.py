@@ -228,7 +228,8 @@ class PropertyInfo(Resource):
         result['history'] = prop.history
         result['linked'] = prop.linked
         result['method'] = prop.method
-
+        result['params'] = prop.params
+       
         return {"success": True,
                 "result": result}, 200
 

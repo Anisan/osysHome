@@ -6,10 +6,15 @@ from app.core.main.ObjectsStorage import objects_storage
 from app.logging_config import getLogger
 from app.database import session_scope, row2dict
 from app.core.models.Clasess import Class, Object, Property, Value, Method, History
-from app.core.main.ObjectManager import ObjectManager, PropertyManager
+from app.core.main.ObjectManager import ObjectManager, PropertyManager, ObjectLoggerAdapter
 from app.core.lib.constants import PropertyType
 
 _logger = getLogger('object')
+
+
+def _get_object_logger(object_name: str):
+    """Create a logger adapter with object name context"""
+    return ObjectLoggerAdapter(_logger, {'object_name': object_name})
 
 def addClass(name:str, description:str='', parentId:int=None) -> dict:
     """Add a class to the database.
@@ -299,11 +304,12 @@ def getObject(name:str) -> ObjectManager:
     Returns:
         ObjectManager: Object
     """
+    logger = _get_object_logger(name)
     try:
         obj = objects_storage.getObjectByName(name)
         return obj
     except Exception as e:
-        _logger.exception('getObject %s: %s',name,e)
+        logger.exception('getObject %s: %s',name,e)
         return None
 
 def getObjectsByClass(class_name:str, subclasses:bool=True) -> list[ObjectManager]:
@@ -349,9 +355,11 @@ def getProperty(name:str, data:str = 'value'):
     Returns:
         Any Value property
     """
+    object_name = name.split(".")[0] if '.' in name else name
+    logger = _get_object_logger(object_name)
     try:
         if not isinstance(name, str) or '.' not in name:
-            _logger.error('Invalid property name format: %s', name)
+            logger.error('Invalid property name format: %s', name)
             return False
         obj = name.split(".")[0]
         prop = name.split(".")[1]
@@ -359,10 +367,10 @@ def getProperty(name:str, data:str = 'value'):
         if obj:
             return obj.getProperty(prop, data)
         else:
-            _logger.error('Object %s not found', obj)
+            logger.error('Object %s not found', name)
             return None
     except Exception as e:
-        _logger.exception('getProperty %s: %s',name,e)
+        logger.exception('getProperty %s: %s',name,e)
     return None
 
 def setProperty(name:str, value, source:str='', save_history:bool=None) -> bool:
@@ -377,10 +385,12 @@ def setProperty(name:str, value, source:str='', save_history:bool=None) -> bool:
     Returns:
         bool: Success set value
     """
+    object_name = name.split(".")[0] if '.' in name else name
+    logger = _get_object_logger(object_name)
     try:
-        _logger.debug('setProperty %s %s %s', name, value, source)
+        logger.debug('setProperty %s %s %s', name, value, source)
         if not isinstance(name, str) or '.' not in name:
-            _logger.error('Invalid property name format: %s', name)
+            logger.error('Invalid property name format: %s', name)
             return False
         obj = name.split(".")[0]
         prop = name.split(".")[1]
@@ -389,10 +399,10 @@ def setProperty(name:str, value, source:str='', save_history:bool=None) -> bool:
             obj.setProperty(prop, value, source, save_history)
             return True
         else:
-            _logger.error('Object %s not found', obj)
+            logger.error('Object %s not found', name)
             return False
     except Exception as e:
-        _logger.exception('setProperty %s: %s',name,e)
+        logger.exception('setProperty %s: %s',name,e)
     return False
 
 def setPropertyThread(name:str, value, source:str='', save_history:bool=None):
@@ -407,10 +417,12 @@ def setPropertyThread(name:str, value, source:str='', save_history:bool=None):
     Returns:
         bool: Success set value
     """
+    object_name = name.split(".")[0] if '.' in name else name
+    logger = _get_object_logger(object_name)
     try:
-        _logger.debug('setProperty %s %s %s', name, value, source)
+        logger.debug('setProperty %s %s %s', name, value, source)
         if not isinstance(name, str) or '.' not in name:
-            _logger.error('Invalid property name format: %s', name)
+            logger.error('Invalid property name format: %s', name)
             return False
         obj = name.split(".")[0]
         prop = name.split(".")[1]
@@ -424,10 +436,10 @@ def setPropertyThread(name:str, value, source:str='', save_history:bool=None):
             thread.start()
             return True
         else:
-            _logger.error('Object %s not found', obj)
+            logger.error('Object %s not found', name)
             return False
     except Exception as e:
-        _logger.exception('setPropertyThread %s: %s',name,e)
+        logger.exception('setPropertyThread %s: %s',name,e)
     return False
 
 def setPropertyTimeout(name: str, value, timeout: int, source:str=""):
@@ -439,10 +451,12 @@ def setPropertyTimeout(name: str, value, timeout: int, source:str=""):
         timeout (int): Timeout seconds
         source (str, optional): Source changing value. Defaults to ''.
     """
+    object_name = name.split(".")[0] if '.' in name else name
+    logger = _get_object_logger(object_name)
     try:
-        _logger.debug('setPropertyTimeout %s %s timeout:%s %s', name, value, timeout, source)
+        logger.debug('setPropertyTimeout %s %s timeout:%s %s', name, value, timeout, source)
         if not isinstance(name, str) or '.' not in name:
-            _logger.error('Invalid property name format: %s', name)
+            logger.error('Invalid property name format: %s', name)
             return False
         obj = name.split(".")[0]
         prop = name.split(".")[1]
@@ -451,10 +465,10 @@ def setPropertyTimeout(name: str, value, timeout: int, source:str=""):
             obj.setPropertyTimeout(prop, value, timeout, source)
             return True
         else:
-            _logger.error('Object %s not found', obj)
+            logger.error('Object %s not found', name)
             return False
     except Exception as e:
-        _logger.exception('setPropertyTimeout %s: %s',name,e)
+        logger.exception('setPropertyTimeout %s: %s',name,e)
     return False
 
 def updateProperty(name:str, value, source:str='') -> bool:
@@ -468,10 +482,12 @@ def updateProperty(name:str, value, source:str='') -> bool:
     Returns:
         bool: Success set value
     """
+    object_name = name.split(".")[0] if '.' in name else name
+    logger = _get_object_logger(object_name)
     try:
-        _logger.debug('updateProperty %s %s %s', name, value, source)
+        logger.debug('updateProperty %s %s %s', name, value, source)
         if not isinstance(name, str) or '.' not in name:
-            _logger.error('Invalid property name format: %s', name)
+            logger.error('Invalid property name format: %s', name)
             return False
         obj = name.split(".")[0]
         prop = name.split(".")[1]
@@ -479,10 +495,10 @@ def updateProperty(name:str, value, source:str='') -> bool:
         if obj:
             return obj.updateProperty(prop, value, source)
         else:
-            _logger.error('Object %s not found', obj)
+            logger.error('Object %s not found', name)
             return False
     except Exception as e:
-        _logger.exception('updateProperty %s: %s',name,e)
+        logger.exception('updateProperty %s: %s',name,e)
     return False
 
 def updatePropertyThread(name:str, value, source:str='') -> bool:
@@ -496,10 +512,12 @@ def updatePropertyThread(name:str, value, source:str='') -> bool:
     Returns:
         bool: Success set value
     """
+    object_name = name.split(".")[0] if '.' in name else name
+    logger = _get_object_logger(object_name)
     try:
-        _logger.debug('updatePropertyThread %s %s %s', name, value, source)
+        logger.debug('updatePropertyThread %s %s %s', name, value, source)
         if not isinstance(name, str) or '.' not in name:
-            _logger.error('Invalid property name format: %s', name)
+            logger.error('Invalid property name format: %s', name)
             return False
         obj = name.split(".")[0]
         prop = name.split(".")[1]
@@ -513,10 +531,10 @@ def updatePropertyThread(name:str, value, source:str='') -> bool:
             thread.start()
             return True
         else:
-            _logger.error('Object %s not found', obj)
+            logger.error('Object %s not found', name)
             return False
     except Exception as e:
-        _logger.exception('updateProperty %s: %s',name,e)
+        logger.exception('updateProperty %s: %s',name,e)
     return False
 
 def updatePropertyTimeout(name:str, value, timeout:int, source:str='') -> bool:
@@ -531,10 +549,12 @@ def updatePropertyTimeout(name:str, value, timeout:int, source:str='') -> bool:
     Returns:
         bool: Success set value
     """
+    object_name = name.split(".")[0] if '.' in name else name
+    logger = _get_object_logger(object_name)
     try:
-        _logger.debug('updatePropertyTimeout %s %s timeout:%s %s', name, value, timeout, source)
+        logger.debug('updatePropertyTimeout %s %s timeout:%s %s', name, value, timeout, source)
         if not isinstance(name, str) or '.' not in name:
-            _logger.error('Invalid property name format: %s', name)
+            logger.error('Invalid property name format: %s', name)
             return False
         obj = name.split(".")[0]
         prop = name.split(".")[1]
@@ -542,10 +562,10 @@ def updatePropertyTimeout(name:str, value, timeout:int, source:str='') -> bool:
         if obj:
             obj.updatePropertyTimeout(prop, value, timeout, source)
         else:
-            _logger.error('Object %s not found', obj)
+            logger.error('Object %s not found', name)
         return True
     except Exception as e:
-        _logger.exception('updatePropertyTimeout %s: %s',name,e)
+        logger.exception('updatePropertyTimeout %s: %s',name,e)
     return False
 
 def callMethod(name:str, args={}, source:str='') -> str:
@@ -556,10 +576,12 @@ def callMethod(name:str, args={}, source:str='') -> str:
         args (dict, optional): Args. Defaults to {}.
         source (str, optional): Source changing value. Defaults to ''.
     """
+    object_name = name.split(".")[0] if '.' in name else name
+    logger = _get_object_logger(object_name)
     try:
-        _logger.debug('callMethod %s', name)
+        logger.debug('callMethod %s', name)
         if not isinstance(name, str) or '.' not in name:
-            _logger.error('Invalid method name format: %s', name)
+            logger.error('Invalid method name format: %s', name)
             return False
         obj = name.split(".")[0]
         method = name.split(".")[1]
@@ -567,10 +589,10 @@ def callMethod(name:str, args={}, source:str='') -> str:
         if obj:
             return obj.callMethod(method, args, source)
         else:
-            _logger.error('Object %s not found', obj)
+            logger.error('Object %s not found', name)
             return None
     except Exception as e:
-        _logger.exception('CallMethod %s: %s',name,e)
+        logger.exception('CallMethod %s: %s',name,e)
         return str(e)
 
 def callMethodThread(name: str, args={}, source:str=''):
@@ -581,10 +603,12 @@ def callMethodThread(name: str, args={}, source:str=''):
         args (dict, optional): Args. Defaults to {}.
         source (str, optional): Source changing value. Defaults to ''.
     """
+    object_name = name.split(".")[0] if '.' in name else name
+    logger = _get_object_logger(object_name)
     try:
-        _logger.debug('callMethodThread %s source:%s', name, source)
+        logger.debug('callMethodThread %s source:%s', name, source)
         if not isinstance(name, str) or '.' not in name:
-            _logger.error('Invalid method name format: %s', name)
+            logger.error('Invalid method name format: %s', name)
             return False
         object_name = name.split(".")[0]
         method = name.split(".")[1]
@@ -597,9 +621,9 @@ def callMethodThread(name: str, args={}, source:str=''):
             thread = threading.Thread(name="Thread_callMethod_" + name, target=wrapper)
             thread.start()
         else:
-            _logger.error('Object %s not found', object_name)
+            logger.error('Object %s not found', name)
     except Exception as e:
-        _logger.exception('CallMethodThread %s: %s',name,e)
+        logger.exception('CallMethodThread %s: %s',name,e)
 
 def callMethodTimeout(name:str, timeout:int, source:str=''):
     """Call method by its name
@@ -609,10 +633,12 @@ def callMethodTimeout(name:str, timeout:int, source:str=''):
         timeout (int): Timeout seconds
         source (str, optional): Source changing value. Defaults to ''.
     """
+    object_name = name.split(".")[0] if '.' in name else name
+    logger = _get_object_logger(object_name)
     try:
-        _logger.debug('callMethodTimeout %s timeout:%s source:%s', name, timeout, source)
+        logger.debug('callMethodTimeout %s timeout:%s source:%s', name, timeout, source)
         if not isinstance(name, str) or '.' not in name:
-            _logger.error('Invalid method name format: %s', name)
+            logger.error('Invalid method name format: %s', name)
             return False
         obj = name.split(".")[0]
         method = name.split(".")[1]
@@ -620,9 +646,9 @@ def callMethodTimeout(name:str, timeout:int, source:str=''):
         if obj:
             obj.callMethodTimeout(method, timeout, source)
         else:
-            _logger.error('Object %s not found', name)
+            logger.error('Object %s not found', name)
     except Exception as e:
-        _logger.exception('callMethodTimeout %s: %s',name,e)
+        logger.exception('callMethodTimeout %s: %s',name,e)
 
 def deleteObject(name: str):
     """Delete object from database
@@ -640,7 +666,7 @@ def deleteObject(name: str):
         session.execute(sql)
         session.delete(obj)
         session.commit()
-        objects_storage.remove_object[name]
+        objects_storage.remove_object(name)
 
 def setLinkToObject(object_name:str, property_name:str, link:str) -> bool:
     """Set link for value
@@ -733,10 +759,12 @@ def getHistory(name:str, dt_begin:datetime = None, dt_end:datetime = None, limit
         Returns:
             list: List of history
     """
+    object_name = name.split(".")[0] if '.' in name else name
+    logger = _get_object_logger(object_name)
     try:
-        _logger.debug('getHistory %s', name)
+        logger.debug('getHistory %s', name)
         if not isinstance(name, str) or '.' not in name:
-            _logger.error('Invalid property name format: %s', name)
+            logger.error('Invalid property name format: %s', name)
             return None
         obj = name.split(".")[0]
         prop = name.split(".")[1]
@@ -744,10 +772,10 @@ def getHistory(name:str, dt_begin:datetime = None, dt_end:datetime = None, limit
         if obj:
             return obj.getHistory(prop, dt_begin, dt_end, limit, order_desc, func)
         else:
-            _logger.error('Object %s not found', obj)
+            logger.error('Object %s not found', name)
             return None
     except Exception as e:
-        _logger.exception('getHistory %s: %s',name,e)
+        logger.exception('getHistory %s: %s',name,e)
     return None
 
 def getHistoryAggregate(name:str, dt_begin:datetime = None, dt_end:datetime = None, func:str = None):
@@ -762,10 +790,12 @@ def getHistoryAggregate(name:str, dt_begin:datetime = None, dt_end:datetime = No
     Returns:
         any : Result function
     """
+    object_name = name.split(".")[0] if '.' in name else name
+    logger = _get_object_logger(object_name)
     try:
-        _logger.debug('getHistoryAggregate %s', name)
+        logger.debug('getHistoryAggregate %s', name)
         if not isinstance(name, str) or '.' not in name:
-            _logger.error('Invalid property name format: %s', name)
+            logger.error('Invalid property name format: %s', name)
             return None
         obj = name.split(".")[0]
         prop = name.split(".")[1]
@@ -773,8 +803,8 @@ def getHistoryAggregate(name:str, dt_begin:datetime = None, dt_end:datetime = No
         if obj:
             return obj.getHistoryAggregate(prop, dt_begin, dt_end, func)
         else:
-            _logger.error('Object %s not found', obj)
+            logger.error('Object %s not found', name)
             return None
     except Exception as e:
-        _logger.exception('getHistoryAggregate %s: %s',name,e)
+        logger.exception('getHistoryAggregate %s: %s',name,e)
     return None
