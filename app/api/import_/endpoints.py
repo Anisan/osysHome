@@ -132,6 +132,8 @@ class ImportObjects(Resource):
                         property.description = p['description']
                         property.type = p['type']
                         property.history = p['history']
+                        if 'params' in p:
+                            property.params = p['params']
 
                         if p['method']:
                             method = None
