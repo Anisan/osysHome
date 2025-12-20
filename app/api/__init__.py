@@ -37,6 +37,21 @@ api = Api(
     security='apikey',
 )
 
+# Override JSON representation to avoid passing unsupported kwargs (e.g., cls) to dumps
+from flask import current_app, make_response
+
+
+def _safe_output_json(data, code, headers=None):
+    dumped = current_app.json.dumps(data)
+    resp = make_response(dumped, code)
+    resp.headers["Content-Type"] = "application/json"
+    if headers:
+        resp.headers.extend(headers)
+    return resp
+
+
+api.representations["application/json"] = _safe_output_json
+
 @api.route('/about')
 class AboutResource(Resource):
     @api.doc(security=None)

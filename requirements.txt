@@ -16,3 +16,4 @@ croniter #cron
 tzdata
 requests
 pycryptodome
+python-lsp-server[all]

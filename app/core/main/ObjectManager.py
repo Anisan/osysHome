@@ -2,6 +2,7 @@ import datetime
 import time
 from enum import Enum
 from dateutil import parser
+from dateutil.parser._parser import ParserError
 import json
 from sqlalchemy import delete
 from flask_login import current_user
@@ -16,8 +17,16 @@ from app.configuration import Config
 import threading
 from dataclasses import dataclass
 from typing import Optional
+import logging
 
 _logger = getLogger('object')
+
+
+class ObjectLoggerAdapter(logging.LoggerAdapter):
+    """Logger adapter that adds object name to log messages"""
+    def process(self, msg, kwargs):
+        object_name = self.extra.get('object_name', 'Unknown')
+        return f'[{object_name}] {msg}', kwargs
 
 # Глобальный пул потоков
 _poolLinkedProperty = MonitoredThreadPool(thread_name_prefix="linkedProperty")
@@ -289,8 +298,32 @@ class PropertyManager():
             self.linked = links
         self.__value = None
         self.type = property.type
+        self.params = None
+        # Parse params from JSON if exists
+        if property.params:
+            try:
+                self.params = json.loads(property.params) if isinstance(property.params, str) else property.params
+            except:
+                self.params = None
+        
+        # Extract common parameters
+        self.icon = None
+        self.color = None
+        self.sort_order = None
+        self.default_value = None
+        self.read_only = False
+        
+        if self.params and isinstance(self.params, dict):
+            self.icon = self.params.get('icon')
+            self.color = self.params.get('color')
+            self.sort_order = self.params.get('sort_order')
+            self.default_value = self.params.get('default_value')
+            self.read_only = self.params.get('read_only', False)
+        
         if value:
             self.__value = self._decodeValue(value.value, True)
+        # Note: if value is None (no record in DB), default_value will be used in getValue()
+            
         self.count_read = 0
         self.count_write = 0
         self.readed = get_now_to_utc()
@@ -306,15 +339,62 @@ class PropertyManager():
             elif self.type == "int":
                 if value != '':
                     converted_value = int(value)
+                    # Validate min/max if specified
+                    if not init and self.params:
+                        min_val = self.params.get('min')
+                        max_val = self.params.get('max')
+                        if min_val is not None and converted_value < min_val:
+                            raise ValueError(f"Value {converted_value} is less than minimum {min_val}")
+                        if max_val is not None and converted_value > max_val:
+                            raise ValueError(f"Value {converted_value} is greater than maximum {max_val}")
+                        # Validate step/discreteness if specified
+                        if 'step' in self.params:
+                            step = self.params['step']
+                            if step > 0:
+                                base = self.params.get('min', 0)
+                                if (converted_value - base) % step != 0:
+                                    raise ValueError(
+                                        f"Value {converted_value} is not aligned with step {step} "
+                                        f"(base: {base}). Allowed values: {base}, {base+step}, {base+2*step}..."
+                                    )
                 else:
                     converted_value = None
             elif self.type == "float":
                 if value != '':
                     converted_value = float(value)
+                    # Apply decimals rounding if specified
+                    if self.params and 'decimals' in self.params:
+                        decimals = int(self.params['decimals'])
+                        converted_value = round(converted_value, decimals)
+                    # Validate min/max if specified
+                    if not init and self.params:
+                        min_val = self.params.get('min')
+                        max_val = self.params.get('max')
+                        if min_val is not None and converted_value < float(min_val):
+                            raise ValueError(f"Value {converted_value} is less than minimum {min_val}")
+                        if max_val is not None and converted_value > float(max_val):
+                            raise ValueError(f"Value {converted_value} is greater than maximum {max_val}")
+                        # Validate step/discreteness if specified
+                        if 'step' in self.params:
+                            step = float(self.params['step'])
+                            if step > 0:
+                                base = float(self.params.get('min', 0.0))
+                                remainder = abs((converted_value - base) % step)
+                                # Account for floating point precision errors
+                                if remainder > 1e-9 and abs(remainder - step) > 1e-9:
+                                    raise ValueError(
+                                        f"Value {converted_value} is not aligned with step {step} (base: {base})"
+                                    )
                 else:
                     converted_value = None
             elif self.type == "str":
                 converted_value = value
+                # Validate regexp if specified
+                if not init and self.params and 'regexp' in self.params:
+                    import re
+                    pattern = self.params['regexp']
+                    if not re.match(pattern, str(converted_value)):
+                        raise ValueError(f"Value '{converted_value}' does not match pattern '{pattern}'")
             elif self.type == "datetime":
                 if isinstance(value, str):
                     converted_value = parser.parse(value)
@@ -342,14 +422,74 @@ class PropertyManager():
                         raise ValueError(f"Invalid boolean value: {value}")
                 else:
                     converted_value = bool(value)
+            elif self.type == "enum":
+                # For enum, validate against allowed values
+                converted_value = value
+                if not init and self.params and 'enum_values' in self.params:
+                    enum_values = self.params['enum_values']
+                    if enum_values and isinstance(enum_values, dict):
+                        if str(converted_value) not in enum_values:
+                            raise ValueError(f"Value '{converted_value}' is not in allowed enum values: {list(enum_values.keys())}")
+                    else:
+                        _logger.warning(f"Property {self.name}: enum_values is not a dict or empty")
             else:
                 converted_value = value
+            
+            # Universal validation - allowed_values (works for any type except enum which has enum_values)
+            if not init and self.params and 'allowed_values' in self.params and self.type != 'enum':
+                allowed = self.params['allowed_values']
+                if not isinstance(allowed, list):
+                    _logger.warning(f"Property {self.name}: allowed_values must be a list, got {type(allowed)}")
+                else:
+                    # For numeric/bool types, compare values directly
+                    if self.type in ['int', 'float', 'bool']:
+                        if converted_value not in allowed:
+                            raise ValueError(
+                                f"Value {converted_value} is not in allowed values: {allowed}"
+                            )
+                    else:
+                        # For string-like types and others, compare as strings
+                        if str(converted_value) not in [str(v) for v in allowed]:
+                            raise ValueError(
+                                f"Value '{converted_value}' is not in allowed values: {allowed}"
+                            )
+        except (ParserError, json.JSONDecodeError) as ex:
+            # Parsing errors (datetime, JSON) should be handled gracefully during init
+            if init:
+                _logger.warning(
+                    f"Error parsing value during initialization (object_id={self.object_id}, name={self.name}, type={self.type}, value={value}): {str(ex)}",
+                    exc_info=True
+                )
+                # During initialization, return the original value if parsing fails
+                converted_value = value
+            else:
+                # During set operations, raise the exception to prevent invalid values
+                _logger.error(
+                    f"Error parsing value (object_id={self.object_id}, name={self.name}, type={self.type}, value={value}): {str(ex)}",
+                    exc_info=True
+                )
+                raise ValueError(f"Failed to parse value '{value}' for property '{self.name}': {str(ex)}") from ex
+        except ValueError as ex:
+            # Validation errors should be raised, not caught
+            # This includes min/max violations, regexp mismatches, enum value violations, etc.
+            raise
         except Exception as ex:
-            _logger.error(
-                f"Error in object (object_id={self.object_id}, name={self.name}, value={value}): {str(ex)}",
-                exc_info=True
-            )
-            converted_value = value
+            # Other errors (parsing, type conversion) are logged but we don't want to silently fail
+            # If init=True, we might want to be more lenient (e.g., during initialization from DB)
+            if init:
+                _logger.warning(
+                    f"Error decoding value during initialization (object_id={self.object_id}, name={self.name}, value={value}): {str(ex)}",
+                    exc_info=True
+                )
+                # During initialization, return the original value if conversion fails
+                converted_value = value
+            else:
+                # During set operations, raise the exception to prevent invalid values
+                _logger.error(
+                    f"Error decoding value (object_id={self.object_id}, name={self.name}, value={value}): {str(ex)}",
+                    exc_info=True
+                )
+                raise ValueError(f"Failed to decode value '{value}' for property '{self.name}': {str(ex)}") from ex
         return converted_value
 
     def _encodeValue(self):
@@ -370,6 +510,8 @@ class PropertyManager():
                 return json.dumps(value)
             elif self.type == "list":
                 return json.dumps(value)
+            elif self.type == "enum":
+                return str(value)
             else:
                 return value
         except Exception as ex:
@@ -427,7 +569,22 @@ class PropertyManager():
                 return deleted_count, count - deleted_count
             return 0, count
 
-    def setValue(self, value, source='', changed=None, save_history:bool=None):
+    def setValue(self, value, source='', changed=None, save_history:bool=None, bypass_rate_limit:bool=False):
+        # Check if property is read-only
+        if self.read_only:
+            raise PermissionError(f"Property '{self.name}' is read-only and cannot be modified")
+        
+        # Check rate limit
+        if self.params and 'rate_limit' in self.params and not bypass_rate_limit:
+            rate_limit = float(self.params['rate_limit'])
+            if rate_limit > 0 and self.changed:
+                time_since_last = (get_now_to_utc() - self.changed).total_seconds()
+                if time_since_last < rate_limit:
+                    remaining = rate_limit - time_since_last
+                    raise ValueError(
+                        f"Property '{self.name}' can be changed only once per {rate_limit} seconds. "
+                        f"Please wait {remaining:.1f} more seconds."
+                    )
 
         self.__value = self._decodeValue(value)
         self.source = source
@@ -453,6 +610,15 @@ class PropertyManager():
     def getValue(self):
         self.readed = get_now_to_utc()
         self.count_read = self.count_read + 1
+
+        if self.__value is None and self.default_value is not None:
+            # Decode default_value with the same logic as regular value
+            try:
+                return self._decodeValue(str(self.default_value), init=True)
+            except Exception as ex:
+                _logger.error(f"Error decoding default_value for {self.name}: {ex}")
+                return self.default_value
+
         if self.type == 'datetime' and self.__value:
             try:
                 return convert_utc_to_local(self.__value)
@@ -472,7 +638,7 @@ class PropertyManager():
         self.method = name
 
     def to_dict(self):
-        return {
+        result = {
             "property_id": self.property_id,
             "value_id": self.value_id,
             "name": self.name,
@@ -488,6 +654,46 @@ class PropertyManager():
             "count_write": self.count_write,
             "readed": str(convert_utc_to_local(self.readed))
         }
+        
+        # Add common parameters
+        if self.icon:
+            result["icon"] = self.icon
+        if self.color:
+            result["color"] = self.color
+        if self.sort_order is not None:
+            result["sort_order"] = self.sort_order
+        if self.read_only:
+            result["read_only"] = self.read_only
+        
+        # Add params for enum type
+        if self.type == 'enum' and self.params and 'enum_values' in self.params:
+            enum_values = self.params['enum_values']
+            if enum_values and isinstance(enum_values, dict):
+                result["enum_values"] = enum_values
+                # Add text description if available
+                if self.value and str(self.value) in enum_values:
+                    result["text"] = enum_values[str(self.value)]
+        
+        # Add validation parameters
+        if self.params:
+            if 'min' in self.params:
+                result["min"] = self.params['min']
+            if 'max' in self.params:
+                result["max"] = self.params['max']
+            if 'decimals' in self.params:
+                result["decimals"] = self.params['decimals']
+            if 'regexp' in self.params:
+                result["regexp"] = self.params['regexp']
+            if 'step' in self.params:
+                result["step"] = self.params['step']
+            if 'allowed_values' in self.params:
+                result["allowed_values"] = self.params['allowed_values']
+            if 'rate_limit' in self.params:
+                result["rate_limit"] = self.params['rate_limit']
+            if 'depends_on' in self.params:
+                result["depends_on"] = self.params['depends_on']
+        
+        return result
 
     def __str__(self):
         return f"PropertyManager(name='{self.name}', description='{self.description}', value='{self.value}')"
@@ -561,7 +767,9 @@ Attributes:
     methods: Dictionary of method managers.
 """
 class ObjectManager:
-    """ Object manager
+    """ 
+        Object manager
+
         Contain properties and methods
     """
     def __init__(self, obj: Object):
@@ -572,6 +780,8 @@ class ObjectManager:
         self.object_id = obj.id
         self.name = obj.name
         self.description = obj.description
+        # Create logger adapter with object name context
+        self._logger = ObjectLoggerAdapter(_logger, {'object_name': self.name})
         self.properties = {}
         self.methods = {}
 
@@ -655,6 +865,95 @@ class ObjectManager:
 
         raise PermissionError(f"User {username}({role}) don't have permission to {operation.name} obj:{name} property:{property_name} method:{method_name} permissions:{json.dumps(permissions)}")
 
+    def _validate_dependencies(self, property_name: str, new_value, depends_on):
+        """
+        Validate property dependencies before setting value
+        
+        Args:
+            property_name: Name of the property being set
+            new_value: New value to set
+            depends_on: Dependency configuration
+            
+        Format examples:
+        1. Simple: {"property": "mode", "value": "manual"}
+        2. Condition: {"property": "enabled", "value": True, "condition": "equals"}
+        3. Multiple: [
+            {"property": "mode", "value": "manual"},
+            {"property": "enabled", "value": True}
+        ]
+        4. Complex: {
+            "property": "temperature",
+            "condition": "greater_than",
+            "value": 0,
+            "error_message": "Temperature must be positive when heating is on"
+        }
+        """
+        # Handle list of dependencies
+        if isinstance(depends_on, list):
+            for dep in depends_on:
+                self._validate_single_dependency(property_name, new_value, dep)
+            return
+        
+        # Handle single dependency
+        self._validate_single_dependency(property_name, new_value, depends_on)
+
+    def _validate_single_dependency(self, property_name: str, new_value, dependency: dict):
+        """Validate a single dependency"""
+        if not isinstance(dependency, dict):
+            self._logger.warning(f"Dependency for {property_name} must be a dict, got {type(dependency)}")
+            return
+        
+        dep_property = dependency.get('property')
+        dep_value = dependency.get('value')
+        condition = dependency.get('condition', 'equals')
+        error_message = dependency.get('error_message')
+        
+        if not dep_property:
+            self._logger.warning(f"Dependency for {property_name} is missing 'property' field")
+            return
+        
+        if dep_property not in self.properties:
+            self._logger.warning(f"Dependency property '{dep_property}' not found for {property_name}")
+            return
+        
+        current_dep_value = self.getProperty(dep_property)
+        
+        # Check condition
+        is_valid = False
+        try:
+            if condition == 'equals':
+                is_valid = current_dep_value == dep_value
+            elif condition == 'not_equals':
+                is_valid = current_dep_value != dep_value
+            elif condition == 'greater_than':
+                is_valid = current_dep_value > dep_value
+            elif condition == 'less_than':
+                is_valid = current_dep_value < dep_value
+            elif condition == 'greater_or_equal':
+                is_valid = current_dep_value >= dep_value
+            elif condition == 'less_or_equal':
+                is_valid = current_dep_value <= dep_value
+            elif condition == 'in':
+                is_valid = current_dep_value in dep_value
+            elif condition == 'not_in':
+                is_valid = current_dep_value not in dep_value
+            else:
+                self._logger.warning(f"Unknown condition '{condition}' in dependency for {property_name}")
+                return
+        except Exception as e:
+            self._logger.warning(f"Error checking dependency condition for {property_name}: {e}")
+            return
+        
+        if not is_valid:
+            if error_message:
+                raise ValueError(error_message)
+            else:
+                raise ValueError(
+                    f"Cannot set '{property_name}' to '{new_value}': "
+                    f"depends on '{dep_property}' {condition} '{dep_value}', "
+                    f"but current value is '{current_dep_value}'"
+                )
+
     def setProperty(self, name:str, value, source:str='', save_history:bool=None):
         """ Set property value
 
@@ -668,7 +967,7 @@ class ObjectManager:
             bool: Result
         """
         try:
-            _logger.debug("ObjectManager::setProperty %s.%s - %s", self.name, name, str(value))
+            self._logger.debug("ObjectManager::setProperty %s.%s - %s", self.name, name, str(value))
             self._check_permissions(TypeOperation.Set, name, None)
 
             if name not in self.properties:
@@ -682,6 +981,11 @@ class ObjectManager:
                     prop = PropertyManager(self.object_id, property_db, None)
                     self._addProperty(prop)
             prop = self.properties[name]
+            
+            # Check dependencies before setting value
+            if prop.params and 'depends_on' in prop.params:
+                self._validate_dependencies(name, value, prop.params['depends_on'])
+            
             old = prop.getValue()
             if source is None or source == '':
                 if self._current_execution_source is not None:
@@ -727,8 +1031,18 @@ class ObjectManager:
                 except Exception as e:
                     _logger.exception(e)
             return True
+        except (ValueError, PermissionError) as ex:
+            # Validation errors (constraint violations) should be logged
+            # and propagated to callers that want to handle them.
+            self._logger.warning(
+                "Validation error in setProperty %s.%s: %s",
+                self.name,
+                name,
+                str(ex),
+            )
+            raise
         except Exception as ex:
-            _logger.exception(ex, exc_info=True)
+            self._logger.exception(ex, exc_info=True)
             return False
 
     def updateProperty(self, name:str, value, source:str='') -> bool:
@@ -744,16 +1058,21 @@ class ObjectManager:
         """
 
         try:
-            # cast value
+            # cast value and validate constraints
             if name in self.properties:
                 prop = self.properties[name]
-                value = prop._decodeValue(value)
+                # Decode and validate value (init=False to enforce constraints)
+                value = prop._decodeValue(value, init=False)
             oldValue = self.getProperty(name)
             if oldValue != value:
                 return self.setProperty(name, value, source)
             return True
+        except ValueError as ex:
+            # Validation errors (constraint violations) should be logged and prevent updating the value
+            self._logger.warning(f"Validation error in updateProperty {self.name}.{name}: {str(ex)}")
+            return False
         except Exception as ex:
-            _logger.exception(ex, exc_info=True)
+            self._logger.exception(ex, exc_info=True)
         return False
 
     def getProperty(self, name:str, data:str = 'value'):
@@ -761,7 +1080,7 @@ class ObjectManager:
 
         Args:
             name (str): Name property
-            data (str, optional): Data type. Defaults to 'value'. (changed, source)
+            data (str, optional): Data type. Defaults to 'value'. (changed, source, text, icon, color, sort_order, read_only)
 
         Returns:
             any: Value
@@ -773,6 +1092,21 @@ class ObjectManager:
 
         if name in self.properties:
             prop = self.properties[name]
+            # For enum type, handle 'text' data request
+            if data == 'text' and prop.type == 'enum':
+                current_value = prop.getValue()
+                if current_value and prop.params and 'enum_values' in prop.params:
+                    enum_values = prop.params['enum_values']
+                    if enum_values and isinstance(enum_values, dict):
+                        return enum_values.get(str(current_value), current_value)
+                return current_value
+
+            if data == 'enum' and prop.type == 'enum':
+                if 'enum_values' in prop.params:
+                    enum_values = prop.params['enum_values']
+                    return enum_values
+                return None
+            
             value = getattr(prop, data, None)
             if data == 'changed' and value:
                 try:
@@ -855,7 +1189,7 @@ class ObjectManager:
             for method in methods:
                 res, error = execute_and_capture_output(method['code'],variables)
                 if error:
-                    _logger.error("Error executing method %s.%s: %s", method['owner'], name, res)
+                    self._logger.error("Error executing method %s.%s: %s", method['owner'], name, res)
                     output += "Error method in " + method['owner'] + "\n" + res
                     break
                 if res:
@@ -883,7 +1217,7 @@ class ObjectManager:
 
             return output
         except Exception as ex:
-            _logger.exception(ex)
+            self._logger.exception(ex)
             return str(ex)
         finally:
             self._current_execution_source = None
@@ -923,7 +1257,7 @@ class ObjectManager:
                 result = ''
             return result
         except Exception as ex:
-            _logger.error(ex, exc_info=True)
+            self._logger.error(ex, exc_info=True)
             return str(ex)
 
     def setPropertyTimeout(self, propName:str, value, timeout:int, source=''):

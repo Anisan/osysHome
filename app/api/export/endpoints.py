@@ -64,7 +64,16 @@ def getClassInfo(cls):
             cl = Class.get_by_id(method.class_id)
             method = method.name
             class_method = cl.name
-        properties_data.append({'name': p.name, 'description':p.description, 'history':p.history, 'type':p.type, 'class_method': class_method, 'method': method, 'class':cls.name})
+        properties_data.append(
+            {'name': p.name,
+            'description':p.description,
+            'history':p.history,
+            'type':p.type,
+            'class_method': class_method,
+            'method': method,
+            'class':cls.name,
+            'params':p.params
+            })
     methods_data = [{'name': m.name, 'description':m.description, 'code': m.code, 'call_parent':m.call_parent, 'class':cls.name} for m in methods]
 
     data['classes'].append(class_data)
@@ -93,7 +102,15 @@ def getObjectInfo(object_id):
     # Преобразуем свойства и методы в списки словарей
     properties_data = []
     for p in properties:
-        prop = {'name': p.name, 'description':p.description, 'history':p.history, 'type':p.type, 'method': None, 'object':obj.name}
+        prop = {
+            'name': p.name,
+            'description':p.description,
+            'history':p.history,
+            'type':p.type,
+            'method': None,
+            'object':obj.name,
+            'params':p.params,
+        }
         if p.method_id is not None:
             method = Method.get_by_id(p.method_id)
             prop['method'] = method.name

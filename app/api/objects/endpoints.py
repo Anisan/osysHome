@@ -110,7 +110,7 @@ class ObjectListDetails(Resource):
         for name,item in objects_storage.items():
             obj = {}
             obj['description'] = item.description
-            obj['properties'] = {}
+            obj['properties'] = {"description": "Description object"}
             for key,prop in item.properties.items():
                 obj['properties'][key] = prop.description
             obj['methods'] = {}
