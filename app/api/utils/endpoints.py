@@ -268,7 +268,7 @@ class GetNotifications(Resource):
             query = query.filter(Notify.source == source)
 
         if unread_only:
-            query = query.filter(not Notify.read)
+            query = query.filter(Notify.read == False)  # noqa
 
         notifications = query.order_by(Notify.created.desc()).all()
 

@@ -13,13 +13,15 @@
             <div class="card-body px-0 py-0">
                 <div class="list-group list-group-flush">
                     {% for item in group %}
-                    <a  href="{{ item.route }}" class="list-group-item list-group-item-action{% if item.route in request.path %} list-group-item-primary {% endif %} d-flex justify-content-between align-items-start">
+                    <a  href="{{ item.route }}" class="list-group-item list-group-item-action{% if item.route in request.path %} list-group-item-primary {% endif %} d-flex justify-content-between align-items-start" data-module-name="{{ item.name }}">
                             <img src="/{{item.name}}/static/{{item.name}}.png" height="24px" onError="this.src='{{ config.ASSETS_ROOT }}/images/module.png'">
                             <div class="ms-2 me-auto">
                                 {{ item.title }}
                             </div>
                             {%if item.notify%}
-                            <span class="badge bg-warning text-black rounded-pill mt-1">{{item.notify}}</span>
+                            <span class="badge bg-warning text-black rounded-pill mt-1" data-notify-count="{{ item.notify }}">{{item.notify}}</span>
+                            {%else%}
+                            <span class="badge bg-warning text-black rounded-pill mt-1" data-notify-count="0" style="display: none;"></span>
                             {%endif%}
                     </a>
                     {%endfor%}

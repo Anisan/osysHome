@@ -1,6 +1,7 @@
 """Object library"""
 import threading
 import datetime
+import json
 from sqlalchemy import delete
 from app.core.main.ObjectsStorage import objects_storage
 from app.logging_config import getLogger
@@ -16,13 +17,14 @@ def _get_object_logger(object_name: str):
     """Create a logger adapter with object name context"""
     return ObjectLoggerAdapter(_logger, {'object_name': object_name})
 
-def addClass(name:str, description:str='', parentId:int=None) -> dict:
+def addClass(name:str, description:str='', parentId:int=None, update:bool=False) -> dict:
     """Add a class to the database.
 
     Args:
         name (str): Name class
         description (str, optional): Description class. Defaults to ''.
         parentId (int, optional): ID parent class. Defaults to None.
+        update (bool, optional): Update existing class if it exists. Defaults to False.
 
     Returns:
         dict: Class row in DB
@@ -36,6 +38,12 @@ def addClass(name:str, description:str='', parentId:int=None) -> dict:
             cls.parent_id = parentId
             session.add(cls)
             session.commit()
+            objects_storage.reload_objects_by_class(cls.id)
+        elif update:
+            cls.description = description
+            cls.parent_id = parentId
+            session.commit()
+            objects_storage.reload_objects_by_class(cls.id)
         return row2dict(cls)
 
 def getClass(name:str) -> dict:
@@ -75,7 +83,7 @@ def updateClass(cls:dict) -> bool:
         return True
 
 
-def addClassProperty(name:str, class_name:str, description:str='', history:int=0, type:PropertyType=PropertyType.Empty, method_name:str=None) -> Property:
+def addClassProperty(name:str, class_name:str, description:str='', history:int=0, type:PropertyType=PropertyType.Empty, method_name:str=None, update:bool=False) -> Property:
     """Add a property class to the database
 
     Args:
@@ -85,6 +93,7 @@ def addClassProperty(name:str, class_name:str, description:str='', history:int=0
         history (int, optional): Save history (days). Defaults to 0.
         type (PropertyType, optional): Type property. Defaults to PropertyType.Empty.
         method_name (str, optional): Call method on change value property. Defaults to None.
+        update (bool, optional): Update existing property if it exists. Defaults to False.
 
     Returns:
         Property: Property row in DB
@@ -108,9 +117,23 @@ def addClassProperty(name:str, class_name:str, description:str='', history:int=0
             session.add(prop)
             session.commit()
             objects_storage.reload_objects_by_class(cls.id)
+        elif update:
+            prop.description = description
+            prop.history = history
+            prop.type = type.value
+            if method_name:
+                method = session.query(Method).filter(Method.name == method_name, Method.class_id == cls.id).one_or_none()
+                if method:
+                    prop.method_id = method.id
+                else:
+                    prop.method_id = None
+            else:
+                prop.method_id = None
+            session.commit()
+            objects_storage.reload_objects_by_class(cls.id)
         return prop
 
-def addClassMethod(name:str, class_name:str, description:str='', code:str='', call_parent:int=0) -> Method:
+def addClassMethod(name:str, class_name:str, description:str='', code:str='', call_parent:int=0, update:bool=False) -> Method:
     """Add a method class to the database
 
     Args:
@@ -119,6 +142,7 @@ def addClassMethod(name:str, class_name:str, description:str='', code:str='', ca
         description (str, optional): Description method. Defaults to ''.
         code (str, optional): Python code. Defaults to ''.
         call_parent (int, optional): Call parent. Defaults to 0.
+        update (bool, optional): Update existing method if it exists. Defaults to False.
 
     Returns:
         Method: Method row in DB
@@ -138,15 +162,22 @@ def addClassMethod(name:str, class_name:str, description:str='', code:str='', ca
             session.add(method)
             session.commit()
             objects_storage.reload_objects_by_class(cls.id)
+        elif update:
+            method.description = description
+            method.code = code
+            method.call_parent = call_parent
+            session.commit()
+            objects_storage.reload_objects_by_class(cls.id)
         return method
 
-def addObject(name:str, class_name:str, description='') -> ObjectManager:
+def addObject(name:str, class_name:str, description='', update:bool=False) -> ObjectManager:
     """Add a object to the database
 
     Args:
         name (str): Name
         class_name (str): Class name
         description (str, optional): Description. Defaults to ''.
+        update (bool, optional): Update existing object if it exists. Defaults to False.
 
     Returns:
         ObjectManager: Object
@@ -162,9 +193,15 @@ def addObject(name:str, class_name:str, description='') -> ObjectManager:
             session.add(obj)
             session.commit()
             objects_storage.reload_object(obj.id)
+        elif update:
+            cls = session.query(Class).filter(Class.name == class_name).one_or_none()
+            obj.class_id = cls.id if cls else obj.class_id
+            obj.description = description
+            session.commit()
+            objects_storage.reload_object(obj.id)
         return objects_storage.getObjectByName(name)
 
-def addObjectProperty(name:str, object_name:str, description:str='', history:int=0, type:PropertyType=PropertyType.Empty, method_name:str=None) -> bool:
+def addObjectProperty(name:str, object_name:str, description:str='', history:int=0, type:PropertyType=PropertyType.Empty, method_name:str=None, params:dict=None, update:bool=False) -> bool:
     """Add a property object to the database
 
     Args:
@@ -174,6 +211,8 @@ def addObjectProperty(name:str, object_name:str, description:str='', history:int
         history (int, optional): Save history (days). Defaults to 0.
         type (PropertyType, optional): Type property. Defaults to PropertyType.Empty.
         method_name (str, optional): Call method on change value property. Defaults to None.
+        params (dict, optional): Parameters property. Defaults to None.
+        update (bool, optional): Update existing property if it exists. Defaults to False.
 
     Returns:
         bool: Success add property
@@ -190,17 +229,41 @@ def addObjectProperty(name:str, object_name:str, description:str='', history:int
             prop.object_id = obj.id
             prop.history = history
             prop.type = type.value
+            prop.params = json.dumps(params)
             if method_name:
                 method = session.query(Method).filter(Method.name == method_name, Method.object_id == obj.id).one_or_none()
                 if method:
                     prop.method_id = method.id
                 else:
-                    cls = session.query(Class).filter(Class.id == obj.class_id).one_or_none
+                    cls = session.query(Class).filter(Class.id == obj.class_id).one_or_none()
                     if cls:
                         method = session.query(Method).filter(Method.name == method_name, Method.class_id == cls.id).one_or_none()
                         if method:
                             prop.method_id = method.id
             session.add(prop)
+            session.commit()
+            objects_storage.reload_object(obj.id)
+        elif update:
+            prop.description = description
+            prop.history = history
+            prop.type = type.value
+            prop.params = json.dumps(params)
+            if method_name:
+                method = session.query(Method).filter(Method.name == method_name, Method.object_id == obj.id).one_or_none()
+                if method:
+                    prop.method_id = method.id
+                else:
+                    cls = session.query(Class).filter(Class.id == obj.class_id).one_or_none()
+                    if cls:
+                        method = session.query(Method).filter(Method.name == method_name, Method.class_id == cls.id).one_or_none()
+                        if method:
+                            prop.method_id = method.id
+                        else:
+                            prop.method_id = None
+                    else:
+                        prop.method_id = None
+            else:
+                prop.method_id = None
             session.commit()
             objects_storage.reload_object(obj.id)
         return True
@@ -236,7 +299,7 @@ def deleteObjectProperty(object_property: str) -> bool:
         objects_storage.reload_object(obj.id)
         return True
 
-def addObjectMethod(name:str, object_name:str, description:str='', code:str='', call_parent:int=0) -> bool:
+def addObjectMethod(name:str, object_name:str, description:str='', code:str='', call_parent:int=0, update:bool=False) -> bool:
     """Add a method object to the database
 
     Args:
@@ -245,6 +308,7 @@ def addObjectMethod(name:str, object_name:str, description:str='', code:str='', 
         description (str, optional): Description method. Defaults to ''.
         code (str, optional): Python code. Defaults to ''.
         call_parent (int, optional): Call parent. Defaults to 0.
+        update (bool, optional): Update existing method if it exists. Defaults to False.
 
     Returns:
         bool: Success add method
@@ -253,11 +317,30 @@ def addObjectMethod(name:str, object_name:str, description:str='', code:str='', 
         obj = session.query(Object).filter(Object.name == object_name).one_or_none()
         if not obj:
             return False
-        method = session.query(Method).filter(Method.name == name, Method.object_id == obj.id).one_or_none()
-        if not method:
-            if obj.class_id:
-                method = session.query(Method).filter(Method.name == name, Method.class_id == obj.class_id).one_or_none()
-        if not method:
+        obj_method = session.query(Method).filter(Method.name == name, Method.object_id == obj.id).one_or_none()
+        class_method = None
+        if not obj_method and obj.class_id:
+            class_method = session.query(Method).filter(Method.name == name, Method.class_id == obj.class_id).one_or_none()
+        if not obj_method and not class_method:
+            # Method doesn't exist, create new object method
+            method = Method()
+            method.name = name
+            method.object_id = obj.id
+            method.description = description
+            method.code = code
+            method.call_parent = call_parent
+            session.add(method)
+            session.commit()
+            objects_storage.reload_object(obj.id)
+        elif obj_method and update:
+            # Object method exists, update it
+            obj_method.description = description
+            obj_method.code = code
+            obj_method.call_parent = call_parent
+            session.commit()
+            objects_storage.reload_object(obj.id)
+        elif not obj_method and class_method and update:
+            # Only class method exists, create object method (override)
             method = Method()
             method.name = name
             method.object_id = obj.id

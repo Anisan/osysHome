@@ -269,10 +269,15 @@ def addNotify(
         category (CategoryNotify, optional): Category. Defaults to CategoryNotify.Info.
         source (str, optional): Source notify (use name plugins). Defaults to "".
     """
+    notify_id = None
+    notify_count = 1
     with session_scope() as session:
         notify = session.query(Notify).filter(Notify.name == name, Notify.description == description, Notify.read == False).first() # noqa
         if notify:
             notify.count = (notify.count if notify.count else 0) + 1
+            notify_id = notify.id
+            notify_count = notify.count
+            session.commit()
         else:
             notify = Notify()
             notify.name = name
@@ -280,7 +285,11 @@ def addNotify(
             notify.category = category
             notify.source = source
             notify.created = get_now_to_utc()
+            notify.count = 1
             session.add(notify)
+            session.flush()
+            notify_id = notify.id
+            notify_count = 1
 
     from .object import setProperty
     data = {
@@ -291,8 +300,17 @@ def addNotify(
     }
     setProperty("SystemVar.LastNotify", data, source)
     setProperty("SystemVar.UnreadNotify", True, source)
-    # todo send to websocket
-    # callPluginFunction()
+
+    # Отправляем событие через WebSocket
+    notify_data = {
+        "id": notify_id,
+        "name": name,
+        "description": description,
+        "category": category.value,
+        "source": source,
+        "count": notify_count,
+    }
+    sendDataToWebsocket("notify", {"operation": "new_notify", "data": notify_data})
 
 
 def readNotify(notify_id: int):
@@ -301,10 +319,20 @@ def readNotify(notify_id: int):
     Args:
         notify_id (int): ID notify
     """
+    notify_source = None
+    notify_found = False
     with session_scope() as session:
-        sql = update(Notify).where(Notify.id == notify_id).values(read=True)
-        session.execute(sql)
-        session.commit()
+        # Получаем информацию об уведомлении перед обновлением
+        notify = session.query(Notify).filter(Notify.id == notify_id).first()
+        if notify:
+            notify_source = notify.source
+            notify_found = True
+
+        if notify_found:
+            sql = update(Notify).where(Notify.id == notify_id).values(read=True)
+            session.execute(sql)
+            session.commit()
+
         findUnread = session.query(Notify).filter(Notify.read == False).first()  # noqa
         from .object import updateProperty
         if findUnread:
@@ -312,7 +340,14 @@ def readNotify(notify_id: int):
         else:
             updateProperty("SystemVar.UnreadNotify", False)
 
-        return True
+    # Отправляем событие через WebSocket (даже если уведомление не найдено, чтобы обновить интерфейс)
+    notify_data = {
+        "id": notify_id,
+        "source": notify_source or "",
+    }
+    sendDataToWebsocket("notify", {"operation": "read_notify", "data": notify_data})
+
+    return True
 
 def readNotifyAll(source: str):
     """Set read all notify for source
@@ -331,6 +366,12 @@ def readNotifyAll(source: str):
             updateProperty("SystemVar.UnreadNotify", True)
         else:
             updateProperty("SystemVar.UnreadNotify", False)
+
+    # Отправляем событие через WebSocket
+    notify_data = {
+        "source": source,
+    }
+    sendDataToWebsocket("notify", {"operation": "read_notify_all", "data": notify_data})
 
 
 def getUrl(url) -> str:

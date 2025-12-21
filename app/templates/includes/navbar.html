@@ -20,9 +20,7 @@
           <a class="nav-link" href="/api"><i class="fas fa-info me-2"></i>API</a>
         </li>
       </ul>
-      {%if getProperty("SystemVar.UnreadNotify") == True %}
-      <h4 class="mt-1 me-3"><span class=" blink badge bg-warning text-black"><i class="fas fa-bell me-2"></i>{{ _('Unreaded notify')}}</span></h4>
-      {%endif%}
+      <h4 class="mt-1 me-3" id="unreadNotifyIndicator" style="display: none;"><span class=" blink badge bg-warning text-black"><i class="fas fa-bell me-2"></i>{{ _('Unreaded notify')}}</span></h4>
       {%if getProperty("SystemVar.NeedRestart") == True %}
       <h4 class="mt-1 me-3"><span class=" blink badge bg-warning text-black"><i class="fas fa-power-off me-2"></i>{{ _('Need restart osysHome')}}</span></h4>
       {%endif%}
@@ -451,5 +449,76 @@ $('#searchModal').on('hidden.bs.modal', function() {
         });
         return false;
     }
+
+// Функция обновления индикаторов уведомлений
+function updateNotificationIndicators() {
+    $.ajax({
+        url: '/api/utils/notifications/stats',
+        method: 'GET',
+        success: function(data) {
+            if (data && data.success) {
+                const stats = data.stats;
+                
+                // Обновление индикатора в navbar
+                const navbarIndicator = $('#unreadNotifyIndicator');
+                if (stats.unread > 0) {
+                    navbarIndicator.show();
+                } else {
+                    navbarIndicator.hide();
+                }
+                
+                // Обновление индикаторов в sidebar
+                // Сначала скрываем все бейджи
+                $('.sidebar .badge.bg-warning').hide();
+                
+                if (stats.sources && stats.sources.length > 0) {
+                    // Создаем карту источников для быстрого поиска
+                    const sourceMap = {};
+                    stats.sources.forEach(function(sourceStat) {
+                        if (sourceStat.source) {
+                            sourceMap[sourceStat.source] = sourceStat.unread;
+                        }
+                    });
+                    
+                    // Обновляем бейджи для каждого модуля
+                    $('.sidebar a[data-module-name]').each(function() {
+                        const moduleName = $(this).attr('data-module-name');
+                        const unreadCount = sourceMap[moduleName] || 0;
+                        let badge = $(this).find('.badge.bg-warning');
+                        
+                        if (unreadCount > 0) {
+                            if (badge.length === 0) {
+                                // Создаем новый бейдж, если его нет
+                                badge = $('<span class="badge bg-warning text-black rounded-pill mt-1" data-notify-count="' + unreadCount + '"></span>');
+                                $(this).append(badge);
+                            }
+                            badge.text(unreadCount).attr('data-notify-count', unreadCount).show();
+                        } else {
+                            // Скрываем бейдж, если уведомлений нет
+                            badge.hide();
+                        }
+                    });
+                }
+            }
+        },
+        error: function(xhr, status, error) {
+            console.error('Ошибка обновления индикаторов уведомлений:', error);
+        }
+    });
+}
+
+// Вызываем обновление при загрузке страницы
+$(document).ready(function() {
+    // Инициализация индикатора на основе серверного значения
+    {%if getProperty("SystemVar.UnreadNotify") == True %}
+    $('#unreadNotifyIndicator').show();
+    {%endif%}
+    
+    // Обновляем индикаторы через API
+    updateNotificationIndicators();
+    
+    // Периодическое обновление индикаторов каждые 30 секунд
+    setInterval(updateNotificationIndicators, 30000);
+});
 </script>
 {%endif%}

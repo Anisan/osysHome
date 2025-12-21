@@ -1,5 +1,5 @@
 {% macro render_notify(notify) %}
-{% if notify %}
+{% if notify and notify|length > 0 %}
 <div id="notify_block">
   <div class="card mb-2">
       <div class="card-header d-flex text-dark bg-warning">
@@ -14,7 +14,7 @@
       <div class="collapse" id="collapse_notify">
         <div class="card-body px-2 py-0">
           {% for item in notify %}
-          <div class="alert alert-{{item.color}} alert-dismissible fade show p-2 my-1">
+          <div class="alert alert-{{item.color}} alert-dismissible fade show p-2 my-1" data-notify-id="{{item.id}}">
             {% if item.count and item.count > 1 %}
             <span class="badge bg-danger rounded-pill me-2" title="{{item.count}} counts">{{item.count}}</span>
             {%endif%}
@@ -35,8 +35,45 @@
             url: '/api/utils/readnotify/' + id,
             method: 'GET',
             success: function(data) {
-                console.log(data)
                 notificationManager.success('Уведомление отмечено как прочитанное');
+                // Удаляем элемент уведомления из DOM
+                // Ищем элемент несколькими способами для надежности
+                let alertElement = $('button[onclick*="readNotify(' + id + ')"]').closest('.alert');
+                
+                // Если не нашли по onclick, ищем по data-атрибуту
+                if (alertElement.length === 0) {
+                    alertElement = $('.alert[data-notify-id="' + id + '"]');
+                }
+                
+                if (alertElement.length) {
+                    alertElement.fadeOut(300, function() {
+                        $(this).remove();
+                        // Проверяем, остались ли еще уведомления
+                        const notifyBlock = $('#notify_block');
+                        if (notifyBlock.length) {
+                            const remainingAlerts = notifyBlock.find('.alert');
+                            if (remainingAlerts.length === 0) {
+                                // Если уведомлений не осталось, скрываем весь блок
+                                notifyBlock.fadeOut(300, function() {
+                                    $(this).remove();
+                                });
+                            } else {
+                                // Обновляем счетчик уведомлений в заголовке
+                                const countElement = notifyBlock.find('.px-3.me-auto');
+                                const notifyText = '{{ gettext("Notifications")}}';
+                                if (countElement.length) {
+                                    countElement.html(notifyText + ' - ' + remainingAlerts.length);
+                                } else {
+                                    notifyBlock.find('h5 .px-3.me-auto').html(notifyText + ' - ' + remainingAlerts.length);
+                                }
+                            }
+                        }
+                    });
+                }
+                // Обновляем индикаторы уведомлений
+                if (typeof updateNotificationIndicators === 'function') {
+                    updateNotificationIndicators();
+                }
             }
         });
     }
@@ -45,15 +82,59 @@
             url: '/api/utils/readnotify/all?source=' + source,
             method: 'GET',
             success: function(data) {
-                console.log(data)
                 if (data.success){
-                  const toastContainer = document.querySelector('#notify_block');
-                  toastContainer.innerHTML = "";
+                  const notifyBlock = $('#notify_block');
+                  if (notifyBlock.length) {
+                      // Плавно скрываем все уведомления
+                      const alerts = notifyBlock.find('.alert');
+                      if (alerts.length > 0) {
+                          alerts.fadeOut(300, function() {
+                              $(this).remove();
+                              // Проверяем, все ли уведомления удалены
+                              const remainingAlerts = notifyBlock.find('.alert');
+                              if (remainingAlerts.length === 0) {
+                                  // Скрываем весь блок после удаления всех уведомлений
+                                  notifyBlock.fadeOut(300, function() {
+                                      $(this).remove();
+                                  });
+                              }
+                          });
+                      } else {
+                          // Если уведомлений нет, сразу скрываем блок
+                          notifyBlock.fadeOut(300, function() {
+                              $(this).remove();
+                          });
+                      }
+                  }
                   notificationManager.success('Все уведомления отмечены как прочитанные');
+                  // Обновляем индикаторы уведомлений
+                  if (typeof updateNotificationIndicators === 'function') {
+                      updateNotificationIndicators();
+                  }
                 }
             }
         });
     }
+    
+    // Функция для скрытия блока уведомлений, если они все прочитаны
+    function checkAndHideNotifyBlock() {
+        const notifyBlock = document.querySelector('#notify_block');
+        if (notifyBlock) {
+            const alerts = notifyBlock.querySelectorAll('.alert');
+            if (alerts.length === 0) {
+                notifyBlock.style.display = 'none';
+            }
+        }
+    }
+    
+    // Проверяем при загрузке страницы
+    $(document).ready(function() {
+        checkAndHideNotifyBlock();
+    });
+    
+    // Делаем функции глобально доступными
+    window.readNotify = readNotify;
+    window.readNotifyAll = readNotifyAll;
 </script>
 {%endif%}
 {% endmacro %}
