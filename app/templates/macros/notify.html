@@ -9,7 +9,7 @@
             {{ gettext('Notifications')}} - {{notify.__len__()}}
           </div>
         </h5>
-        <button class="btn btn-outline-secondary text-nowrap" onclick="readNotifyAll('{{request.path.split("/")[-1]}}')">{{ gettext('Read all')}}</button>
+        <button class="btn btn-outline-secondary text-nowrap" onclick="if(typeof NotificationSystem !== 'undefined' && NotificationSystem.isInitialized) NotificationSystem.readNotifyAll('{{request.path.split("/")[-1]}}'); else if(typeof readNotifyAll === 'function') readNotifyAll('{{request.path.split("/")[-1]}}')">{{ gettext('Read all')}}</button>
       </div>
       <div class="collapse" id="collapse_notify">
         <div class="card-body px-2 py-0">
@@ -22,7 +22,7 @@
             <b>{{item.name}}</b>
             {{item.description}}
             <i>({{item.created}})</i>
-            <button type="button" class="btn-close p-2 my-1" onclick="readNotify({{item.id}})" data-bs-dismiss="alert" aria-label="Close"></button>
+            <button type="button" class="btn-close p-2 my-1" onclick="if(typeof NotificationSystem !== 'undefined' && NotificationSystem.isInitialized) NotificationSystem.readNotify({{item.id}}); else if(typeof readNotify === 'function') readNotify({{item.id}})" data-bs-dismiss="alert" aria-label="Close"></button>
           </div>
           {% endfor %}
         </div>
@@ -30,111 +30,30 @@
   </div>
 </div>
 <script>
-    function readNotify(id){
-        $.ajax({
-            url: '/api/utils/readnotify/' + id,
-            method: 'GET',
-            success: function(data) {
-                notificationManager.success('Уведомление отмечено как прочитанное');
-                // Удаляем элемент уведомления из DOM
-                // Ищем элемент несколькими способами для надежности
-                let alertElement = $('button[onclick*="readNotify(' + id + ')"]').closest('.alert');
-                
-                // Если не нашли по onclick, ищем по data-атрибуту
-                if (alertElement.length === 0) {
-                    alertElement = $('.alert[data-notify-id="' + id + '"]');
-                }
-                
-                if (alertElement.length) {
-                    alertElement.fadeOut(300, function() {
-                        $(this).remove();
-                        // Проверяем, остались ли еще уведомления
-                        const notifyBlock = $('#notify_block');
-                        if (notifyBlock.length) {
-                            const remainingAlerts = notifyBlock.find('.alert');
-                            if (remainingAlerts.length === 0) {
-                                // Если уведомлений не осталось, скрываем весь блок
-                                notifyBlock.fadeOut(300, function() {
-                                    $(this).remove();
-                                });
-                            } else {
-                                // Обновляем счетчик уведомлений в заголовке
-                                const countElement = notifyBlock.find('.px-3.me-auto');
-                                const notifyText = '{{ gettext("Notifications")}}';
-                                if (countElement.length) {
-                                    countElement.html(notifyText + ' - ' + remainingAlerts.length);
-                                } else {
-                                    notifyBlock.find('h5 .px-3.me-auto').html(notifyText + ' - ' + remainingAlerts.length);
-                                }
-                            }
-                        }
-                    });
-                }
-                // Обновляем индикаторы уведомлений
-                if (typeof updateNotificationIndicators === 'function') {
-                    updateNotificationIndicators();
-                }
-            }
-        });
-    }
-    function readNotifyAll(source){
-        $.ajax({
-            url: '/api/utils/readnotify/all?source=' + source,
-            method: 'GET',
-            success: function(data) {
-                if (data.success){
-                  const notifyBlock = $('#notify_block');
-                  if (notifyBlock.length) {
-                      // Плавно скрываем все уведомления
-                      const alerts = notifyBlock.find('.alert');
-                      if (alerts.length > 0) {
-                          alerts.fadeOut(300, function() {
-                              $(this).remove();
-                              // Проверяем, все ли уведомления удалены
-                              const remainingAlerts = notifyBlock.find('.alert');
-                              if (remainingAlerts.length === 0) {
-                                  // Скрываем весь блок после удаления всех уведомлений
-                                  notifyBlock.fadeOut(300, function() {
-                                      $(this).remove();
-                                  });
-                              }
-                          });
-                      } else {
-                          // Если уведомлений нет, сразу скрываем блок
-                          notifyBlock.fadeOut(300, function() {
-                              $(this).remove();
-                          });
-                      }
-                  }
-                  notificationManager.success('Все уведомления отмечены как прочитанные');
-                  // Обновляем индикаторы уведомлений
-                  if (typeof updateNotificationIndicators === 'function') {
-                      updateNotificationIndicators();
-                  }
-                }
-            }
-        });
-    }
-    
-    // Функция для скрытия блока уведомлений, если они все прочитаны
-    function checkAndHideNotifyBlock() {
-        const notifyBlock = document.querySelector('#notify_block');
-        if (notifyBlock) {
-            const alerts = notifyBlock.querySelectorAll('.alert');
-            if (alerts.length === 0) {
-                notifyBlock.style.display = 'none';
-            }
+    // Используем централизованный менеджер уведомлений
+    // Функции-обертки для обратной совместимости
+    function readNotify(id) {
+        if (typeof NotificationSystem !== 'undefined' && NotificationSystem.isInitialized) {
+            NotificationSystem.readNotify(id);
         }
     }
     
-    // Проверяем при загрузке страницы
-    $(document).ready(function() {
-        checkAndHideNotifyBlock();
-    });
+    function readNotifyAll(source) {
+        if (typeof NotificationSystem !== 'undefined' && NotificationSystem.isInitialized) {
+            NotificationSystem.readNotifyAll(source);
+        }
+    }
     
-    // Делаем функции глобально доступными
+    // Делаем функции глобально доступными для обратной совместимости
     window.readNotify = readNotify;
     window.readNotifyAll = readNotifyAll;
+    
+    // Проверяем при загрузке страницы через централизованный менеджер
+    $(document).ready(function() {
+        if (typeof NotificationSystem !== 'undefined' && NotificationSystem.isInitialized) {
+            NotificationSystem.checkAndHideNotifyBlock();
+        }
+    });
 </script>
 {%endif%}
 {% endmacro %}

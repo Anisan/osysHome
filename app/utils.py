@@ -64,6 +64,7 @@ def initSystemVar():
 
     type_editor = getProperty('SystemVar.code_editor')
     params = {
+        "icon": 'fas fa-code',
         "enum_values":{
             'ace':'Ace editor',
             'monaco':'Monaco editor',
@@ -74,6 +75,16 @@ def initSystemVar():
         type_editor = 'monaco'
     setProperty('SystemVar.code_editor', type_editor)
 
+    params = {
+        "icon":"fas fa-grip",
+        "enum_values":{
+            'custom':'Customizable grid',
+            'old':'Old style grid',
+        },
+        "default_value": 'custom',
+    }
+    addObjectProperty('control_panel_style','SystemVar',"Style control panel",0, PropertyType.Enum, params=params, update=True)
+    
     users = getObjectsByClass('Users')
     if users:
         initPermissions()

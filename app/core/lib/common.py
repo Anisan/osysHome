@@ -303,14 +303,17 @@ def addNotify(
 
     # Отправляем событие через WebSocket
     notify_data = {
-        "id": notify_id,
-        "name": name,
-        "description": description,
-        "category": category.value,
-        "source": source,
-        "count": notify_count,
+        "operation": "new_notify",
+        "data": {
+            "id": notify_id,
+            "name": name,
+            "description": description,
+            "category": category.value,
+            "source": source,
+            "count": notify_count,
+        }
     }
-    sendDataToWebsocket("notify", {"operation": "new_notify", "data": notify_data})
+    callPluginFunction("wsServer","notify", {"data":notify_data})
 
 
 def readNotify(notify_id: int):
@@ -341,11 +344,14 @@ def readNotify(notify_id: int):
             updateProperty("SystemVar.UnreadNotify", False)
 
     # Отправляем событие через WebSocket (даже если уведомление не найдено, чтобы обновить интерфейс)
-    notify_data = {
-        "id": notify_id,
-        "source": notify_source or "",
+    notify_data = {\
+        "operation": "read_notify",
+        "data": {
+            "id": notify_id,
+            "source": notify_source or "",
+        }
     }
-    sendDataToWebsocket("notify", {"operation": "read_notify", "data": notify_data})
+    callPluginFunction("wsServer","notify", {"data":notify_data})
 
     return True
 
@@ -369,9 +375,13 @@ def readNotifyAll(source: str):
 
     # Отправляем событие через WebSocket
     notify_data = {
-        "source": source,
+        "operation": "read_notify_all", 
+        "data": 
+        {
+            "source": source,
+        }
     }
-    sendDataToWebsocket("notify", {"operation": "read_notify_all", "data": notify_data})
+    callPluginFunction("wsServer","notify", {"data":notify_data})
 
 
 def getUrl(url) -> str:

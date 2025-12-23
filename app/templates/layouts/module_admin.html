@@ -38,244 +38,42 @@
 <!-- Specific Page JS goes HERE  -->
 {% block javascripts %}
 <script>
-    // Функция для экранирования HTML
-    function escapeHtml(text) {
-        if (!text) return '';
-        const map = {
-            '&': '&amp;',
-            '<': '&lt;',
-            '>': '&gt;',
-            '"': '&quot;',
-            "'": '&#039;'
-        };
-        return text.replace(/[&<>"']/g, function(m) { return map[m]; });
-    }
-    
-    // Функция для обновления блока уведомлений
+    // Используем централизованный менеджер уведомлений
+    // Функции-обертки для обратной совместимости
     function refreshNotifyBlock(source) {
-        if (!source) {
-            // Пытаемся получить source из текущего URL
-            const pathParts = window.location.pathname.split('/').filter(function(p) { return p; });
-            source = pathParts[pathParts.length - 1];
+        if (typeof NotificationSystem !== 'undefined' && NotificationSystem.isInitialized) {
+            NotificationSystem.refreshNotifyBlock(source);
         }
-        
-        if (!source || source === 'admin' || source === '') {
-            // Если мы не на странице модуля, не обновляем блок
-            return;
-        }
-        
-        // Проверяем, что jQuery доступен
-        if (typeof $ === 'undefined') {
-            console.error('jQuery is not available');
-            return;
-        }
-        
-        // Запрашиваем только непрочитанные уведомления
-        // Добавляем задержку, чтобы убедиться, что уведомление сохранено в БД
-        setTimeout(function() {
-            $.ajax({
-                url: '/api/utils/notifications',
-                method: 'GET',
-                data: {
-                    source: source,
-                    unread_only: true
-                },
-            success: function(data) {
-                if (data && data.success && data.notifications) {
-                    const notifyBlock = $('#notify_block');
-                    const notifications = data.notifications;
-                    
-                    if (notifications.length === 0) {
-                        // Если уведомлений нет, скрываем блок, если он существует
-                        if (notifyBlock.length) {
-                            notifyBlock.fadeOut(300);
-                        }
-                        return;
-                    }
-                    
-                    // Определяем цвета для категорий
-                    const categoryColors = {
-                        'Info': 'success',
-                        'Warning': 'warning',
-                        'Error': 'danger',
-                        'Debug': 'secondary'
-                    };
-                    
-                    // Создаем HTML для уведомлений
-                    let alertsHtml = '';
-                    notifications.forEach(function(notif) {
-                        const color = categoryColors[notif.category] || 'danger';
-                        const countBadge = notif.count > 1 ? 
-                            `<span class="badge bg-danger rounded-pill me-2" title="${notif.count} counts">${notif.count}</span>` : '';
-                        const createdDate = notif.created ? new Date(notif.created).toLocaleString() : '';
-                        
-                        alertsHtml += `
-                            <div class="alert alert-${color} alert-dismissible fade show p-2 my-1" data-notify-id="${notif.id}">
-                                ${countBadge}
-                                <i class="fas fa-exclamation-circle me-1"></i>
-                                <b>${escapeHtml(notif.name)}</b>
-                                ${escapeHtml(notif.description || '')}
-                                <i>(${createdDate})</i>
-                                <button type="button" class="btn-close p-2 my-1" onclick="readNotify(${notif.id})" data-bs-dismiss="alert" aria-label="Close"></button>
-                            </div>
-                        `;
-                    });
-                    
-                    // Обновляем блок уведомлений
-                    if (notifyBlock.length === 0) {
-                        // Создаем блок, если его нет
-                        const notifyHtml = `
-                            <div id="notify_block">
-                                <div class="card mb-2">
-                                    <div class="card-header d-flex text-dark bg-warning">
-                                        <h5 class="mb-0 d-flex justify-content-between align-items-center w-100" data-bs-toggle="collapse" data-bs-target="#collapse_notify" aria-expanded="true" aria-controls="collapse_notify">
-                                            <i class="fas fa-info"></i>
-                                            <div class="px-3 me-auto">
-                                                Уведомления - ${notifications.length}
-                                            </div>
-                                        </h5>
-                                        <button class="btn btn-outline-secondary text-nowrap" onclick="readNotifyAll('${source}')">Прочитать все</button>
-                                    </div>
-                                    <div class="collapse show" id="collapse_notify">
-                                        <div class="card-body px-2 py-0">
-                                            ${alertsHtml}
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        `;
-                        // Вставляем блок в начало .pcoded-content
-                        const contentContainer = $('.pcoded-content');
-                        if (contentContainer.length) {
-                            contentContainer.prepend(notifyHtml);
-                            // Убеждаемся, что блок видим
-                            const newBlock = $('#notify_block');
-                            newBlock.show().css('display', 'block');
-                        } else {
-                            // Попробуем найти альтернативный контейнер
-                            const altContainer = $('.pcoded-main-container, .container-fluid, main');
-                            if (altContainer.length) {
-                                altContainer.first().prepend(notifyHtml);
-                                $('#notify_block').show().css('display', 'block');
-                            }
-                        }
-                    } else {
-                        // Обновляем существующий блок
-                        notifyBlock.find('.card-body').html(alertsHtml);
-                        const countElement = notifyBlock.find('.px-3.me-auto');
-                        if (countElement.length) {
-                            countElement.html(`Уведомления - ${notifications.length}`);
-                        } else {
-                            notifyBlock.find('h5 .px-3.me-auto').html(`Уведомления - ${notifications.length}`);
-                        }
-                        // Показываем блок, если он был скрыт
-                        notifyBlock.show().css('display', 'block');
-                    }
-                }
-            },
-            error: function(xhr, status, error) {
-                console.error('Error refreshing notify block:', error, xhr);
-            }
-            });
-        }, 500); // Задержка 500мс для гарантии сохранения в БД
     }
     
-    // Функция для отметки уведомления как прочитанного
     function readNotify(id) {
-        $.ajax({
-            url: '/api/utils/readnotify/' + id,
-            method: 'GET',
-            success: function(data) {
-                notificationManager.success('Уведомление отмечено как прочитанное');
-                // Удаляем элемент уведомления из DOM
-                // Ищем элемент несколькими способами для надежности
-                let alertElement = $('button[onclick*="readNotify(' + id + ')"]').closest('.alert');
-                
-                // Если не нашли по onclick, ищем по data-атрибуту
-                if (alertElement.length === 0) {
-                    alertElement = $('.alert[data-notify-id="' + id + '"]');
-                }
-                
-                if (alertElement.length) {
-                    alertElement.fadeOut(300, function() {
-                        $(this).remove();
-                        // Проверяем, остались ли еще уведомления
-                        const notifyBlock = $('#notify_block');
-                        if (notifyBlock.length) {
-                            const remainingAlerts = notifyBlock.find('.alert');
-                            if (remainingAlerts.length === 0) {
-                                // Если уведомлений не осталось, скрываем весь блок
-                                notifyBlock.fadeOut(300, function() {
-                                    $(this).remove();
-                                });
-                            } else {
-                                // Обновляем счетчик уведомлений в заголовке
-                                const countElement = notifyBlock.find('.px-3.me-auto');
-                                if (countElement.length) {
-                                    countElement.html('Уведомления - ' + remainingAlerts.length);
-                                } else {
-                                    notifyBlock.find('h5 .px-3.me-auto').html('Уведомления - ' + remainingAlerts.length);
-                                }
-                            }
-                        }
-                    });
-                }
-                // Обновляем индикаторы уведомлений
-                if (typeof updateNotificationIndicators === 'function') {
-                    updateNotificationIndicators();
-                }
-            }
-        });
-    }
-    
-    // Функция для отметки всех уведомлений как прочитанных
-    function readNotifyAll(source) {
-        if (!source) {
-            const pathParts = window.location.pathname.split('/').filter(function(p) { return p; });
-            source = pathParts[pathParts.length - 1];
+        if (typeof NotificationSystem !== 'undefined' && NotificationSystem.isInitialized) {
+            NotificationSystem.readNotify(id);
         }
-        
-        $.ajax({
-            url: '/api/utils/readnotify/all?source=' + source,
-            method: 'GET',
-            success: function(data) {
-                if (data.success) {
-                    const notifyBlock = $('#notify_block');
-                    if (notifyBlock.length) {
-                        // Плавно скрываем все уведомления
-                        const alerts = notifyBlock.find('.alert');
-                        if (alerts.length > 0) {
-                            alerts.fadeOut(300, function() {
-                                $(this).remove();
-                                // Проверяем, все ли уведомления удалены
-                                const remainingAlerts = notifyBlock.find('.alert');
-                                if (remainingAlerts.length === 0) {
-                                    // Скрываем весь блок после удаления всех уведомлений
-                                    notifyBlock.fadeOut(300, function() {
-                                        $(this).remove();
-                                    });
-                                }
-                            });
-                        } else {
-                            // Если уведомлений нет, сразу скрываем блок
-                            notifyBlock.fadeOut(300, function() {
-                                $(this).remove();
-                            });
-                        }
-                    }
-                    notificationManager.success('Все уведомления отмечены как прочитанные');
-                    // Обновляем индикаторы уведомлений
-                    if (typeof updateNotificationIndicators === 'function') {
-                        updateNotificationIndicators();
-                    }
-                }
-            }
-        });
     }
     
-    // Делаем функции глобально доступными
+    function readNotifyAll(source) {
+        if (typeof NotificationSystem !== 'undefined' && NotificationSystem.isInitialized) {
+            NotificationSystem.readNotifyAll(source);
+        }
+    }
+    
+    // Делаем функции глобально доступными для обратной совместимости
     window.refreshNotifyBlock = refreshNotifyBlock;
     window.readNotify = readNotify;
     window.readNotifyAll = readNotifyAll;
+    
+    // Инициализация обновления блока уведомлений при загрузке страницы
+    $(document).ready(function() {
+        if (typeof NotificationSystem !== 'undefined' && NotificationSystem.isInitialized) {
+            const source = NotificationSystem.getCurrentSource();
+            if (source) {
+                // Небольшая задержка для гарантии полной загрузки страницы
+                setTimeout(function() {
+                    NotificationSystem.refreshNotifyBlock(source);
+                }, 100);
+            }
+        }
+    });
 </script>
 {% endblock javascripts %}

@@ -188,166 +188,106 @@
     socket.emit('callMethod', name, "WS", true);
   }
 
-  // Функция для обновления блока уведомлений (определяем здесь, чтобы она была доступна всегда)
+  // Функция для обновления блока уведомлений (использует централизованный менеджер)
   function refreshNotifyBlockIfAvailable(source) {
-    // Проверяем, находимся ли мы на странице модуля
-    const currentPath = window.location.pathname;
-    const pathParts = currentPath.split('/').filter(function(part) { return part !== ''; });
-    const currentSource = pathParts[pathParts.length - 1];
-    
-    const isOnModulePage = source && (
-      currentSource === source || 
-      currentPath.includes('/admin/' + source) ||
-      currentPath.endsWith('/' + source) ||
-      currentPath.endsWith('/admin/' + source)
-    );
-    
-    if (!isOnModulePage) {
-      return false;
+    // Используем централизованный менеджер уведомлений
+    if (typeof NotificationSystem !== 'undefined' && NotificationSystem.isInitialized) {
+      if (NotificationSystem.isOnModulePage(source)) {
+        NotificationSystem.refreshNotifyBlock(source);
+        return true;
+      }
     }
-    
-    // Пытаемся вызвать функцию, если она определена
-    if (typeof refreshNotifyBlock === 'function') {
-      refreshNotifyBlock(source);
-      return true;
-    } else {
-      return false;
-    }
+    return false;
   }
 
   // Обработка событий уведомлений
   socket.on('notify', function (data) {
+    console.log("notify recv", data)
     if (!data || !data.operation || !data.data) return;
     
     if (data.operation === 'new_notify') {
       const notifySource = data.data.source;
       
-      // Обновляем индикаторы уведомлений
-      if (typeof updateNotificationIndicators === 'function') {
-        updateNotificationIndicators();
+      // Функция для обновления с retry, если система еще не загружена
+      function tryUpdateNotifications() {
+        if (typeof NotificationSystem !== 'undefined' && NotificationSystem.isInitialized) {
+          NotificationSystem.updateNotificationIndicators();
+          
+          // Обновляем блок уведомлений с небольшой задержкой для гарантии сохранения в БД
+          setTimeout(function() {
+            refreshNotifyBlockIfAvailable(notifySource);
+          }, 300);
+          return true;
+        }
+        return false;
       }
       
-      // Пытаемся обновить блок уведомлений
-      // Небольшая задержка для гарантии, что функция определена
-      setTimeout(function() {
-        if (!refreshNotifyBlockIfAvailable(notifySource)) {
-          // Если функция еще не определена, ждем и повторяем попытку
-          let retryCount = 0;
-          const maxRetries = 15;
-          const retryInterval = setInterval(function() {
-            retryCount++;
-            if (refreshNotifyBlockIfAvailable(notifySource)) {
-              clearInterval(retryInterval);
-            } else if (retryCount >= maxRetries) {
-              clearInterval(retryInterval);
-            }
-          }, 200);
-        }
-      }, 100); // Небольшая задержка для гарантии, что функция определена
+      // Пытаемся обновить сразу, если система загружена
+      if (!tryUpdateNotifications()) {
+        // Если система еще не загружена, ждем с небольшими интервалами (максимум 2 секунды)
+        let retryCount = 0;
+        const maxRetries = 10;
+        const retryInterval = setInterval(function() {
+          retryCount++;
+          if (tryUpdateNotifications() || retryCount >= maxRetries) {
+            clearInterval(retryInterval);
+          }
+        }, 200);
+      }
     } else if (data.operation === 'read_notify') {
       // Уведомление было прочитано на другой странице или на этой же
       const notifyId = data.data.id;
       const notifySource = data.data.source;
       
-      // Удаляем уведомление из блока на текущей странице
-      // Ищем элемент несколькими способами для надежности
-      let alertElement = $('button[onclick*="readNotify(' + notifyId + ')"]').closest('.alert');
-      
-      // Если не нашли по onclick, ищем по data-атрибуту или другим способам
-      if (alertElement.length === 0) {
-        // Пытаемся найти через data-атрибут (если он есть)
-        alertElement = $('.alert[data-notify-id="' + notifyId + '"]');
-      }
-      
-      if (alertElement.length) {
-        alertElement.fadeOut(300, function() {
-          $(this).remove();
-          // Проверяем, остались ли еще уведомления
-          const notifyBlock = $('#notify_block');
-          if (notifyBlock.length) {
-            const remainingAlerts = notifyBlock.find('.alert');
-            if (remainingAlerts.length === 0) {
-              // Если уведомлений не осталось, скрываем весь блок
-              notifyBlock.fadeOut(300, function() {
-                $(this).remove();
-              });
-            } else {
-              // Обновляем счетчик уведомлений
-              const countElement = notifyBlock.find('.px-3.me-auto');
-              const notifyText = 'Уведомления';
-              if (countElement.length) {
-                countElement.html(notifyText + ' - ' + remainingAlerts.length);
-              } else {
-                notifyBlock.find('h5 .px-3.me-auto').html(notifyText + ' - ' + remainingAlerts.length);
-              }
-            }
-          }
+      // Используем централизованный менеджер для удаления уведомления
+      if (typeof NotificationSystem !== 'undefined' && NotificationSystem.isInitialized) {
+        NotificationSystem.removeNotifyFromDOM(notifyId, function() {
+          NotificationSystem.checkAndHideNotifyBlock();
         });
-      } else if (notifySource) {
+        
         // Если элемент не найден, но есть source, обновляем весь блок
-        // Это может быть, если уведомление было удалено до обновления страницы
-        if (typeof refreshNotifyBlockIfAvailable === 'function') {
+        if (!NotificationSystem.findNotifyElement(notifyId).length && notifySource) {
           refreshNotifyBlockIfAvailable(notifySource);
         }
       }
       
       // Обновляем индикаторы уведомлений
-      if (typeof updateNotificationIndicators === 'function') {
-        updateNotificationIndicators();
+      if (typeof NotificationSystem !== 'undefined' && NotificationSystem.isInitialized) {
+        NotificationSystem.updateNotificationIndicators();
       }
     } else if (data.operation === 'read_notify_all') {
       // Все уведомления были прочитаны на другой странице
       const notifySource = data.data.source;
       
-      // Проверяем, находимся ли мы на странице модуля
-      const currentPath = window.location.pathname;
-      const pathParts = currentPath.split('/').filter(function(part) { return part !== ''; });
-      const currentSource = pathParts[pathParts.length - 1];
-      
-      const isOnModulePage = notifySource && (
-        currentSource === notifySource || 
-        currentPath.includes('/admin/' + notifySource) ||
-        currentPath.endsWith('/' + notifySource) ||
-        currentPath.endsWith('/admin/' + notifySource)
-      );
-      
-      if (isOnModulePage) {
-        const notifyBlock = $('#notify_block');
-        if (notifyBlock.length) {
-          // Плавно скрываем все уведомления
-          const alerts = notifyBlock.find('.alert');
-          if (alerts.length > 0) {
-            alerts.fadeOut(300, function() {
-              $(this).remove();
-              // Проверяем, все ли уведомления удалены
-              const remainingAlerts = notifyBlock.find('.alert');
-              if (remainingAlerts.length === 0) {
-                // Скрываем весь блок после удаления всех уведомлений
-                notifyBlock.fadeOut(300, function() {
-                  $(this).remove();
-                });
-              }
-            });
-          } else {
-            // Если уведомлений нет, сразу скрываем блок
-            notifyBlock.fadeOut(300, function() {
-              $(this).remove();
-            });
+      // Используем централизованный менеджер
+      if (typeof NotificationSystem !== 'undefined' && NotificationSystem.isInitialized) {
+        if (NotificationSystem.isOnModulePage(notifySource)) {
+          const notifyBlock = $('#notify_block');
+          if (notifyBlock.length) {
+            const alerts = notifyBlock.find('.alert');
+            if (alerts.length > 0) {
+              alerts.fadeOut(300, function() {
+                $(this).remove();
+                NotificationSystem.checkAndHideNotifyBlock();
+              });
+            } else {
+              notifyBlock.fadeOut(300, function() {
+                $(this).remove();
+              });
+            }
           }
         }
       }
       
       // Обновляем индикаторы уведомлений
-      if (typeof updateNotificationIndicators === 'function') {
-        updateNotificationIndicators();
+      if (typeof NotificationSystem !== 'undefined' && NotificationSystem.isInitialized) {
+        NotificationSystem.updateNotificationIndicators();
       }
     }
   });
 
   function subscribe() {
-    socket.emit('subscribeActions', ['say','playsound']);
-    // Подписываемся на события уведомлений
-    socket.emit('subscribeData', ['notify']);
+    socket.emit('subscribeActions', ['say','playsound','notify']);
     var elements = document.querySelectorAll('[id^="prop:"]');
     var propList = [];
     elements.forEach(function (element) {

@@ -450,61 +450,11 @@ $('#searchModal').on('hidden.bs.modal', function() {
         return false;
     }
 
-// Функция обновления индикаторов уведомлений
+// Функция обновления индикаторов уведомлений (обертка для обратной совместимости)
 function updateNotificationIndicators() {
-    $.ajax({
-        url: '/api/utils/notifications/stats',
-        method: 'GET',
-        success: function(data) {
-            if (data && data.success) {
-                const stats = data.stats;
-                
-                // Обновление индикатора в navbar
-                const navbarIndicator = $('#unreadNotifyIndicator');
-                if (stats.unread > 0) {
-                    navbarIndicator.show();
-                } else {
-                    navbarIndicator.hide();
-                }
-                
-                // Обновление индикаторов в sidebar
-                // Сначала скрываем все бейджи
-                $('.sidebar .badge.bg-warning').hide();
-                
-                if (stats.sources && stats.sources.length > 0) {
-                    // Создаем карту источников для быстрого поиска
-                    const sourceMap = {};
-                    stats.sources.forEach(function(sourceStat) {
-                        if (sourceStat.source) {
-                            sourceMap[sourceStat.source] = sourceStat.unread;
-                        }
-                    });
-                    
-                    // Обновляем бейджи для каждого модуля
-                    $('.sidebar a[data-module-name]').each(function() {
-                        const moduleName = $(this).attr('data-module-name');
-                        const unreadCount = sourceMap[moduleName] || 0;
-                        let badge = $(this).find('.badge.bg-warning');
-                        
-                        if (unreadCount > 0) {
-                            if (badge.length === 0) {
-                                // Создаем новый бейдж, если его нет
-                                badge = $('<span class="badge bg-warning text-black rounded-pill mt-1" data-notify-count="' + unreadCount + '"></span>');
-                                $(this).append(badge);
-                            }
-                            badge.text(unreadCount).attr('data-notify-count', unreadCount).show();
-                        } else {
-                            // Скрываем бейдж, если уведомлений нет
-                            badge.hide();
-                        }
-                    });
-                }
-            }
-        },
-        error: function(xhr, status, error) {
-            console.error('Ошибка обновления индикаторов уведомлений:', error);
-        }
-    });
+    if (typeof NotificationSystem !== 'undefined' && NotificationSystem.isInitialized) {
+        NotificationSystem.updateNotificationIndicators();
+    }
 }
 
 // Вызываем обновление при загрузке страницы
@@ -514,11 +464,9 @@ $(document).ready(function() {
     $('#unreadNotifyIndicator').show();
     {%endif%}
     
-    // Обновляем индикаторы через API
-    updateNotificationIndicators();
-    
-    // Периодическое обновление индикаторов каждые 30 секунд
-    setInterval(updateNotificationIndicators, 30000);
+    // Обновляем индикаторы через централизованный менеджер
+    // (обновление уже происходит автоматически при инициализации NotificationSystem)
+    // Периодическое обновление также настроено в NotificationSystem
 });
 </script>
 {%endif%}
