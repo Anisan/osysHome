@@ -63,15 +63,23 @@
     
     // Инициализация обновления блока уведомлений при загрузке страницы
     $(document).ready(function() {
-        if (typeof NotificationSystem !== 'undefined' && NotificationSystem.isInitialized) {
-            const source = NotificationSystem.getCurrentSource();
-            if (source) {
-                // Небольшая задержка для гарантии полной загрузки страницы
-                setTimeout(function() {
-                    NotificationSystem.refreshNotifyBlock(source);
-                }, 100);
+        // Ждем инициализации NotificationSystem
+        function tryRefresh() {
+            if (typeof NotificationSystem !== 'undefined' && NotificationSystem.isInitialized) {
+                const source = NotificationSystem.getCurrentSource();
+                if (source) {
+                    // Небольшая задержка для гарантии полной загрузки страницы
+                    setTimeout(function() {
+                        NotificationSystem.refreshNotifyBlock(source, true);
+                    }, 300);
+                }
+            } else {
+                setTimeout(tryRefresh, 100);
             }
         }
+        
+        // Пробуем сразу, если не готово - ждем
+        tryRefresh();
     });
 </script>
 {% endblock javascripts %}

@@ -41,7 +41,6 @@
             }
             
             this.isInitialized = true;
-            console.log('NotificationSystem: Initialized');
         },
         
         /**
@@ -195,12 +194,15 @@
                 dateInfo += ` <i class="fas fa-clock me-1" title="Last updated"></i>${lastUpdatedDate}`;
             }
             
+            const descriptionHtml = notif.description ? 
+                `<span class="ms-1">${this.escapeHtml(notif.description)}</span>` : '';
+            
             return `
                 <div class="alert alert-${color} alert-dismissible fade show p-2 my-1" data-notify-id="${notif.id}">
                     ${countBadge}
                     <i class="${icon} me-1"></i>
                     <b>${this.escapeHtml(notif.name)}</b>
-                    ${this.escapeHtml(notif.description || '')}
+                    ${descriptionHtml}
                     <span class="ms-2">${dateInfo}</span>
                     <button type="button" class="btn-close p-2 my-1" onclick="if(typeof NotificationSystem !== 'undefined') NotificationSystem.readNotify(${notif.id})" data-bs-dismiss="alert" aria-label="Close"></button>
                 </div>
@@ -335,22 +337,40 @@
                     </div>
                 `;
                 
-                // Вставляем блок в начало .pcoded-content
+                // Вставляем блок в начало .pcoded-content (после breadcrumb, если он есть)
                 const contentContainer = $('.pcoded-content');
+                
                 if (contentContainer.length) {
-                    contentContainer.prepend(notifyHtml);
-                    $('#notify_block').hide().fadeIn(300);
+                    const breadcrumb = contentContainer.find('.breadcrumb').closest('.card');
+                    if (breadcrumb.length) {
+                        // Вставляем после breadcrumb
+                        breadcrumb.after(notifyHtml);
+                    } else {
+                        // Вставляем в начало контейнера
+                        contentContainer.first().prepend(notifyHtml);
+                    }
+                    
+                    const insertedBlock = $('#notify_block');
+                    if (insertedBlock.length) {
+                        insertedBlock.hide().fadeIn(300);
+                    }
                 } else {
                     // Альтернативный контейнер
                     const altContainer = $('.pcoded-main-container, .container-fluid, main');
                     if (altContainer.length) {
                         altContainer.first().prepend(notifyHtml);
-                        $('#notify_block').hide().fadeIn(300);
+                        const insertedBlock = $('#notify_block');
+                        if (insertedBlock.length) {
+                            insertedBlock.hide().fadeIn(300);
+                        }
                     }
                 }
             } else {
                 // Обновляем существующий блок
                 const cardBody = notifyBlock.find('.card-body');
+                if (cardBody.length === 0) {
+                    return;
+                }
                 cardBody.hide();
                 cardBody.html(alertsHtml);
                 cardBody.fadeIn(300);
@@ -574,6 +594,16 @@
         
         // Обновляем индикаторы при загрузке страницы
         NotificationSystem.updateNotificationIndicators();
+        
+        // Пытаемся обновить блок уведомлений для текущей страницы
+        const source = NotificationSystem.getCurrentSource();
+        
+        if (source) {
+            // Небольшая задержка для гарантии полной загрузки страницы
+            setTimeout(function() {
+                NotificationSystem.refreshNotifyBlock(source, true);
+            }, 200);
+        }
         
         // Периодическое обновление индикаторов каждые 30 секунд
         setInterval(function() {
