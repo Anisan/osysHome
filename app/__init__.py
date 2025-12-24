@@ -37,6 +37,7 @@ def createApp(config_object):
     _logger.info("DB: %s", config_object.SQLALCHEMY_DATABASE_URI)
     app.config['SQLALCHEMY_DATABASE_URI'] = config_object.SQLALCHEMY_DATABASE_URI
     app.config['SQLALCHEMY_POOL_SIZE'] = config_object.SQLALCHEMY_POOL_SIZE
+    app.config['PERMANENT_SESSION_LIFETIME'] = config_object.PERMANENT_SESSION_LIFETIME
 
 # Установка CustomJSONProvider как JSON-провайдера
     app.json_provider_class = CustomJSONProvider

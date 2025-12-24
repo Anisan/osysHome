@@ -356,19 +356,41 @@ class ObjectStorage():
         self.logger.debug(f"Reload object - id:{object_id}")
         with session_scope() as session:
             obj = session.query(Object).filter(Object.id == object_id).one_or_none()
-            if obj:
-                if obj.name in self.objects:
-                    del self.objects[obj.name]
-                    if obj.name in self.clean_objects:
-                        del self.clean_objects[obj.name]
+            if obj and obj.name in self.objects:
+                # Пересоздаем ObjectManager вместо полного удаления,
+                # чтобы объект оставался доступен в хранилище с обновленной
+                # схемой (свойства/методы/шаблоны и т.д.).
+                om = self._createObjectManager(session, obj)
+                self.objects[obj.name] = om
+                # Обновляем/инициализируем статистику, не сбрасывая счетчики,
+                # если они уже были.
+                if obj.name not in self.stats:
+                    self.stats[obj.name] = {
+                        'count_get': 1,
+                        'last_get': get_now_to_utc(),
+                    }
+                # Сбрасываем только информацию о чистке истории,
+                # чтобы она была пересчитана при следующем проходе cleaner'а.
+                if obj.name in self.clean_objects:
+                    del self.clean_objects[obj.name]
 
     def reload_objects_by_class(self, class_id):
         self.logger.debug(f"Reload objects by class - id:{class_id}")
         with session_scope() as session:
             objs = session.query(Object).filter(Object.class_id == class_id).order_by(Object.name).all()
             for obj in objs:
+                # Обновляем только те объекты, которые уже есть в кэше.
+                # Остальные будут загружены лениво при первом обращении.
                 if obj.name in self.objects:
-                    del self.objects[obj.name]
+                    om = self._createObjectManager(session, obj)
+                    self.objects[obj.name] = om
+                    if obj.name not in self.stats:
+                        self.stats[obj.name] = {
+                            'count_get': 1,
+                            'last_get': get_now_to_utc(),
+                        }
+                    # Обнуляем только данные по чистке истории, чтобы
+                    # cleaner пересчитал их с учетом новой схемы.
                     if obj.name in self.clean_objects:
                         del self.clean_objects[obj.name]
             childs = session.query(Class).filter(Class.parent_id == class_id).all()

@@ -280,7 +280,7 @@ class GetNotifications(Resource):
                     "name": notification.name,
                     "description": notification.description,
                     "category": (
-                        notification.category.value if notification.category else "Info"
+                        notification.category.name if notification.category else "Info"
                     ),
                     "source": notification.source,
                     "created": (
@@ -290,6 +290,11 @@ class GetNotifications(Resource):
                     ),
                     "read": notification.read,
                     "count": notification.count,
+                    "last_updated": (
+                        notification.last_updated.isoformat()
+                        if notification.last_updated
+                        else None
+                    ),
                 }
             )
 

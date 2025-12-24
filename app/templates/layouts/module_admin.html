@@ -1,5 +1,4 @@
 {% extends "layouts/admin.html" %}
-{% from "macros/notify.html" import render_notify %}
 
 {% block title %} Admin {% endblock %} 
 
@@ -13,7 +12,6 @@
 <div class="pcoded-main-container">
     <div class="pcoded-wrapper">
         <div class="pcoded-content">
-        {{ render_notify(list_notify(request.path.split("/")[-1])) }}
         <!-- [ breadcrumb ] start -->
         <div class="card ms-0 mb-2 p-2">
             <div class="row ms-0">

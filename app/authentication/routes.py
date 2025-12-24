@@ -1,5 +1,5 @@
 import datetime
-from flask import render_template, redirect, request, url_for
+from flask import render_template, redirect, request, url_for, session
 from flask_login import (
     current_user,
     login_user,
@@ -55,6 +55,7 @@ def login():
                 user = User(obj)
                 user.set_password(password)
                 user.role = 'admin'
+                session.permanent = True
                 login_user(user)
                 setProperty(username + ".password", user.password)
                 setProperty(username + ".role", 'admin')
@@ -70,6 +71,7 @@ def login():
             else:
                 ip = request.remote_addr
             setProperty(username + ".lastLogin",datetime.datetime.now(),source=ip)
+            session.permanent = True
             login_user(user)
             return redirect("/")
 

@@ -172,21 +172,36 @@
                 'Info': 'success',
                 'Warning': 'warning',
                 'Error': 'danger',
-                'Debug': 'secondary'
+                'Debug': 'secondary',
+                'Fatal': 'danger'
+            };
+            
+            const categoryIcons = {
+                'Debug': 'fas fa-info-circle',
+                'Info': 'fas fa-info-circle',
+                'Warning': 'fas fa-exclamation-triangle',
+                'Error': 'fas fa-times-circle',
+                'Fatal': 'fas fa-stop-circle'
             };
             
             const color = categoryColors[notif.category] || 'danger';
+            const icon = categoryIcons[notif.category] || 'fas fa-info-circle';
             const countBadge = notif.count > 1 ? 
                 `<span class="badge bg-danger rounded-pill me-2" title="${notif.count} counts">${notif.count}</span>` : '';
             const createdDate = notif.created ? new Date(notif.created).toLocaleString() : '';
+            const lastUpdatedDate = notif.last_updated ? new Date(notif.last_updated).toLocaleString() : '';
+            let dateInfo = `<i class="fas fa-calendar-plus me-1" title="Created"></i>${createdDate}`;
+            if (lastUpdatedDate && notif.count && notif.count > 1) {
+                dateInfo += ` <i class="fas fa-clock me-1" title="Last updated"></i>${lastUpdatedDate}`;
+            }
             
             return `
                 <div class="alert alert-${color} alert-dismissible fade show p-2 my-1" data-notify-id="${notif.id}">
                     ${countBadge}
-                    <i class="fas fa-exclamation-circle me-1"></i>
+                    <i class="${icon} me-1"></i>
                     <b>${this.escapeHtml(notif.name)}</b>
                     ${this.escapeHtml(notif.description || '')}
-                    <i>(${createdDate})</i>
+                    <span class="ms-2">${dateInfo}</span>
                     <button type="button" class="btn-close p-2 my-1" onclick="if(typeof NotificationSystem !== 'undefined') NotificationSystem.readNotify(${notif.id})" data-bs-dismiss="alert" aria-label="Close"></button>
                 </div>
             `;
@@ -324,18 +339,21 @@
                 const contentContainer = $('.pcoded-content');
                 if (contentContainer.length) {
                     contentContainer.prepend(notifyHtml);
-                    $('#notify_block').show().css('display', 'block');
+                    $('#notify_block').hide().fadeIn(300);
                 } else {
                     // Альтернативный контейнер
                     const altContainer = $('.pcoded-main-container, .container-fluid, main');
                     if (altContainer.length) {
                         altContainer.first().prepend(notifyHtml);
-                        $('#notify_block').show().css('display', 'block');
+                        $('#notify_block').hide().fadeIn(300);
                     }
                 }
             } else {
                 // Обновляем существующий блок
-                notifyBlock.find('.card-body').html(alertsHtml);
+                const cardBody = notifyBlock.find('.card-body');
+                cardBody.hide();
+                cardBody.html(alertsHtml);
+                cardBody.fadeIn(300);
                 this.updateNotifyBlockCounter(notifications.length);
                 notifyBlock.show().css('display', 'block');
             }

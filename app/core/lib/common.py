@@ -275,6 +275,7 @@ def addNotify(
         notify = session.query(Notify).filter(Notify.name == name, Notify.description == description, Notify.read == False).first() # noqa
         if notify:
             notify.count = (notify.count if notify.count else 0) + 1
+            notify.last_updated = get_now_to_utc()
             notify_id = notify.id
             notify_count = notify.count
             session.commit()
@@ -285,6 +286,7 @@ def addNotify(
             notify.category = category
             notify.source = source
             notify.created = get_now_to_utc()
+            notify.last_updated = get_now_to_utc()
             notify.count = 1
             session.add(notify)
             session.flush()
@@ -332,7 +334,7 @@ def readNotify(notify_id: int):
             notify_found = True
 
         if notify_found:
-            sql = update(Notify).where(Notify.id == notify_id).values(read=True)
+            sql = update(Notify).where(Notify.id == notify_id).values(read=True, read_date=get_now_to_utc())
             session.execute(sql)
             session.commit()
 
@@ -362,7 +364,7 @@ def readNotifyAll(source: str):
         source (str): Source notify
     """
     with session_scope() as session:
-        sql = update(Notify).where(Notify.source == source).values(read=True)
+        sql = update(Notify).where(Notify.source == source).values(read=True, read_date=get_now_to_utc())
         session.execute(sql)
         session.commit()
 

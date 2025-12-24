@@ -24,3 +24,5 @@ class Notify(SurrogatePK, db.Model):
     created = Column(db.DateTime)
     read = Column(db.Boolean, default=False)
     count = Column(db.Integer(), default=1)
+    last_updated = Column(db.DateTime)
+    read_date = Column(db.DateTime)
