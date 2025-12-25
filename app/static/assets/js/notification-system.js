@@ -48,10 +48,26 @@
          */
         getCurrentSource: function() {
             const pathParts = window.location.pathname.split('/').filter(function(p) { return p; });
+            const currentPath = window.location.pathname;
+            
+            // Если мы на странице /admin (контрольная панель), возвращаем 'admin'
+            if (currentPath === '/admin' || currentPath.endsWith('/admin')) {
+                return 'admin';
+            }
+            
+            // Если путь вида /admin/moduleName, возвращаем moduleName
+            if (currentPath.includes('/admin/')) {
+                const adminIndex = pathParts.indexOf('admin');
+                if (adminIndex >= 0 && adminIndex < pathParts.length - 1) {
+                    return pathParts[adminIndex + 1];
+                }
+            }
+            
+            // Иначе возвращаем последний элемент пути
             const source = pathParts[pathParts.length - 1];
             
-            // Проверяем, что это не admin или пустая строка
-            if (!source || source === 'admin' || source === '') {
+            // Проверяем, что это не пустая строка
+            if (!source || source === '') {
                 return null;
             }
             

@@ -357,14 +357,18 @@ def readNotify(notify_id: int):
 
     return True
 
-def readNotifyAll(source: str):
+def readNotifyAll(source: Optional[str] = None):
     """Set read all notify for source
 
     Args:
-        source (str): Source notify
+        source (str, optional): Source notify. If None or empty, marks all notifications as read.
     """
     with session_scope() as session:
-        sql = update(Notify).where(Notify.source == source).values(read=True, read_date=get_now_to_utc())
+        if source:
+            sql = update(Notify).where(Notify.source == source).values(read=True, read_date=get_now_to_utc())
+        else:
+            # Если source не указан, отмечаем все уведомления
+            sql = update(Notify).values(read=True, read_date=get_now_to_utc())
         session.execute(sql)
         session.commit()
 
@@ -380,7 +384,7 @@ def readNotifyAll(source: str):
         "operation": "read_notify_all", 
         "data": 
         {
-            "source": source,
+            "source": source or "all",
         }
     }
     callPluginFunction("wsServer","notify", {"data":notify_data})
