@@ -41,6 +41,8 @@ class ValueUpdate:
     source: str
     save_history: bool
     history_value: Optional[str] = None
+    history_only: bool = False  # Если True, обновляется только история, не само значение
+    explicit_date: bool = False  # Если True, дата была указана явно (нужно проверять дубликаты)
 
 
 class BatchWriter:
@@ -114,12 +116,13 @@ class BatchWriter:
                 history_records = []
 
                 for update_item in batch:
-                    # Сохраняем последнее значение для каждого value_id
-                    value_updates[update_item.value_id] = {
-                        'value': update_item.value,
-                        'changed': update_item.changed,
-                        'source': update_item.source
-                    }
+                    # Сохраняем последнее значение для каждого value_id только если не history_only
+                    if not update_item.history_only:
+                        value_updates[update_item.value_id] = {
+                            'value': update_item.value,
+                            'changed': update_item.changed,
+                            'source': update_item.source
+                        }
 
                     # Собираем записи истории
                     if update_item.save_history and update_item.history_value is not None:
@@ -127,7 +130,8 @@ class BatchWriter:
                             'value_id': update_item.value_id,
                             'value': update_item.history_value,
                             'added': update_item.changed,
-                            'source': update_item.source
+                            'source': update_item.source,
+                            'explicit_date': update_item.explicit_date
                         })
 
                 # Bulk update для значений
@@ -157,10 +161,60 @@ class BatchWriter:
                             )
                             session.execute(stmt)
 
-                # Bulk insert для истории
+                # Bulk insert/update для истории
                 if history_records:
-                    history_count = len(history_records)
-                    session.bulk_insert_mappings(History, history_records)
+                    history_count = 0
+                    # Группируем по (value_id, added, source) для проверки дубликатов
+                    history_by_key = {}
+                    history_with_explicit_date = []
+                    for record in history_records:
+                        key = (record['value_id'], record['added'], record['source'])
+                        history_by_key[key] = record
+                        # Сохраняем информацию о том, была ли дата указана явно
+                        # Проверяем дубликаты только для записей с явно указанной датой
+                        if record.get('explicit_date', False):
+                            history_with_explicit_date.append(key)
+                    
+                    # Проверяем существующие записи только для записей с явно указанной датой
+                    # Если дата не указана явно (используется текущее время), вероятность дубликата крайне мала
+                    existing_history = {}
+                    if history_with_explicit_date:
+                        # Собираем только записи с явно указанными датами для проверки
+                        explicit_records = [history_by_key[key] for key in history_with_explicit_date]
+                        value_ids = set(r['value_id'] for r in explicit_records)
+                        added_dates = set(r['added'] for r in explicit_records)
+                        sources = set(r['source'] for r in explicit_records)
+                        existing_records = session.query(History).filter(
+                            History.value_id.in_(value_ids),
+                            History.added.in_(added_dates),
+                            History.source.in_(sources)
+                        ).all()
+                        for record in existing_records:
+                            key = (record.value_id, record.added, record.source)
+                            existing_history[key] = record
+                    
+                    # Разделяем на обновления и вставки
+                    history_inserts = []
+                    
+                    for key, record in history_by_key.items():
+                        if key in existing_history:
+                            # Обновляем существующую запись только если source совпадает
+                            existing_record = existing_history[key]
+                            existing_record.value = record['value']
+                            # source уже совпадает, так как он в ключе
+                            # Обновление применяется напрямую к объекту, будет сохранено при commit
+                            history_count += 1
+                        else:
+                            # Вставляем новую запись (удаляем explicit_date из записи перед вставкой)
+                            insert_record = {k: v for k, v in record.items() if k != 'explicit_date'}
+                            history_inserts.append(insert_record)
+                            history_count += 1
+                    
+                    # Выполняем bulk insert для новых записей
+                    if history_inserts:
+                        session.bulk_insert_mappings(History, history_inserts)
+                    
+                    # Обновления уже применены к объектам, они будут сохранены при commit
 
                 session.commit()
                 
@@ -492,9 +546,10 @@ class PropertyManager():
                 raise ValueError(f"Failed to decode value '{value}' for property '{self.name}': {str(ex)}") from ex
         return converted_value
 
-    def _encodeValue(self):
+    def _encodeValue(self, value=None):
         # convert to string
-        value = self.__value
+        if value is None:
+            value = self.__value
         if value is None:
             return 'None'
         try:
@@ -516,9 +571,9 @@ class PropertyManager():
                 return value
         except Exception as ex:
             _logger.exception(ex, exc_info=True)
-        return str(self.__value)
+        return str(value)
 
-    def _saveValue(self, save_history:bool=None):
+    def _saveValue(self, save_history:bool=None, history_only:bool=False, history_changed:datetime.datetime=None, history_source:str=None, history_value=None, explicit_date:bool=False):
         if self.value_id is None:
             with session_scope() as session:
                 valRec = Value()
@@ -528,7 +583,16 @@ class PropertyManager():
                 session.commit()
                 self.value_id = valRec.id
 
-        stringValue = self._encodeValue()
+        if history_only:
+            # Режим только истории - используем переданные параметры
+            stringValue = self._encodeValue(history_value) if history_value is not None else 'None'
+            changed_dt = history_changed
+            source_str = history_source or ''
+        else:
+            # Обычный режим - используем текущие значения
+            stringValue = self._encodeValue()
+            changed_dt = self.changed
+            source_str = self.source
 
         # Определяем, нужно ли сохранять историю
         should_save_history = False
@@ -540,10 +604,12 @@ class PropertyManager():
         value_update = ValueUpdate(
             value_id=self.value_id,
             value=stringValue,
-            changed=self.changed,
-            source=self.source,
+            changed=changed_dt,
+            source=source_str,
             save_history=should_save_history,
-            history_value=stringValue if should_save_history else None
+            history_value=stringValue if should_save_history else None,
+            history_only=history_only,
+            explicit_date=explicit_date
         )
 
         # Добавляем в батчер (асинхронная запись)
@@ -574,38 +640,69 @@ class PropertyManager():
         if self.read_only:
             raise PermissionError(f"Property '{self.name}' is read-only and cannot be modified")
         
-        # Check rate limit
-        if self.params and 'rate_limit' in self.params and not bypass_rate_limit:
-            rate_limit = float(self.params['rate_limit'])
-            if rate_limit > 0 and self.changed:
-                time_since_last = (get_now_to_utc() - self.changed).total_seconds()
-                if time_since_last < rate_limit:
-                    remaining = rate_limit - time_since_last
-                    raise ValueError(
-                        f"Property '{self.name}' can be changed only once per {rate_limit} seconds. "
-                        f"Please wait {remaining:.1f} more seconds."
-                    )
-
-        self.__value = self._decodeValue(value)
-        self.source = source
+        # Определяем дату для установки значения
+        if changed is not None:
+            new_changed = changed
+            # Нормализуем дату к наивному UTC для сравнения
+            if new_changed.tzinfo is not None:
+                from zoneinfo import ZoneInfo
+                new_changed = new_changed.astimezone(ZoneInfo("UTC")).replace(tzinfo=None)
+        else:
+            new_changed = get_now_to_utc()
+        
+        # Проверяем, нужно ли обновлять значение или только историю
+        # Если указана дата и она старше текущей даты значения, обновляем только историю
+        history_only = False
+        if changed is not None and self.changed is not None:
+            # Нормализуем self.changed для сравнения (если есть таймзона)
+            compare_changed = self.changed
+            if compare_changed.tzinfo is not None:
+                from zoneinfo import ZoneInfo
+                compare_changed = compare_changed.astimezone(ZoneInfo("UTC")).replace(tzinfo=None)
+            if new_changed < compare_changed:
+                history_only = True
+        
+        # Подготавливаем значения для истории (нужны в любом случае)
+        temp_value = self._decodeValue(value)
+        temp_source = source
         username = getattr(current_user, 'username', None)
         if username:
-            if self.source != '':
-                self.source += ':'
-            self.source += username
-        if changed is not None:
-            self.changed = changed
-        else:
-            now = get_now_to_utc()
-            self.changed = now
+            if temp_source != '':
+                temp_source += ':'
+            temp_source += username
+        
+        # Если не history_only, проверяем rate limit и обновляем значение
+        if not history_only:
+            # Check rate limit
+            if self.params and 'rate_limit' in self.params and not bypass_rate_limit:
+                rate_limit = float(self.params['rate_limit'])
+                if rate_limit > 0 and self.changed:
+                    time_since_last = (get_now_to_utc() - self.changed).total_seconds()
+                    if time_since_last < rate_limit:
+                        remaining = rate_limit - time_since_last
+                        raise ValueError(
+                            f"Property '{self.name}' can be changed only once per {rate_limit} seconds. "
+                            f"Please wait {remaining:.1f} more seconds."
+                        )
+
+            self.__value = temp_value
+            self.source = temp_source
+            self.changed = new_changed
 
         # save Value To DB
         try:
-            self._saveValue(save_history)
+            if history_only:
+                # Сохраняем только историю с указанной датой
+                # Если changed был указан явно, explicit_date=True
+                self._saveValue(save_history, history_only=True, history_changed=new_changed, history_source=temp_source, history_value=temp_value, explicit_date=(changed is not None))
+            else:
+                # Если changed был указан явно, explicit_date=True
+                self._saveValue(save_history, explicit_date=(changed is not None))
         except Exception as ex:
             _logger.exception(ex, exc_info=True)
 
-        self.count_write = self.count_write + 1
+        if not history_only:
+            self.count_write = self.count_write + 1
 
     def getValue(self):
         self.readed = get_now_to_utc()
@@ -954,7 +1051,7 @@ class ObjectManager:
                     f"but current value is '{current_dep_value}'"
                 )
 
-    def setProperty(self, name:str, value, source:str='', save_history:bool=None):
+    def setProperty(self, name:str, value, source:str='', save_history:bool=None, changed:datetime.datetime=None):
         """ Set property value
 
         Args:
@@ -962,6 +1059,7 @@ class ObjectManager:
             value (str): property value
             source (str): source of the value
             save_history (bool): save history of the value (default is None)
+            changed (datetime.datetime, optional): Date/time for the value. Used when saving history. Defaults to None (current time).
 
         Returns:
             bool: Result
@@ -990,7 +1088,7 @@ class ObjectManager:
             if source is None or source == '':
                 if self._current_execution_source is not None:
                     source = self._current_execution_source
-            prop.setValue(value, source, save_history=save_history)
+            prop.setValue(value, source, changed=changed, save_history=save_history)
             value = prop.getValue()
             if prop.method:
                 args = {

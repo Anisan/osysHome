@@ -3,6 +3,7 @@ import threading
 from contextlib import contextmanager
 import datetime
 from typing import Optional, Union
+from zoneinfo import ZoneInfo
 from sqlalchemy import update, delete
 import xml.etree.ElementTree as ET
 from app.core.lib.execute import execute_and_capture_output
@@ -59,6 +60,7 @@ def addScheduledJob(
                 if not task:
                     task = Task()
                     task.name = name
+                    task.active = True
                     session.add(task)
                 task.code = code
                 utc_dt = convert_local_to_utc(dt)
@@ -90,6 +92,7 @@ def addCronJob(name: str, code: str, crontab: str = "* * * * *") -> int:
                 if not task:
                     task = Task()
                     task.name = name
+                    task.active = True
                     session.add(task)
                 task.code = code
                 utc_dt = convert_local_to_utc(dt)
@@ -174,6 +177,52 @@ def clearTimeout(name: str):
         name (str): Name
     """
     clearScheduledJob(name)
+
+
+def enableJob(name: str) -> bool:
+    """Enable job by name
+
+    Args:
+        name (str): Name job
+
+    Returns:
+        bool: Success
+    """
+    with get_task_lock(name):
+        try:
+            with session_scope() as session:
+                task = session.query(Task).filter(Task.name == name).one_or_none()
+                if task:
+                    task.active = True
+                    session.commit()
+                    return True
+                return False
+        except Exception as ex:
+            _logger.exception(name, ex)
+            return False
+
+
+def disableJob(name: str) -> bool:
+    """Disable job by name
+
+    Args:
+        name (str): Name job
+
+    Returns:
+        bool: Success
+    """
+    with get_task_lock(name):
+        try:
+            with session_scope() as session:
+                task = session.query(Task).filter(Task.name == name).one_or_none()
+                if task:
+                    task.active = False
+                    session.commit()
+                    return True
+                return False
+        except Exception as ex:
+            _logger.exception(name, ex)
+            return False
 
 
 def getModule(name: str):
@@ -538,6 +587,18 @@ def is_datetime_in_range(
     Returns:
         bool: True if check_dt falls within the range.
     """
+    # Нормализуем все даты к наивному UTC, чтобы избежать ошибок сравнения
+    def _to_naive_utc(dt: Optional[datetime.datetime]) -> Optional[datetime.datetime]:
+        if dt is None:
+            return None
+        if dt.tzinfo is None:
+            return dt
+        return dt.astimezone(ZoneInfo("UTC")).replace(tzinfo=None)
+
+    check_dt = _to_naive_utc(check_dt)
+    start_dt = _to_naive_utc(start_dt)
+    end_dt = _to_naive_utc(end_dt)
+
     if start_dt is not None:
         if inclusive in (True, "left"):
             if check_dt < start_dt:

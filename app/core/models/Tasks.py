@@ -8,3 +8,4 @@ class Task(SurrogatePK, db.Model):
     expire = Column(db.DateTime, nullable=False)
     started = Column(db.DateTime)
     crontab = Column(db.String(100))
+    active = Column(db.Boolean, default=True, nullable=False)

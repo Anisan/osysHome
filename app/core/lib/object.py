@@ -456,7 +456,7 @@ def getProperty(name:str, data:str = 'value'):
         logger.exception('getProperty %s: %s',name,e)
     return None
 
-def setProperty(name:str, value, source:str='', save_history:bool=None) -> bool:
+def setProperty(name:str, value, source:str='', save_history:bool=None, changed:datetime.datetime=None) -> bool:
     """Set value property by its name.
 
     Args:
@@ -464,6 +464,7 @@ def setProperty(name:str, value, source:str='', save_history:bool=None) -> bool:
         value (Any): Value
         source (str, optional): Source changing value. Defaults to ''.
         save_history (bool, optional): Save history of changing value. Defaults to None.
+        changed (datetime.datetime, optional): Date/time for the value. Used when saving history. Defaults to None (current time).
 
     Returns:
         bool: Success set value
@@ -479,7 +480,7 @@ def setProperty(name:str, value, source:str='', save_history:bool=None) -> bool:
         prop = name.split(".")[1]
         obj = objects_storage.getObjectByName(obj)
         if obj:
-            obj.setProperty(prop, value, source, save_history)
+            obj.setProperty(prop, value, source, save_history, changed)
             return True
         else:
             logger.error('Object %s not found', name)
