@@ -60,12 +60,12 @@ def addScheduledJob(
                 if not task:
                     task = Task()
                     task.name = name
-                    task.active = True
                     session.add(task)
                 task.code = code
                 utc_dt = convert_local_to_utc(dt)
                 task.runtime = utc_dt
                 task.expire = utc_dt + datetime.timedelta(seconds=expire)
+                task.active = True
                 session.commit()
                 return task.id
         except Exception as ex:
@@ -92,13 +92,13 @@ def addCronJob(name: str, code: str, crontab: str = "* * * * *") -> int:
                 if not task:
                     task = Task()
                     task.name = name
-                    task.active = True
                     session.add(task)
                 task.code = code
                 utc_dt = convert_local_to_utc(dt)
                 task.runtime = utc_dt
                 task.expire = utc_dt + datetime.timedelta(1800)
                 task.crontab = crontab
+                task.active = True
                 session.commit()
                 return task.id
         except Exception as ex:
