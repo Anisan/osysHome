@@ -15,16 +15,39 @@
         <!-- [ breadcrumb ] start -->
         <div class="card ms-0 mb-2 p-2">
             <div class="row ms-0">
-            <ul class="col breadcrumb mb-0">
+            <ul class="col breadcrumb mb-0" id="module-breadcrumb">
                 <li class="breadcrumb-item"><a href="/admin"><i class="feather icon-home"></i></a></li>
                 {% block breadcrumb %}{% endblock breadcrumb %}
             </ul>
-            <div class="col text-end">
+            <div class="col text-end" id="module-help-info">
+                <span id="readme-link-container"></span>
                 <a href="/docs/plugins/{{ request.path.split("/")[-1]}}.html" target="_blank"><i class="fas fa-info-circle"></i> {{ _('Help')}}</a>
             </div>
             </div>
         </div>
         <!-- [ breadcrumb ] end -->
+        
+        <!-- Modal for README -->
+        <div class="modal fade" id="readmeModal" tabindex="-1" aria-labelledby="readmeModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="readmeModalLabel">{{ _('Information') }}</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body" id="readmeContent">
+                        <div class="text-center">
+                            <div class="spinner-border" role="status">
+                                <span class="visually-hidden">{{ _('Loading...') }}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ _('Close') }}</button>
+                    </div>
+                </div>
+            </div>
+        </div>
         {% block module %}
 
         {% endblock %}
@@ -35,6 +58,7 @@
 
 <!-- Specific Page JS goes HERE  -->
 {% block javascripts %}
+{% set plugin_name_raw = segment if segment is defined else request.path.split("/")[-1] %}
 <script>
     // Используем централизованный менеджер уведомлений
     // Функции-обертки для обратной совместимости
@@ -80,6 +104,73 @@
         
         // Пробуем сразу, если не готово - ждем
         tryRefresh();
+        
+        // Проверка наличия README и добавление пункта "Информация" перед Help
+        // Используем segment если доступен, иначе извлекаем из пути
+        let pluginNameRaw = '{{ plugin_name_raw }}';
+        
+        // Извлекаем имя папки плагина (последняя часть после точки, если есть)
+        const pluginName = pluginNameRaw.includes('.') ? pluginNameRaw.split('.').pop() : pluginNameRaw;
+        const infoText = '{{ _("Information") }}';
+        
+        if (pluginName && pluginName !== '' && pluginName !== 'admin') {
+            $.ajax({
+                url: '/api/plugins/' + pluginName + '/readme/check',
+                method: 'GET',
+                dataType: 'json',
+                success: function(data) {
+                    if (data && data.success && data.exists) {
+                        // Добавляем пункт "Информация" перед Help
+                        const readmeContainer = $('#readme-link-container');
+                        if (readmeContainer.length > 0) {
+                            const infoLink = $('<a href="#" data-bs-toggle="modal" data-bs-target="#readmeModal" id="readmeLink" class="me-3"><i class="fas fa-book"></i> ' + infoText + '</a>');
+                            readmeContainer.html(infoLink);
+                        }
+                    }
+                },
+                error: function() {
+                    // Игнорируем ошибки проверки
+                }
+            });
+        }
+    });
+    
+    // Загрузка README при открытии модального окна
+    $('#readmeModal').on('show.bs.modal', function() {
+        // Используем то же имя плагина, что и при проверке
+        let pluginNameRawModal = '{{ plugin_name_raw }}';
+        
+        // Извлекаем имя папки плагина (последняя часть после точки, если есть)
+        const pluginName = pluginNameRawModal.includes('.') ? pluginNameRawModal.split('.').pop() : pluginNameRawModal;
+        const currentLang = '{{ current_language() }}';
+        const loadingText = '{{ _("Loading...") }}';
+        const readmeContent = $('#readmeContent');
+        
+        // Показываем индикатор загрузки
+        readmeContent.html('<div class="text-center"><div class="spinner-border" role="status"><span class="visually-hidden">' + loadingText + '</span></div></div>');
+        
+        if (pluginName) {
+            $.ajax({
+                url: '/api/plugins/' + pluginName + '/readme?lang=' + currentLang,
+                method: 'GET',
+                success: function(data) {
+                    if (data.success && data.content) {
+                        // Контент уже приходит как HTML (с парсингом на сервере)
+                        readmeContent.html('<div class="markdown-content" style="max-height: 70vh; overflow-y: auto; padding: 15px;">' + data.content + '</div>');
+                    } else {
+                        const errorMsg = '{{ _("Error loading information") }}';
+                        readmeContent.html('<div class="alert alert-warning">' + errorMsg + '</div>');
+                    }
+                },
+                error: function(xhr) {
+                    let errorMsg = '{{ _("Error loading information") }}';
+                    if (xhr.responseJSON && xhr.responseJSON.message) {
+                        errorMsg = xhr.responseJSON.message;
+                    }
+                    readmeContent.html('<div class="alert alert-danger">' + errorMsg + '</div>');
+                }
+            });
+        }
     });
 </script>
 {% endblock javascripts %}

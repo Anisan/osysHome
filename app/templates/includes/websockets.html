@@ -131,8 +131,10 @@
 
   // Функция для отображения уведомлений
   // Заменить функцию showNotification на:  
-  function showNotification(data) {
-    notificationManager.show(data);
+  function showNotification(data, options) {
+    if (typeof notificationManager !== 'undefined' && notificationManager) {
+      notificationManager.show(data, options || {});
+    }
   }
 
   // Обработка события при получении уведомления от сервера 
@@ -206,7 +208,59 @@
     if (!data || !data.operation || !data.data) return;
     
     if (data.operation === 'new_notify') {
-      const notifySource = data.data.source;
+      const notifyData = data.data;
+      const notifySource = notifyData.source;
+      
+      // Показываем всплывающее уведомление
+      if (typeof showNotification === 'function') {
+        // Преобразуем category (число) в уровень для уведомления
+        const categoryMap = {
+          0: 'debug',    // Debug
+          1: 'info',     // Info
+          2: 'warning',  // Warning
+          3: 'error',    // Error
+          4: 'error'     // Fatal -> error
+        };
+        const category = notifyData.category !== undefined ? notifyData.category : 1;
+        const level = categoryMap[category] || 'info';
+        
+        // Формируем сообщение
+        let message = notifyData.name || '';
+        if (notifyData.description) {
+          message += (message ? ': ' : '') + notifyData.description;
+        }
+        if (notifyData.count > 1) {
+          message += ' (x' + notifyData.count + ')';
+        }
+        
+        // Формируем заголовок
+        const title = notifySource || 'Системное уведомление';
+        
+        // Опции для уведомления
+        const options = {
+          groupKey: notifySource ? notifySource + ':' + notifyData.name : null,
+          sound: level === 'error' || level === 'warning',
+          persistent: level === 'error',
+          actions: []
+        };
+        
+        // Добавляем действие для открытия источника, если указан
+        if (notifySource) {
+          options.actions.push({
+            id: 'view_source',
+            label: 'Open',
+            callback: (notifId, actionId) => {
+              window.open(`/admin/${notifySource}`, '_blank');
+            }
+          });
+        }
+        
+        showNotification({
+          level: level,
+          message: message,
+          title: title
+        }, options);
+      }
       
       // Функция для обновления с retry, если система еще не загружена
       function tryUpdateNotifications() {
