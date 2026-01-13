@@ -212,7 +212,7 @@ body
     <label for="{{ field_object.name }}">{{ gettext("Linked object") }}</label><br>
     <div class="input-group">
     <select id="{{ field_object.name }}" name="{{ field_object.name }}" class="select2" aria-label="{{label}}" data-placeholder="{{ gettext('Select object')}}">
-        <option></option>
+        <option value=""></option>
     </select>
     <button class="btn btn-outline-secondary" type="button" id="reset-{{ field_object.name }}"><i class="fa-solid fa-broom"></i></button>
     </div>
@@ -252,32 +252,86 @@ $(document).ready(function() {
 		}
     });
     function updateProps(object_name, select){
+        {% if field_property %}
+        if (!object_name || object_name === '') {
+            var property_select = $('#{{field_property.name}}');
+            property_select.empty();
+            property_select.append(new Option('', ''));
+            property_select.val('').trigger('change');
+            if (property_select[0]) {
+                property_select[0].value = '';
+            }
+            return;
+        }
         $.ajax({
             url: '/api/property/list/' + object_name,
             method: 'GET',
             success: function(data) {
                 var property_select = $('#{{field_property.name}}');
                 property_select.empty();
+                // Добавляем пустую опцию для возможности установки пустого значения
+                property_select.append(new Option('', ''));
                 Object.keys(data.result).forEach(function(key) {
                     property_select.append(new Option(key +" - "+ data.result[key], key));
                 })
-                property_select.val(select);
+                property_select.val(select || '').trigger('change');
+                // Синхронизируем с нативным select
+                if (property_select[0]) {
+                    property_select[0].value = select || '';
+                }
+            },
+            error: function() {
+                var property_select = $('#{{field_property.name}}');
+                property_select.empty();
+                property_select.append(new Option('', ''));
+                property_select.val('').trigger('change');
+                if (property_select[0]) {
+                    property_select[0].value = '';
+                }
             }
         });
+        {% endif %}
     }
     function updateMethods(object_name, select){
+        {% if field_method %}
+        if (!object_name || object_name === '') {
+            var method_select = $('#{{field_method.name}}');
+            method_select.empty();
+            method_select.append(new Option('', ''));
+            method_select.val('').trigger('change');
+            if (method_select[0]) {
+                method_select[0].value = '';
+            }
+            return;
+        }
         $.ajax({
             url: '/api/method/list/' + object_name,
             method: 'GET',
             success: function(data) {
                 var method_select = $('#{{field_method.name}}');
                 method_select.empty();
+                // Добавляем пустую опцию для возможности установки пустого значения
+                method_select.append(new Option('', ''));
                 Object.keys(data.result).forEach(function(key) {
                     method_select.append(new Option(key +" - "+ data.result[key], key));
                 })
-                method_select.val(select);
+                method_select.val(select || '').trigger('change');
+                // Синхронизируем с нативным select
+                if (method_select[0]) {
+                    method_select[0].value = select || '';
+                }
+            },
+            error: function() {
+                var method_select = $('#{{field_method.name}}');
+                method_select.empty();
+                method_select.append(new Option('', ''));
+                method_select.val('').trigger('change');
+                if (method_select[0]) {
+                    method_select[0].value = '';
+                }
             }
         });
+        {% endif %}
     }
     // Load objects via API
     $.ajax({
@@ -286,39 +340,71 @@ $(document).ready(function() {
         success: function(data) {
             var object_select = $('#{{field_object.name}}');
             object_select.empty();
+            // Добавляем пустую опцию для возможности установки пустого значения
+            object_select.append(new Option('', ''));
             console.log(data, object_select, '{{field_object.data}}')
             Object.keys(data.result).forEach(function(key) {
                 object_select.append(new Option(key +" - "+ data.result[key], key));
             })
             
-            object_select.val('{{field_object.data}}');
-            updateProps('{{field_object.data}}','{{field_property.data}}')
-            updateMethods('{{field_object.data}}','{{field_method.data}}')
+            var currentValue = '{{field_object.data if field_object.data else ""}}';
+            var propertyValue = '{{field_property.data if field_property and field_property.data else ""}}';
+            var methodValue = '{{field_method.data if field_method and field_method.data else ""}}';
+            
+            if (currentValue && currentValue !== 'None') {
+                object_select.val(currentValue);
+            } else {
+                object_select.val('');
+                currentValue = '';
+            }
+            // Синхронизируем с нативным select
+            if (object_select[0]) {
+                object_select[0].value = currentValue && currentValue !== 'None' ? currentValue : '';
+            }
+            // Загружаем properties и methods с правильными значениями
+            updateProps(currentValue, propertyValue);
+            updateMethods(currentValue, methodValue);
         }
     });
     // Добавляем обработчик для кнопки сброса
     $(document).on('click', '#reset-{{ field_object.name }}', function() {
         var object_select = $('#{{ field_object.name }}');
-        object_select.val('null').trigger('change');
+        // Устанавливаем пустую строку в select2 и нативный select
+        object_select.val('').trigger('change');
+        if (object_select[0]) {
+            object_select[0].value = '';
+        }
         {% if field_property %}
         var prop_select = $('#{{ field_property.name }}');
-        prop_select.val('null').trigger('change');
+        prop_select.val('').trigger('change');
+        if (prop_select[0]) {
+            prop_select[0].value = '';
+        }
         {% endif %}
         {% if field_method %}
         var method_select = $('#{{ field_method.name }}');
-        method_select.val('null').trigger('change');
+        method_select.val('').trigger('change');
+        if (method_select[0]) {
+            method_select[0].value = '';
+        }
         {% endif %}
     });
     {% if field_property %}
     $(document).on('click', '#reset-{{ field_property.name }}', function() {
         var prop_select = $('#{{ field_property.name }}');
-        prop_select.val('null').trigger('change');
+        prop_select.val('').trigger('change');
+        if (prop_select[0]) {
+            prop_select[0].value = '';
+        }
     });
     {% endif %}
     {% if field_method %}
     $(document).on('click', '#reset-{{ field_method.name }}', function() {
         var method_select = $('#{{ field_method.name }}');
-        method_select.val('null').trigger('change');
+        method_select.val('').trigger('change');
+        if (method_select[0]) {
+            method_select[0].value = '';
+        }
     });
     {% endif %}
 
@@ -332,18 +418,65 @@ $(document).ready(function() {
 
         // Очистка значений в объекте формы
         {% if field_property %}
-        $('#{{ field_property.name }}').val(null);
+        $('#{{ field_property.name }}').val('').trigger('change');
+        if ($('#{{ field_property.name }}')[0]) {
+            $('#{{ field_property.name }}')[0].value = '';
+        }
         {% endif %}
         {% if field_method %}
-        $('#{{ field_method.name }}').val(null);
+        $('#{{ field_method.name }}').val('').trigger('change');
+        if ($('#{{ field_method.name }}')[0]) {
+            $('#{{ field_method.name }}')[0].value = '';
+        }
+        {% endif %}
+    });
+    
+    // Гарантируем отправку пустого значения при отправке формы
+    $(document).on('submit', 'form', function(e) {
+        var object_select = $('#{{ field_object.name }}');
+        if (object_select.length > 0) {
+            var value = object_select.val();
+            // Если значение пустое или null, устанавливаем пустую строку
+            if (!value || value === null || value === 'null') {
+                value = '';
+            }
+            // Устанавливаем значение в select2 БЕЗ trigger('change'), чтобы не сбросить field_property и field_method
+            object_select.val(value);
+            // Принудительно устанавливаем значение в нативный select для гарантии отправки
+            if (object_select[0]) {
+                object_select[0].value = value;
+            }
+        }
+        // Гарантируем отправку пустых значений для field_property и field_method
+        {% if field_property %}
+        var property_select = $('#{{ field_property.name }}');
+        if (property_select.length > 0) {
+            var prop_value = property_select.val();
+            if (!prop_value || prop_value === null || prop_value === 'null') {
+                prop_value = '';
+            }
+            property_select.val(prop_value);
+            if (property_select[0]) {
+                property_select[0].value = prop_value;
+            }
+        }
+        {% endif %}
+        {% if field_method %}
+        var method_select = $('#{{ field_method.name }}');
+        if (method_select.length > 0) {
+            var method_value = method_select.val();
+            if (!method_value || method_value === null || method_value === 'null') {
+                method_value = '';
+            }
+            method_select.val(method_value);
+            if (method_select[0]) {
+                method_select[0].value = method_value;
+            }
+        }
         {% endif %}
     });
 
 
-    {% if field_property %}
-    // Preselect object if form was pre-filled
-    $('#{{field_property.name}}').val('{{field_property.data}}');
-    {%endif%}
 });
 </script>
 {% endmacro %}
