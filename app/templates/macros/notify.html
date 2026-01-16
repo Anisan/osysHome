@@ -1,5 +1,5 @@
 {% macro render_notify(notify) %}
-{% if notify %}
+{% if notify and notify|length > 0 %}
 <div id="notify_block">
   <div class="card mb-2">
       <div class="card-header d-flex text-dark bg-warning">
@@ -9,12 +9,12 @@
             {{ gettext('Notifications')}} - {{notify.__len__()}}
           </div>
         </h5>
-        <button class="btn btn-outline-secondary text-nowrap" onclick="readNotifyAll('{{request.path.split("/")[-1]}}')">{{ gettext('Read all')}}</button>
+        <button class="btn btn-outline-secondary text-nowrap" onclick="if(typeof NotificationSystem !== 'undefined' && NotificationSystem.isInitialized) NotificationSystem.readNotifyAll('{{request.path.split("/")[-1]}}'); else if(typeof readNotifyAll === 'function') readNotifyAll('{{request.path.split("/")[-1]}}')">{{ gettext('Read all')}}</button>
       </div>
       <div class="collapse" id="collapse_notify">
         <div class="card-body px-2 py-0">
           {% for item in notify %}
-          <div class="alert alert-{{item.color}} alert-dismissible fade show p-2 my-1">
+          <div class="alert alert-{{item.color}} alert-dismissible fade show p-2 my-1" data-notify-id="{{item.id}}">
             {% if item.count and item.count > 1 %}
             <span class="badge bg-danger rounded-pill me-2" title="{{item.count}} counts">{{item.count}}</span>
             {%endif%}
@@ -22,7 +22,7 @@
             <b>{{item.name}}</b>
             {{item.description}}
             <i>({{item.created}})</i>
-            <button type="button" class="btn-close p-2 my-1" onclick="readNotify({{item.id}})" data-bs-dismiss="alert" aria-label="Close"></button>
+            <button type="button" class="btn-close p-2 my-1" onclick="if(typeof NotificationSystem !== 'undefined' && NotificationSystem.isInitialized) NotificationSystem.readNotify({{item.id}}); else if(typeof readNotify === 'function') readNotify({{item.id}})" data-bs-dismiss="alert" aria-label="Close"></button>
           </div>
           {% endfor %}
         </div>
@@ -30,30 +30,30 @@
   </div>
 </div>
 <script>
-    function readNotify(id){
-        $.ajax({
-            url: '/api/utils/readnotify/' + id,
-            method: 'GET',
-            success: function(data) {
-                console.log(data)
-                notificationManager.success('Уведомление отмечено как прочитанное');
-            }
-        });
+    // Используем централизованный менеджер уведомлений
+    // Функции-обертки для обратной совместимости
+    function readNotify(id) {
+        if (typeof NotificationSystem !== 'undefined' && NotificationSystem.isInitialized) {
+            NotificationSystem.readNotify(id);
+        }
     }
-    function readNotifyAll(source){
-        $.ajax({
-            url: '/api/utils/readnotify/all?source=' + source,
-            method: 'GET',
-            success: function(data) {
-                console.log(data)
-                if (data.success){
-                  const toastContainer = document.querySelector('#notify_block');
-                  toastContainer.innerHTML = "";
-                  notificationManager.success('Все уведомления отмечены как прочитанные');
-                }
-            }
-        });
+    
+    function readNotifyAll(source) {
+        if (typeof NotificationSystem !== 'undefined' && NotificationSystem.isInitialized) {
+            NotificationSystem.readNotifyAll(source);
+        }
     }
+    
+    // Делаем функции глобально доступными для обратной совместимости
+    window.readNotify = readNotify;
+    window.readNotifyAll = readNotifyAll;
+    
+    // Проверяем при загрузке страницы через централизованный менеджер
+    $(document).ready(function() {
+        if (typeof NotificationSystem !== 'undefined' && NotificationSystem.isInitialized) {
+            NotificationSystem.checkAndHideNotifyBlock();
+        }
+    });
 </script>
 {%endif%}
 {% endmacro %}

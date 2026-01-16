@@ -19,4 +19,5 @@ class PropertyType(Enum):
     Dictionary = 'dict'
     List = 'list'
     Bool = 'bool'
+    Enum = 'enum'
     

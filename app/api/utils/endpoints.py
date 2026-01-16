@@ -7,7 +7,7 @@ from app.api.decorators import api_key_required
 from app.authentication.handlers import handle_admin_required, handle_user_required
 from app.logging_config import getLogger
 from app.extensions import cache
-from app.database import session_scope
+from app.database import row2dict, session_scope
 from app.core.lsp_client import run_lsp_action
 
 _logger = getLogger("api")
@@ -91,14 +91,12 @@ class ReadNotifyAll(Resource):
     @api_key_required
     @handle_admin_required
     @utils_ns.doc(security="apikey")
-    @utils_ns.param("source", "Source notify")
+    @utils_ns.param("source", "Source notify (optional, if not provided marks all notifications as read)")
     def get(self):
         """
-        Mark read all notify for source
+        Mark read all notify for source. If source is not provided, marks all notifications as read.
         """
         source = request.args.get("source", None)
-        if not source:
-            return {"success": False, "msg": "Need source"}, 404
         from app.core.lib.common import readNotifyAll
 
         readNotifyAll(source)
@@ -268,30 +266,15 @@ class GetNotifications(Resource):
             query = query.filter(Notify.source == source)
 
         if unread_only:
-            query = query.filter(not Notify.read)
+            query = query.filter(Notify.read == False)  # noqa
 
         notifications = query.order_by(Notify.created.desc()).all()
 
         result = []
-        for notification in notifications:
-            result.append(
-                {
-                    "id": notification.id,
-                    "name": notification.name,
-                    "description": notification.description,
-                    "category": (
-                        notification.category.value if notification.category else "Info"
-                    ),
-                    "source": notification.source,
-                    "created": (
-                        notification.created.isoformat()
-                        if notification.created
-                        else None
-                    ),
-                    "read": notification.read,
-                    "count": notification.count,
-                }
-            )
+        for item in notifications:
+            item.category = item.category.name if item.category else "Info"
+            notification = row2dict(item)
+            result.append(notification)
 
         return {"success": True, "notifications": result}, 200
 
@@ -307,14 +290,14 @@ class NotificationStats(Resource):
         """
         with session_scope() as session:
             total = session.query(Notify).count()
-            unread = session.query(Notify).filter(Notify.read == False).count()  # Исправлено условие # noqa
+            unread = session.query(Notify).filter(Notify.read == False).count()  # noqa
 
             # Статистика по источникам
             source_stats = (
-                session.query(  # Исправлено: используем session.query вместо Notify.query
+                session.query(
                     Notify.source,
                     func.count(Notify.id).label("total"),
-                    func.sum(case((Notify.read == False, 1), else_=0)).label("unread"),  # Исправлено подсчет непрочитанных # noqa
+                    func.sum(case((Notify.read == False, 1), else_=0)).label("unread"),  # noqa
                 )
                 .group_by(Notify.source)
                 .all()

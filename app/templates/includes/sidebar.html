@@ -1,25 +1,27 @@
 <!-- [ navigation menu ] start -->
-<nav class="sidebar col-md-3 col-lg-2 p-0">
+<nav class="sidebar p-0">
     {% for key,group in sidebar().items() %}
     <div class="card mb-1 ml-2">
         <div class="card-header d-flex justify-content-between align-items-center py-1" data-bs-toggle="collapse" data-bs-target="#collapse{{ key }}" aria-expanded="true" aria-controls="collapse{{ key }}">
-            
             <i class="fas fa-cogs"></i>
-            <div class="px-3">
-                {{ key }}
-            </div>
+              <div class="ps-3" style="white-space: nowrap;">
+                  {{ key }}
+              </div>
+            <i class="fas fa-chevron-down collapse-indicator ms-2" style="transition: transform 0.3s ease;"></i>
         </div>
         <div class="collapse" id="collapse{{ key }}">
             <div class="card-body px-0 py-0">
                 <div class="list-group list-group-flush">
                     {% for item in group %}
-                    <a  href="{{ item.route }}" class="list-group-item list-group-item-action{% if item.route in request.path %} list-group-item-primary {% endif %} d-flex justify-content-between align-items-start">
+                    <a  href="{{ item.route }}" class="list-group-item list-group-item-action{% if item.route in request.path %} list-group-item-primary {% endif %} d-flex justify-content-between align-items-start" data-module-name="{{ item.name }}">
                             <img src="/{{item.name}}/static/{{item.name}}.png" height="24px" onError="this.src='{{ config.ASSETS_ROOT }}/images/module.png'">
-                            <div class="ms-2 me-auto">
+                            <div class="ms-2 me-auto" style="white-space: nowrap;">
                                 {{ item.title }}
                             </div>
                             {%if item.notify%}
-                            <span class="badge bg-warning text-black rounded-pill mt-1">{{item.notify}}</span>
+                            <span class="badge bg-warning text-black rounded-pill mt-1" data-notify-count="{{ item.notify }}">{{item.notify}}</span>
+                            {%else%}
+                            <span class="badge bg-warning text-black rounded-pill mt-1" data-notify-count="0" style="display: none;"></span>
                             {%endif%}
                     </a>
                     {%endfor%}
@@ -30,6 +32,63 @@
     {%endfor%}
 </nav>
 <script>
+    function setSidebarWidth() {
+      // Calculate maximum width including hidden content
+      var sidebar = $('.sidebar');
+      var maxWidth = 0;
+      
+      // Store original states
+      var originalStates = [];
+      $('[id^="collapse"]').each(function() {
+        var element = $(this);
+        var wasVisible = element.hasClass('show');
+        originalStates.push({
+          element: element,
+          wasVisible: wasVisible
+        });
+        
+        // Temporarily show all collapsed elements to measure their width
+        if (!wasVisible) {
+          element.removeClass('collapse');
+          element.addClass('show');
+          element.css('display', 'block');
+        }
+      });
+      
+      // Force reflow to ensure layout is updated
+      sidebar[0].offsetHeight;
+      
+      // Measure the sidebar width with all content visible
+      maxWidth = sidebar[0].scrollWidth + 30;
+      
+      // Restore original states
+      originalStates.forEach(function(state) {
+        if (!state.wasVisible) {
+          state.element.removeClass('show');
+          state.element.addClass('collapse');
+          state.element.css('display', '');
+        }
+      });
+      
+      // Set the calculated width
+      sidebar.css('width', maxWidth + 'px');
+      sidebar.css('min-width', maxWidth + 'px');
+    }
+
+    function updateCollapseIndicators() {
+      // Update all collapse indicators based on current state
+      $('[id^="collapse"]').each(function() {
+        var collapseElement = $(this);
+        var header = collapseElement.prev('.card-header');
+        var indicator = header.find('.collapse-indicator');
+        if (collapseElement.hasClass('show')) {
+          indicator.css('transform', 'rotate(180deg)');
+        } else {
+          indicator.css('transform', 'rotate(0deg)');
+        }
+      });
+    }
+
     function loadConfSidebar() {
       // Check if local storage is available
       if (typeof(Storage) !== "undefined") {
@@ -55,6 +114,20 @@
           });
           localStorage.setItem('collapseSidebar', JSON.stringify(collapseState));
         }
+        
+        // Update indicators after loading state
+        updateCollapseIndicators();
+      
+        // Update indicator on collapse show/hide events
+        $('[id^="collapse"]').on('show.bs.collapse', function () {
+          var header = $(this).prev('.card-header');
+          header.find('.collapse-indicator').css('transform', 'rotate(180deg)');
+        });
+        
+        $('[id^="collapse"]').on('hide.bs.collapse', function () {
+          var header = $(this).prev('.card-header');
+          header.find('.collapse-indicator').css('transform', 'rotate(0deg)');
+        });
       
         // Store the collapse state when a collapse element is toggled
         $('[data-bs-toggle="collapse"]').on('click', function () {
@@ -64,7 +137,7 @@
               collapseState.push({id: $(this).attr('id'), collapsed: !$(this).hasClass('show')});
             });
             localStorage.setItem('collapseSidebar', JSON.stringify(collapseState));
-          }, 500);
+          }, 350);
         });
       }
     }
@@ -72,6 +145,10 @@
     // Call the function to load configuration after document is loaded
 $(document).ready(function() {
     loadConfSidebar();
+    // Set sidebar width after content is loaded
+    setTimeout(function() {
+      setSidebarWidth();
+    }, 100);
 });
     
 </script>

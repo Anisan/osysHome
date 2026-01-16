@@ -12,6 +12,7 @@ application:
   pool_max_size: 100
   pool_timeout_threshold: 60.0
   batch_writer_flush_interval: 0.5
+  session_lifetime_days: 31  # Время жизни сессии в днях (по умолчанию 31 день, как в Flask)
   
 database:  
   sqlalchemy_echo: false  

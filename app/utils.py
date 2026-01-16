@@ -24,7 +24,7 @@ def get_user_by_api_key(apikey):
 
 def initSystemVar():
 
-    from app.core.lib.object import addClass, updateClass, addClassProperty, addObject, getObject, addObjectProperty, addObjectMethod, getObjectsByClass
+    from app.core.lib.object import addClass, updateClass, addClassProperty, addObject, getObject, addObjectProperty, addObjectMethod, getObjectsByClass, getProperty, setProperty
     # Create permissions
     addObject("_permissions",None,"Permission settings")
     getObject("_permissions")  # preload
@@ -62,6 +62,29 @@ def initSystemVar():
     addObjectProperty('UnreadNotify','SystemVar',"Flag indicating the presence of an unread notification",0,PropertyType.Bool)
     addObjectProperty('LastNotify','SystemVar',"Last 'notify' message",7,PropertyType.Dictionary)
 
+    type_editor = getProperty('SystemVar.code_editor')
+    params = {
+        "icon": 'fas fa-code',
+        "enum_values":{
+            'ace':'Ace editor',
+            'monaco':'Monaco editor',
+        }
+    }
+    addObjectProperty('code_editor','SystemVar',"Code editor",0, PropertyType.Enum, params=params, update=True)
+    if type_editor == None:
+        type_editor = 'monaco'
+    setProperty('SystemVar.code_editor', type_editor)
+
+    params = {
+        "icon":"fas fa-grip",
+        "enum_values":{
+            'custom':'Customizable grid',
+            'old':'Old style grid',
+        },
+        "default_value": 'custom',
+    }
+    addObjectProperty('control_panel_style','SystemVar',"Style control panel",0, PropertyType.Enum, params=params, update=True)
+    
     users = getObjectsByClass('Users')
     if users:
         initPermissions()

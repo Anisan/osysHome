@@ -44,6 +44,10 @@ class ConfigLoader(object):
         self.CACHE_TYPE = 'simple'  # Can be "memcached", "redis", etc.
         self.JWT_ACCESS_TOKEN_EXPIRES = timedelta(10 ** 6)
 
+        # Session lifetime (default 31 days, same as Flask default)
+        self.SESSION_LIFETIME_DAYS = 31
+        self.PERMANENT_SESSION_LIFETIME = timedelta(days=31)
+
         # Service name systemd
         self.SERVICE_NAME = None  # None or 'service_name'
         self.SERVICE_AUTORESTART = False
@@ -75,6 +79,10 @@ class ConfigLoader(object):
         self.POOL_MAX_SIZE = app_config.get('pool_max_size', None)
         self.POOL_TIMEOUT_THRESHOLD = app_config.get('pool_timeout_threshold', 60.0)
         self.BATCH_WRITER_FLUSH_INTERVAL = app_config.get('batch_writer_flush_interval', 0.5)
+        
+        # Session lifetime configuration
+        self.SESSION_LIFETIME_DAYS = app_config.get('session_lifetime_days', 31)
+        self.PERMANENT_SESSION_LIFETIME = timedelta(days=self.SESSION_LIFETIME_DAYS)
 
         db_config = self._config_data.get('database', {})
         self.SQLALCHEMY_ECHO = db_config.get('sqlalchemy_echo', False)

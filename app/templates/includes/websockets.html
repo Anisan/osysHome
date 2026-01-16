@@ -131,8 +131,10 @@
 
   // Функция для отображения уведомлений
   // Заменить функцию showNotification на:  
-  function showNotification(data) {
-    notificationManager.show(data);
+  function showNotification(data, options) {
+    if (typeof notificationManager !== 'undefined' && notificationManager) {
+      notificationManager.show(data, options || {});
+    }
   }
 
   // Обработка события при получении уведомления от сервера 
@@ -188,8 +190,158 @@
     socket.emit('callMethod', name, "WS", true);
   }
 
+  // Функция для обновления блока уведомлений (использует централизованный менеджер)
+  function refreshNotifyBlockIfAvailable(source) {
+    // Используем централизованный менеджер уведомлений
+    if (typeof NotificationSystem !== 'undefined' && NotificationSystem.isInitialized) {
+      if (NotificationSystem.isOnModulePage(source)) {
+        NotificationSystem.refreshNotifyBlock(source);
+        return true;
+      }
+    }
+    return false;
+  }
+
+  // Обработка событий уведомлений
+  socket.on('notify', function (data) {
+    console.log("notify recv", data)
+    if (!data || !data.operation || !data.data) return;
+    
+    if (data.operation === 'new_notify') {
+      const notifyData = data.data;
+      const notifySource = notifyData.source;
+      
+      // Показываем всплывающее уведомление
+      if (typeof showNotification === 'function') {
+        // Преобразуем category (число) в уровень для уведомления
+        const categoryMap = {
+          0: 'debug',    // Debug
+          1: 'info',     // Info
+          2: 'warning',  // Warning
+          3: 'error',    // Error
+          4: 'error'     // Fatal -> error
+        };
+        const category = notifyData.category !== undefined ? notifyData.category : 1;
+        const level = categoryMap[category] || 'info';
+        
+        // Формируем сообщение
+        let message = notifyData.name || '';
+        if (notifyData.description) {
+          message += (message ? ': ' : '') + notifyData.description;
+        }
+        if (notifyData.count > 1) {
+          message += ' (x' + notifyData.count + ')';
+        }
+        
+        // Формируем заголовок
+        const title = notifySource || 'Системное уведомление';
+        
+        // Опции для уведомления
+        const options = {
+          groupKey: notifySource ? notifySource + ':' + notifyData.name : null,
+          sound: level === 'error' || level === 'warning',
+          persistent: level === 'error',
+          actions: []
+        };
+        
+        // Добавляем действие для открытия источника, если указан
+        if (notifySource) {
+          options.actions.push({
+            id: 'view_source',
+            label: 'Open',
+            callback: (notifId, actionId) => {
+              window.open(`/admin/${notifySource}`, '_blank');
+            }
+          });
+        }
+        
+        showNotification({
+          level: level,
+          message: message,
+          title: title
+        }, options);
+      }
+      
+      // Функция для обновления с retry, если система еще не загружена
+      function tryUpdateNotifications() {
+        if (typeof NotificationSystem !== 'undefined' && NotificationSystem.isInitialized) {
+          NotificationSystem.updateNotificationIndicators();
+          
+          // Обновляем блок уведомлений с небольшой задержкой для гарантии сохранения в БД
+          setTimeout(function() {
+            refreshNotifyBlockIfAvailable(notifySource);
+          }, 300);
+          return true;
+        }
+        return false;
+      }
+      
+      // Пытаемся обновить сразу, если система загружена
+      if (!tryUpdateNotifications()) {
+        // Если система еще не загружена, ждем с небольшими интервалами (максимум 2 секунды)
+        let retryCount = 0;
+        const maxRetries = 10;
+        const retryInterval = setInterval(function() {
+          retryCount++;
+          if (tryUpdateNotifications() || retryCount >= maxRetries) {
+            clearInterval(retryInterval);
+          }
+        }, 200);
+      }
+    } else if (data.operation === 'read_notify') {
+      // Уведомление было прочитано на другой странице или на этой же
+      const notifyId = data.data.id;
+      const notifySource = data.data.source;
+      
+      // Используем централизованный менеджер для удаления уведомления
+      if (typeof NotificationSystem !== 'undefined' && NotificationSystem.isInitialized) {
+        NotificationSystem.removeNotifyFromDOM(notifyId, function() {
+          NotificationSystem.checkAndHideNotifyBlock();
+        });
+        
+        // Если элемент не найден, но есть source, обновляем весь блок
+        if (!NotificationSystem.findNotifyElement(notifyId).length && notifySource) {
+          refreshNotifyBlockIfAvailable(notifySource);
+        }
+      }
+      
+      // Обновляем индикаторы уведомлений
+      if (typeof NotificationSystem !== 'undefined' && NotificationSystem.isInitialized) {
+        NotificationSystem.updateNotificationIndicators();
+      }
+    } else if (data.operation === 'read_notify_all') {
+      // Все уведомления были прочитаны на другой странице
+      const notifySource = data.data.source;
+      
+      // Используем централизованный менеджер
+      if (typeof NotificationSystem !== 'undefined' && NotificationSystem.isInitialized) {
+        if (NotificationSystem.isOnModulePage(notifySource)) {
+          const notifyBlock = $('#notify_block');
+          if (notifyBlock.length) {
+            const alerts = notifyBlock.find('.alert');
+            if (alerts.length > 0) {
+              alerts.fadeOut(300, function() {
+                $(this).remove();
+                NotificationSystem.checkAndHideNotifyBlock();
+              });
+            } else {
+              notifyBlock.fadeOut(300, function() {
+                $(this).remove();
+              });
+            }
+          }
+        }
+      }
+      
+      // Обновляем индикаторы уведомлений
+      if (typeof NotificationSystem !== 'undefined' && NotificationSystem.isInitialized) {
+        NotificationSystem.updateNotificationIndicators();
+      }
+    }
+  });
+
   function subscribe() {
-    socket.emit('subscribeActions', ['say','playsound']);
+    socket.emit('subscribeActions', ['say','playsound','notify']);
     var elements = document.querySelectorAll('[id^="prop:"]');
     var propList = [];
     elements.forEach(function (element) {

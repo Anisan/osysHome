@@ -2,6 +2,10 @@
 
 {% block title %} {{ _('Control panel')}} {% endblock %}
 
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="admin">{{ _('Control panel')}}</a></li>
+{% endblock %}
+
 <!-- Specific CSS goes HERE -->
 {% block stylesheets %}
 <style>
@@ -87,7 +91,7 @@
 {% block module %}
 <!-- Заголовок с кнопками управления колонками -->
 <div class="d-flex align-items-center justify-content-between mb-3">
-    <h1>{{ _('Welcome!')}}</h1>
+    <h1 class="ms-2">{{ _('Welcome!')}}</h1>
     <div class="columns-controls">
         <button type="button" id="decreaseColumns" class="btn btn-outline-secondary">
             <i class="feather icon-minus"></i>

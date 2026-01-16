@@ -1,9 +1,8 @@
 import os
 import importlib.util
-from app.database import model_exists, row2dict, get_now_to_utc
-from app.core.models.Plugins import Plugin, Notify
+from app.database import model_exists, get_now_to_utc
+from app.core.models.Plugins import Plugin
 from app.extensions import cache
-from app.core.lib.constants import CategoryNotify
 
 from app.logging_config import getLogger
 _logger = getLogger('plugin_helper')
@@ -129,24 +128,8 @@ def registerPlugins(app):
                 groups[category].append(item)
             return groups
 
-        def getListNotify(source):
-            data = Notify.query.filter(Notify.read == False, Notify.source == source).all()  # noqa
-            res = []
-            for rec in data:
-                item = row2dict(rec)
-                item['color'] = "danger"
-                if rec.category == CategoryNotify.Debug:
-                    item['color'] = "secondary"
-                elif rec.category == CategoryNotify.Warning:
-                    item['color'] = "warning"
-                elif rec.category == CategoryNotify.Info:
-                    item['color'] = "success"
-                res.append(item)
-            return res
-
         return {
             'sidebar': get_sidebar,
-            'list_notify': getListNotify,
         }
 
 

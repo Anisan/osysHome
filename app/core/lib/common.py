@@ -3,6 +3,7 @@ import threading
 from contextlib import contextmanager
 import datetime
 from typing import Optional, Union
+from zoneinfo import ZoneInfo
 from sqlalchemy import update, delete
 import xml.etree.ElementTree as ET
 from app.core.lib.execute import execute_and_capture_output
@@ -64,6 +65,7 @@ def addScheduledJob(
                 utc_dt = convert_local_to_utc(dt)
                 task.runtime = utc_dt
                 task.expire = utc_dt + datetime.timedelta(seconds=expire)
+                task.active = True
                 session.commit()
                 return task.id
         except Exception as ex:
@@ -96,6 +98,7 @@ def addCronJob(name: str, code: str, crontab: str = "* * * * *") -> int:
                 task.runtime = utc_dt
                 task.expire = utc_dt + datetime.timedelta(1800)
                 task.crontab = crontab
+                task.active = True
                 session.commit()
                 return task.id
         except Exception as ex:
@@ -174,6 +177,52 @@ def clearTimeout(name: str):
         name (str): Name
     """
     clearScheduledJob(name)
+
+
+def enableJob(name: str) -> bool:
+    """Enable job by name
+
+    Args:
+        name (str): Name job
+
+    Returns:
+        bool: Success
+    """
+    with get_task_lock(name):
+        try:
+            with session_scope() as session:
+                task = session.query(Task).filter(Task.name == name).one_or_none()
+                if task:
+                    task.active = True
+                    session.commit()
+                    return True
+                return False
+        except Exception as ex:
+            _logger.exception(name, ex)
+            return False
+
+
+def disableJob(name: str) -> bool:
+    """Disable job by name
+
+    Args:
+        name (str): Name job
+
+    Returns:
+        bool: Success
+    """
+    with get_task_lock(name):
+        try:
+            with session_scope() as session:
+                task = session.query(Task).filter(Task.name == name).one_or_none()
+                if task:
+                    task.active = False
+                    session.commit()
+                    return True
+                return False
+        except Exception as ex:
+            _logger.exception(name, ex)
+            return False
 
 
 def getModule(name: str):
@@ -269,10 +318,16 @@ def addNotify(
         category (CategoryNotify, optional): Category. Defaults to CategoryNotify.Info.
         source (str, optional): Source notify (use name plugins). Defaults to "".
     """
+    notify_id = None
+    notify_count = 1
     with session_scope() as session:
         notify = session.query(Notify).filter(Notify.name == name, Notify.description == description, Notify.read == False).first() # noqa
         if notify:
             notify.count = (notify.count if notify.count else 0) + 1
+            notify.last_updated = get_now_to_utc()
+            notify_id = notify.id
+            notify_count = notify.count
+            session.commit()
         else:
             notify = Notify()
             notify.name = name
@@ -280,7 +335,12 @@ def addNotify(
             notify.category = category
             notify.source = source
             notify.created = get_now_to_utc()
+            notify.last_updated = get_now_to_utc()
+            notify.count = 1
             session.add(notify)
+            session.flush()
+            notify_id = notify.id
+            notify_count = 1
 
     from .object import setProperty
     data = {
@@ -291,8 +351,20 @@ def addNotify(
     }
     setProperty("SystemVar.LastNotify", data, source)
     setProperty("SystemVar.UnreadNotify", True, source)
-    # todo send to websocket
-    # callPluginFunction()
+
+    # Отправляем событие через WebSocket
+    notify_data = {
+        "operation": "new_notify",
+        "data": {
+            "id": notify_id,
+            "name": name,
+            "description": description,
+            "category": category.value,
+            "source": source,
+            "count": notify_count,
+        }
+    }
+    callPluginFunction("wsServer","notify", {"data":notify_data})
 
 
 def readNotify(notify_id: int):
@@ -301,10 +373,20 @@ def readNotify(notify_id: int):
     Args:
         notify_id (int): ID notify
     """
+    notify_source = None
+    notify_found = False
     with session_scope() as session:
-        sql = update(Notify).where(Notify.id == notify_id).values(read=True)
-        session.execute(sql)
-        session.commit()
+        # Получаем информацию об уведомлении перед обновлением
+        notify = session.query(Notify).filter(Notify.id == notify_id).first()
+        if notify:
+            notify_source = notify.source
+            notify_found = True
+
+        if notify_found:
+            sql = update(Notify).where(Notify.id == notify_id).values(read=True, read_date=get_now_to_utc())
+            session.execute(sql)
+            session.commit()
+
         findUnread = session.query(Notify).filter(Notify.read == False).first()  # noqa
         from .object import updateProperty
         if findUnread:
@@ -312,16 +394,30 @@ def readNotify(notify_id: int):
         else:
             updateProperty("SystemVar.UnreadNotify", False)
 
-        return True
+    # Отправляем событие через WebSocket (даже если уведомление не найдено, чтобы обновить интерфейс)
+    notify_data = {\
+        "operation": "read_notify",
+        "data": {
+            "id": notify_id,
+            "source": notify_source or "",
+        }
+    }
+    callPluginFunction("wsServer","notify", {"data":notify_data})
 
-def readNotifyAll(source: str):
+    return True
+
+def readNotifyAll(source: Optional[str] = None):
     """Set read all notify for source
 
     Args:
-        source (str): Source notify
+        source (str, optional): Source notify. If None or empty, marks all notifications as read.
     """
     with session_scope() as session:
-        sql = update(Notify).where(Notify.source == source).values(read=True)
+        if source:
+            sql = update(Notify).where(Notify.source == source).values(read=True, read_date=get_now_to_utc())
+        else:
+            # Если source не указан, отмечаем все уведомления
+            sql = update(Notify).values(read=True, read_date=get_now_to_utc())
         session.execute(sql)
         session.commit()
 
@@ -331,6 +427,16 @@ def readNotifyAll(source: str):
             updateProperty("SystemVar.UnreadNotify", True)
         else:
             updateProperty("SystemVar.UnreadNotify", False)
+
+    # Отправляем событие через WebSocket
+    notify_data = {
+        "operation": "read_notify_all", 
+        "data": 
+        {
+            "source": source or "all",
+        }
+    }
+    callPluginFunction("wsServer","notify", {"data":notify_data})
 
 
 def getUrl(url) -> str:
@@ -460,7 +566,7 @@ def runCode(code: str, args=None):
         return str(ex), False
 
 def is_datetime_in_range(
-    check_dt: datetime.datetime,
+    check_dt: Optional[datetime.datetime],
     start_dt: Optional[datetime.datetime],
     end_dt: Optional[datetime.datetime],
     inclusive: Union[bool, str] = True,
@@ -481,6 +587,21 @@ def is_datetime_in_range(
     Returns:
         bool: True if check_dt falls within the range.
     """
+    # Нормализуем все даты к наивному UTC, чтобы избежать ошибок сравнения
+    def _to_naive_utc(dt: Optional[datetime.datetime]) -> Optional[datetime.datetime]:
+        if dt is None:
+            return None
+        if dt.tzinfo is None:
+            return dt
+        return dt.astimezone(ZoneInfo("UTC")).replace(tzinfo=None)
+
+    check_dt = _to_naive_utc(check_dt)
+    # Если дата для проверки не указана, нельзя корректно определить попадание в диапазон
+    if check_dt is None:
+        return False
+    start_dt = _to_naive_utc(start_dt)
+    end_dt = _to_naive_utc(end_dt)
+
     if start_dt is not None:
         if inclusive in (True, "left"):
             if check_dt < start_dt:

@@ -20,9 +20,7 @@
           <a class="nav-link" href="/api"><i class="fas fa-info me-2"></i>API</a>
         </li>
       </ul>
-      {%if getProperty("SystemVar.UnreadNotify") == True %}
-      <h4 class="mt-1 me-3"><span class=" blink badge bg-warning text-black"><i class="fas fa-bell me-2"></i>{{ _('Unreaded notify')}}</span></h4>
-      {%endif%}
+      <h4 class="mt-1 me-3" id="unreadNotifyIndicator" style="display: none;"><span class=" blink badge bg-warning text-black"><i class="fas fa-bell me-2"></i>{{ _('Unreaded notify')}}</span></h4>
       {%if getProperty("SystemVar.NeedRestart") == True %}
       <h4 class="mt-1 me-3"><span class=" blink badge bg-warning text-black"><i class="fas fa-power-off me-2"></i>{{ _('Need restart osysHome')}}</span></h4>
       {%endif%}
@@ -451,5 +449,24 @@ $('#searchModal').on('hidden.bs.modal', function() {
         });
         return false;
     }
+
+// Функция обновления индикаторов уведомлений (обертка для обратной совместимости)
+function updateNotificationIndicators() {
+    if (typeof NotificationSystem !== 'undefined' && NotificationSystem.isInitialized) {
+        NotificationSystem.updateNotificationIndicators();
+    }
+}
+
+// Вызываем обновление при загрузке страницы
+$(document).ready(function() {
+    // Инициализация индикатора на основе серверного значения
+    {%if getProperty("SystemVar.UnreadNotify") == True %}
+    $('#unreadNotifyIndicator').show();
+    {%endif%}
+    
+    // Обновляем индикаторы через централизованный менеджер
+    // (обновление уже происходит автоматически при инициализации NotificationSystem)
+    // Периодическое обновление также настроено в NotificationSystem
+});
 </script>
 {%endif%}

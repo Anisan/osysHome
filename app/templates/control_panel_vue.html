@@ -1,5 +1,11 @@
 {% extends "layouts/module_admin.html" %}
 
+{% block title %} {{ _('Control panel')}} {% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="admin">{{ _('Control panel')}}</a></li>
+{% endblock %}
+
 {% block module %}
 <link rel="stylesheet" href="{{ config.ASSETS_ROOT }}/plugins/gridstack/gridstack.min.css"/>
 <script src="{{ config.ASSETS_ROOT }}/plugins/gridstack/gridstack-all.js"></script>
@@ -151,7 +157,7 @@
   </div>
   
   <div class="d-flex align-items-center justify-content-between mb-1">
-    <h1>{{ _('Welcome!')}}</h1>
+    <h1 class="ms-2">{{ _('Welcome!')}}</h1>
     <span v-if="info" class="ms-3 text-muted" v-text="info"></span>
     <div class="d-flex align-items-center gap-2">
       <!-- Кнопка переключения режима редактирования -->
