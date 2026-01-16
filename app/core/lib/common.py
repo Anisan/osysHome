@@ -566,7 +566,7 @@ def runCode(code: str, args=None):
         return str(ex), False
 
 def is_datetime_in_range(
-    check_dt: datetime.datetime,
+    check_dt: Optional[datetime.datetime],
     start_dt: Optional[datetime.datetime],
     end_dt: Optional[datetime.datetime],
     inclusive: Union[bool, str] = True,
@@ -596,6 +596,9 @@ def is_datetime_in_range(
         return dt.astimezone(ZoneInfo("UTC")).replace(tzinfo=None)
 
     check_dt = _to_naive_utc(check_dt)
+    # Если дата для проверки не указана, нельзя корректно определить попадание в диапазон
+    if check_dt is None:
+        return False
     start_dt = _to_naive_utc(start_dt)
     end_dt = _to_naive_utc(end_dt)
 
