@@ -50,12 +50,22 @@
 </style>
 
 <script src="{{ config.ASSETS_ROOT }}/plugins/socket.io/socket.io.js"></script>
+<script src="{{ config.ASSETS_ROOT }}/plugins/morphdom/morphdom.js"></script>
 <script>
   var socket = io.connect(window.location.protocol + '//' + document.domain + ':' + location.port);
+  var hasConnectedOnce = false;
 
   socket.on('connect', function () {
     console.log('Connected to server');
     document.getElementById('overlay').style.display = 'none';
+
+    // Если это повторное подключение после разрыва — перезагружаем страницу
+    if (hasConnectedOnce) {
+      window.location.reload();
+      return;
+    }
+
+    hasConnectedOnce = true;
     subscribe();
   });
 
@@ -119,7 +129,200 @@
     console.log("change objects", msg)
     var element = document.getElementById("obj:" + msg.object);
     if (element) {
-      element.innerHTML = msg.value;
+      // Сохраняем открытые модалки ВНУТРИ этого объекта:
+      // если объект перерендерится, модалка может исчезнуть из DOM, но мы хотим оставить ее открытой.
+      // Решение: временно переносим открытую модалку в <body>, а после закрытия возвращаем в объект (если есть место).
+      var detachedOpenModals = [];
+      var detachedModalIds = [];
+      try {
+        element.querySelectorAll('.modal.show').forEach(function(modalEl) {
+          // Нужен id, чтобы вернуть обратно более-менее предсказуемо
+          if (!modalEl.id) return;
+
+          var placeholder = document.createElement('div');
+          placeholder.setAttribute('data-modal-placeholder', modalEl.id);
+
+          // Вставляем плейсхолдер на место модалки и вынимаем модалку
+          if (modalEl.parentNode) {
+            modalEl.parentNode.insertBefore(placeholder, modalEl);
+            modalEl.parentNode.removeChild(modalEl);
+          } else {
+            return;
+          }
+
+          // Переносим модалку в body, чтобы обновление объекта ее не трогало
+          document.body.appendChild(modalEl);
+
+          // На всякий случай помечаем владельца
+          modalEl.setAttribute('data-modal-owner', element.id);
+
+          // Когда модалка закроется — попытаемся вернуть ее обратно в объект
+          var onHidden = function() {
+            modalEl.removeEventListener('hidden.bs.modal', onHidden);
+
+            // Ищем плейсхолдер в актуальном DOM объекта (после обновления)
+            var ownerEl = document.getElementById(element.id);
+            var newPlaceholder = ownerEl ? ownerEl.querySelector('[data-modal-placeholder=\"' + modalEl.id + '\"]') : null;
+
+            if (newPlaceholder && newPlaceholder.parentNode) {
+              newPlaceholder.parentNode.insertBefore(modalEl, newPlaceholder);
+              newPlaceholder.parentNode.removeChild(newPlaceholder);
+            } else {
+              // Если плейсхолдера нет (шаблон изменился) — просто удаляем модалку из DOM
+              // (иначе будет "висячая" разметка в body)
+              if (modalEl.parentNode) {
+                modalEl.parentNode.removeChild(modalEl);
+              }
+            }
+          };
+          modalEl.addEventListener('hidden.bs.modal', onHidden);
+
+          detachedOpenModals.push({ id: modalEl.id });
+          detachedModalIds.push(modalEl.id);
+        });
+      } catch (e) {
+        console.warn('Error detaching open modals:', e);
+      }
+      
+      // Важно: нельзя "клонить и заменять" содержимое (element.innerHTML = ...),
+      // иначе теряется идентичность DOM-узлов и браузер закрывает нативные UI (например color picker).
+      // Обновляем DOM IN-PLACE и только дочерние узлы (childrenOnly), сохраняя wrapper `#obj:...`.
+      var wrapper = document.createElement(element.tagName);
+      wrapper.innerHTML = msg.value;
+
+      // Если пользователь сейчас взаимодействует с контролом внутри объекта (focus),
+      // не обновляем этот контрол, чтобы не закрывать popover/picker и не сбрасывать ввод.
+      var activeEl = document.activeElement;
+      var activeElIsInside = activeEl && element.contains(activeEl);
+
+      // Собираем скрипты, которые нужно выполнить после обновления
+      var scriptsToExecute = [];
+
+      // Выполняем морфинг содержимого напрямую в element
+      morphdom(element, wrapper, {
+        childrenOnly: true,
+        // Сохраняем скрипты и не пересоздаем их, если они не изменились
+        onBeforeElUpdated: function(fromEl, toEl) {
+          // Не трогаем активный инпут/селект/текстареа внутри объекта (иначе закрывается color picker и т.п.)
+          if (activeElIsInside && fromEl === activeEl) {
+            var tag = (fromEl.tagName || '').toUpperCase();
+            if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') {
+              return false;
+            }
+          }
+
+          // Если в объекте есть "детачнутая" открытая модалка, то в новом HTML
+          // появится ее копия с тем же id. Это создаёт дубли id (modal/input) и ломает обработчики.
+          // Не даём morphdom заменять плейсхолдер на новую разметку модалки.
+          if (detachedModalIds.length > 0) {
+            var placeholderId = (fromEl.getAttribute && fromEl.getAttribute('data-modal-placeholder')) || null;
+            if (placeholderId && detachedModalIds.indexOf(placeholderId) !== -1) {
+              // Оставляем плейсхолдер как есть
+              return false;
+            }
+            // Если попытка обновить/заменить элемент с id детачнутой модалки — пропускаем
+            if (toEl && toEl.id && detachedModalIds.indexOf(toEl.id) !== -1) {
+              return false;
+            }
+          }
+
+          // Если это script тег, проверяем, изменился ли он
+          if (fromEl.tagName === 'SCRIPT' && toEl.tagName === 'SCRIPT') {
+            var fromSrc = fromEl.src || '';
+            var toSrc = toEl.src || '';
+            var fromContent = (fromEl.textContent || fromEl.innerHTML || '').trim();
+            var toContent = (toEl.textContent || toEl.innerHTML || '').trim();
+            
+            // Если скрипт не изменился, не обновляем его (сохраняем выполненное состояние)
+            if (fromSrc === toSrc && fromContent === toContent) {
+              return false;
+            }
+            // Если скрипт изменился, нужно его заменить и выполнить
+            scriptsToExecute.push({
+              src: toSrc,
+              content: toContent,
+              attributes: Array.from(toEl.attributes).reduce(function(acc, attr) {
+                acc[attr.name] = attr.value;
+                return acc;
+              }, {})
+            });
+            return true;
+          }
+          return true; // Обновляем все остальные элементы
+        },
+        onBeforeNodeAdded: function(node) {
+          // Не добавляем в объект новую копию открытой (детачнутой) модалки
+          if (detachedModalIds.length > 0 && node && node.id && detachedModalIds.indexOf(node.id) !== -1) {
+            return false;
+          }
+          return true;
+        },
+        onNodeAdded: function(node) {
+          // Собираем новые скрипты для выполнения
+          if (node.tagName === 'SCRIPT') {
+            var src = node.src || '';
+            var content = (node.textContent || node.innerHTML || '').trim();
+            scriptsToExecute.push({
+              src: src,
+              content: content,
+              attributes: Array.from(node.attributes).reduce(function(acc, attr) {
+                acc[attr.name] = attr.value;
+                return acc;
+              }, {})
+            });
+          }
+        }
+      });
+      
+      // Проверка после обновления: если остался backdrop без открытых модальных окон - удаляем его
+      // Это предотвращает проблему "зависшего" backdrop, если модальное окно было удалено из DOM
+      setTimeout(function() {
+        var openModals = document.querySelectorAll('.modal.show');
+        var backdrops = document.querySelectorAll('.modal-backdrop');
+        
+        // Если есть backdrop, но нет открытых модальных окон - удаляем backdrop
+        if (backdrops.length > 0 && openModals.length === 0) {
+          backdrops.forEach(function(backdrop) {
+            backdrop.remove();
+          });
+          document.body.classList.remove('modal-open');
+          document.body.style.overflow = '';
+          document.body.style.paddingRight = '';
+        }
+      }, 100);
+      
+      // Выполняем новые или измененные скрипты
+      // Важно: скрипты, добавленные через innerHTML, не выполняются автоматически
+      scriptsToExecute.forEach(function(scriptInfo) {
+        // Удаляем старые скрипты с таким же содержимым, если они есть
+        var existingScripts = element.querySelectorAll('script');
+        existingScripts.forEach(function(oldScript) {
+          var oldSrc = oldScript.src || '';
+          var oldContent = (oldScript.textContent || oldScript.innerHTML || '').trim();
+          if ((scriptInfo.src && oldSrc === scriptInfo.src) || 
+              (!scriptInfo.src && oldContent === scriptInfo.content)) {
+            oldScript.parentNode.removeChild(oldScript);
+          }
+        });
+        
+        // Создаем и выполняем новый скрипт
+        var script = document.createElement('script');
+        // Копируем все атрибуты
+        Object.keys(scriptInfo.attributes).forEach(function(attrName) {
+          if (attrName.toLowerCase() !== 'src') {
+            script.setAttribute(attrName, scriptInfo.attributes[attrName]);
+          }
+        });
+        
+        if (scriptInfo.src) {
+          script.src = scriptInfo.src;
+        } else if (scriptInfo.content) {
+          script.textContent = scriptInfo.content;
+        }
+        
+        // Добавляем скрипт в элемент для выполнения браузером
+        element.appendChild(script);
+      });
     }
     else
       console.log("not found object")
@@ -363,7 +566,56 @@
       socket.emit('subscribeObjects', objectList);
   }
 
+  // Bootstrap modal fix for pages with stacking contexts (e.g. /admin/Objects):
+  // If a modal is placed inside a transformed/stacked container, it can flicker or appear under backdrop.
+  // We "portal" any shown modal to <body>, and restore it back on hidden.
+  function setupModalPortal() {
+    if (typeof bootstrap === 'undefined') return;
+
+    // Use capture to run before other handlers
+    document.addEventListener('show.bs.modal', function (ev) {
+      var modalEl = ev.target;
+      if (!modalEl || !modalEl.classList || !modalEl.classList.contains('modal')) return;
+
+      // Already in body => nothing to do
+      if (modalEl.parentElement === document.body) return;
+
+      // Create placeholder where the modal lived
+      var placeholder = document.createElement('div');
+      placeholder.setAttribute('data-modal-portal-placeholder', modalEl.id || '');
+
+      // Store placeholder reference via a unique attribute
+      var portalKey = 'modal_portal_' + (modalEl.id || Math.random().toString(36).slice(2));
+      placeholder.setAttribute('data-modal-portal-key', portalKey);
+      modalEl.setAttribute('data-modal-portal-key', portalKey);
+
+      if (modalEl.parentNode) {
+        modalEl.parentNode.insertBefore(placeholder, modalEl);
+        modalEl.parentNode.removeChild(modalEl);
+      }
+
+      document.body.appendChild(modalEl);
+    }, true);
+
+    document.addEventListener('hidden.bs.modal', function (ev) {
+      var modalEl = ev.target;
+      if (!modalEl || !modalEl.classList || !modalEl.classList.contains('modal')) return;
+
+      var portalKey = modalEl.getAttribute('data-modal-portal-key');
+      if (!portalKey) return;
+
+      var placeholder = document.querySelector('[data-modal-portal-key="' + portalKey + '"][data-modal-portal-placeholder]');
+      if (placeholder && placeholder.parentNode) {
+        placeholder.parentNode.insertBefore(modalEl, placeholder);
+        placeholder.parentNode.removeChild(placeholder);
+      }
+
+      modalEl.removeAttribute('data-modal-portal-key');
+    }, true);
+  }
+
   document.addEventListener('DOMContentLoaded', function () {
+    setupModalPortal();
     subscribe()
   });
 </script>
