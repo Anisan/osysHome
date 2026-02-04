@@ -203,6 +203,14 @@
         childrenOnly: true,
         // Сохраняем скрипты и не пересоздаем их, если они не изменились
         onBeforeElUpdated: function(fromEl, toEl) {
+          // Универсальное сохранение display для помеченных элементов
+          // добавить в элемент data-preserve-display="true"
+          if (fromEl.hasAttribute && fromEl.hasAttribute('data-preserve-display')) {
+            var disp = fromEl.style.display;
+            if (disp) {
+              toEl.style.display = disp;
+            }
+          }
           // Не трогаем активный инпут/селект/текстареа внутри объекта (иначе закрывается color picker и т.п.)
           if (activeElIsInside && fromEl === activeEl) {
             var tag = (fromEl.tagName || '').toUpperCase();

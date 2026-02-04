@@ -118,7 +118,37 @@
         </div>
     </div>
     
+    {# First-run helper: show welcome card when there are no widgets/objects #}
+    {% set has_widgets = widgets|length > 0 %}
+    {% set has_objects = objects|length > 0 %}
+
     <div class="row mx-1" id="widgetsContainer" style="display: none;">
+        {% if not has_widgets and not has_objects %}
+        <div class="col-12 mb-3">
+            <div class="card border-info">
+                <div class="card-body">
+                    <h4 class="card-title mb-3">
+                        <i class="fas fa-magic me-2"></i>{{ _('Welcome to osysHome!') }}
+                    </h4>
+                    <p class="card-text">
+                        {{ _('It looks like there are no dashboard widgets yet. Start by installing recommended plugins and creating your first objects.') }}
+                    </p>
+                    <ol class="mb-3">
+                        <li>{{ _('Install recommended modules (Dashboard, Objects, Users, Scheduler, wsServer) following QUICKSTART_selfhost.md.') }}</li>
+                        <li>{{ _('Create objects and properties in the admin interface (Modules/Objects).') }}</li>
+                        <li>{{ _('Add widgets or pages provided by plugins to the control panel.') }}</li>
+                    </ol>
+                    <a href="/docs" class="btn btn-outline-info me-2">
+                        <i class="fas fa-book me-1"></i>{{ _('Open documentation') }}
+                    </a>
+                    <a href="/admin/Modules" class="btn btn-primary">
+                        <i class="fas fa-wrench me-1"></i>{{ _('Go to modules') }}
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
         {% for key,template in widgets.items()%}
           {% if template %}
             <div class="widget-col col mb-2 px-1 col-widgets-3" data-widget-key="{{key}}">

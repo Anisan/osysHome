@@ -1,14 +1,15 @@
-from flask import render_template, send_from_directory, current_app, session, request, jsonify
+import json
+
+from flask import render_template, current_app, session, request, jsonify
 from flask_login import current_user
+
 from . import blueprint
-from app.configuration import Config
 from app.logging_config import getLogger
 from app.authentication.handlers import handle_user_required, handle_editor_required
 from app.core.lib.common import getModulesByAction
-from app.core.lib.object import getObject, getProperty, setProperty, addObjectProperty, getObjectsByClass
+from app.core.lib.object import getObject, getProperty, setProperty, addObjectProperty
 from app.core.lib.constants import PropertyType
 from app.core.main.ObjectsStorage import objects_storage
-import json
 
 _logger = getLogger("main")
 
@@ -60,12 +61,6 @@ def pages_panel():
     modules = getModulesByAction("page")
     content = {"modules":modules}
     return render_template("pages_panel.html", **content)
-
-# Маршрут для отображения файлов документации
-@blueprint.route('/docs/<path:filename>')
-@handle_user_required
-def docs_file(filename):
-    return send_from_directory(Config.DOCS_DIR, filename)
 
 # About
 @blueprint.route("/about")
