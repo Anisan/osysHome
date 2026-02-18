@@ -13,12 +13,26 @@
         <li class="nav-item">
           <a class="nav-link" href="/admin"><i class="fas fa-wrench me-2"></i>{{ _('Control panel')}}</a>
         </li>
+        {# Show Docs link only if Docs plugin is installed/enabled #}
+        {% set _sidebar_groups = sidebar() if sidebar is defined else {} %}
+        {% set _ns = namespace(has_docs=false) %}
+        {% for _cat, _items in _sidebar_groups.items() %}
+          {% for _it in _items %}
+            {% if _it.name == 'Docs' %}
+              {% set _ns.has_docs = true %}
+            {% endif %}
+          {% endfor %}
+        {% endfor %}
+        {% if _ns.has_docs %}
         <li class="nav-item">
-          <a class="nav-link" href="/docs/index.html"><i class="fas fa-info me-2"></i>{{ _('Docs')}}</a>
+          <a class="nav-link" href="/docs"><i class="fas fa-info me-2"></i>{{ _('Docs')}}</a>
         </li>
+        {% endif %}
+        {% if 'admin' in request.path %}
         <li class="nav-item">
           <a class="nav-link" href="/api"><i class="fas fa-info me-2"></i>API</a>
         </li>
+        {% endif %}
       </ul>
       <h4 class="mt-1 me-3" id="unreadNotifyIndicator" style="display: none;"><span class=" blink badge bg-warning text-black"><i class="fas fa-bell me-2"></i>{{ _('Unreaded notify')}}</span></h4>
       {%if getProperty("SystemVar.NeedRestart") == True %}

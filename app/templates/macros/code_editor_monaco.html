@@ -282,7 +282,7 @@
     var wrapperId = "monaco-wrapper-" + editorKey;
     var themeLightId = "monaco-theme-light-" + editorKey;
     var themeDarkId = "monaco-theme-dark-" + editorKey;
-    var editorHelpUrl = "{{ config.get('CODE_EDITOR_HELP_URL', '/docs/index.html') }}";
+    var editorHelpUrl = "{{ config.get('CODE_EDITOR_HELP_URL', '/docs') }}";
     var syntax = "{{ syntax }}";
     var hiddenField = document.getElementById('{{ field_edit.name }}');
     var container = document.getElementById(editorId);

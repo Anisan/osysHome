@@ -1,8 +1,6 @@
 # -*- coding: utf-8 -*-
 """Click commands."""
 import os
-from glob import glob
-from subprocess import call
 from app.admin.tools import create_user as cr_user
 
 import click

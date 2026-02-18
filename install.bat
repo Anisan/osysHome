@@ -118,16 +118,6 @@ if %ERRORLEVEL% neq 0 (
     exit /b 1
 )
 
-:: Generate documentation using pdoc
-echo Generating documentation with pdoc...
-pdoc --docformat google --no-show-source --output-dir docs app plugins
-if %ERRORLEVEL% neq 0 (
-    echo Error generating documentation.
-    exit /b 1
-)
-
-echo Documentation generated successfully in the 'docs' directory.
-
 :: Instructions for starting the application
 echo Installation completed successfully!
 echo To start the application, run the following command:

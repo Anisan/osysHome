@@ -20,7 +20,7 @@ class CustomJSONEncoder(JSONEncoder):
 
     def default(self, o):
         """
-        Override the default method to handle datetime objects.
+        Override the default method to handle datetime objects and Request-like objects.
         """
         if isinstance(o, datetime):
             # Format the datetime object using the specified format
@@ -30,6 +30,16 @@ class CustomJSONEncoder(JSONEncoder):
                 milliseconds = f"{o.microsecond:06d}"[:3]
                 formatted_date += f".{milliseconds}"
             return formatted_date
+        # Handle Request-like objects (Flask request, aiohttp Request, etc.)
+        if "Request" in o.__class__.__name__:
+            info = {}
+            if hasattr(o, "method"):
+                info["method"] = str(o.method)
+            if hasattr(o, "path"):
+                info["path"] = str(o.path)
+            if hasattr(o, "url"):
+                info["url"] = str(o.url)
+            return info if info else f"<{o.__class__.__name__}>"
         # Let the base class handle other types
         return super().default(o)
     

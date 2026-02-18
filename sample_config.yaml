@@ -2,11 +2,17 @@
 # Этот файл создается пользователем на основе config_sample.yaml  
   
 application:  
+  # Язык интерфейса по умолчанию (например: en, ru, de)
   default_language: 'en'  
+  # Часовой пояс по умолчанию для отображения дат/времени
   default_timezone: 'Europe/Moscow'
-  secret_key: 'your-secret-key-here'  # Измените на уникальный ключ  
+  # Секретный ключ Flask для сессий и токенов — ОБЯЗАТЕЛЬНО смените в рабочей среде
+  secret_key: 'your-secret-key-here'  
+  # Режим отладки (True для разработки, False для продакшена)
   debug: false  
+  # Порт HTTP, на котором будет слушать osysHome
   app_port: 5000  
+  # Имя окружения (production / development и т.п.), используется в логике приложения
   env: 'production'
   pool_size: 20
   pool_max_size: 100
@@ -15,17 +21,25 @@ application:
   session_lifetime_days: 31  # Время жизни сессии в днях (по умолчанию 31 день, как в Flask)
   
 database:  
+  # Включить вывод SQL‑запросов в лог (удобно для отладки, выключайте в продакшене)
   sqlalchemy_echo: false  
+  # Размер пула соединений SQLAlchemy
   pool_size: 20
+  # Имя файла БД SQLite. Файл создаётся в корне проекта, если connection_string не задан.
   db_name: 'app.db'  
-  # Для SQLite используется db_name  
-  # Для других БД раскомментируйте connection_string:  
+  # Для SQLite используется db_name.  
+  # Для PostgreSQL/MySQL раскомментируйте и настройте одну из строк ниже.
+  # Пример PostgreSQL:
   # connection_string: 'postgresql://osyshome:password@localhost/osyshome'  
+  # Пример MySQL:
   # connection_string: 'mysql://osyshome:password@localhost/app'
   
 cache:  
+  # Путь к каталогу файлового кеша (если используется файловый backend)
   file_path: 'cache'  
+  # Тип кеша: 'simple' (по умолчанию, in‑memory), либо другой поддерживаемый backend
   type: 'simple'
+  # Время жизни записей кеша в секундах
   timeout: 300
   
 service:  

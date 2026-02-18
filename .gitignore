@@ -7,8 +7,9 @@ migrations/*
 *.db
 *.prof
 logs/*
-settings.py
 build/*
-docs/*
 plugins/*
 files/*
+config.yaml
+backups/
+docs_dev/

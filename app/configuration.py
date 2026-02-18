@@ -17,7 +17,6 @@ class ConfigLoader(object):
         # Assets Management
         self.ASSETS_ROOT = '/static/assets'
         self.PLUGINS_FOLDER = os.path.abspath(os.path.join(self.APP_DIR, "plugins"))
-        self.DOCS_DIR = os.path.abspath(os.path.join(self.APP_DIR, 'docs'))
         self.FILES_DIR = os.path.abspath(os.path.join(self.APP_DIR, 'files'))
 
         self.APP_PORT = 5000

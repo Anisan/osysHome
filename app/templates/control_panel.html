@@ -91,7 +91,9 @@
 {% block module %}
 <!-- Заголовок с кнопками управления колонками -->
 <div class="d-flex align-items-center justify-content-between mb-3">
+    {% if not show_welcome %}
     <h1 class="ms-2">{{ _('Welcome!')}}</h1>
+    {% endif %}
     <div class="columns-controls">
         <button type="button" id="decreaseColumns" class="btn btn-outline-secondary">
             <i class="feather icon-minus"></i>
@@ -118,7 +120,330 @@
         </div>
     </div>
     
+    {# First-run helper: show welcome card when SystemVar.welcome is true (dismissed by button) #}
     <div class="row mx-1" id="widgetsContainer" style="display: none;">
+        {% if show_welcome %}
+        <div class="col-12 mb-3" id="welcomeCard">
+            <div class="card border-info">
+                <div class="card-body">
+                    <h4 class="card-title mb-3">
+                        <i class="fas fa-magic me-2"></i>{{ _('Welcome to osysHome!') }}
+                    </h4>
+                    <p class="card-text mb-3">
+                        {{ _('welcome_intro') }}
+                    </p>
+                    
+                    <!-- Getting Started Section -->
+                    <h5 class="mb-3"><i class="fas fa-rocket me-2"></i>{{ _('welcome_getting_started') }}</h5>
+                    
+                    <div class="accordion mb-3" id="welcomeAccordion">
+                        <!-- Step 1: Install Plugins -->
+                        <div class="accordion-item">
+                            <h2 class="accordion-header" id="headingStep1">
+                                <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapseStep1" aria-expanded="true" aria-controls="collapseStep1">
+                                    <i class="fas fa-plug me-2"></i>{{ _('welcome_step_1_title') }}
+                                </button>
+                            </h2>
+                            <div id="collapseStep1" class="accordion-collapse collapse show" aria-labelledby="headingStep1" data-bs-parent="#welcomeAccordion">
+                                <div class="accordion-body">
+                                    <p>{{ _('welcome_step_1_description') }}</p>
+                                    <p class="small text-muted">{{ _('welcome_step_1_detail') }}</p>
+                                    <a href="/admin/Modules" class="btn btn-sm btn-primary" target="_blank">
+                                        <i class="fas fa-wrench me-1"></i>{{ _('welcome_step_1_action') }}
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Step 2: Create Class -->
+                        {% if has_objects_module %}
+                        <div class="accordion-item">
+                            <h2 class="accordion-header" id="headingStep2">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseStep2" aria-expanded="false" aria-controls="collapseStep2">
+                                    <i class="fas fa-cube me-2"></i>{{ _('welcome_step_2_title') }}
+                                </button>
+                            </h2>
+                            <div id="collapseStep2" class="accordion-collapse collapse" aria-labelledby="headingStep2" data-bs-parent="#welcomeAccordion">
+                                <div class="accordion-body">
+                                    <p>{{ _('welcome_step_2_description') }}</p>
+                                    <p class="small text-muted">{{ _('welcome_step_2_detail') }}</p>
+                                    
+                                    <div class="alert alert-info mt-3">
+                                        <strong><i class="fas fa-lightbulb me-1"></i>{{ _('welcome_step_2_example_title') }}</strong>
+                                        <pre class="small bg-body-secondary p-2 rounded mt-2 mb-2">{{ _('welcome_step_2_example_class') }}</pre>
+                                        <pre class="small bg-body-secondary p-2 rounded mb-2">{{ _('welcome_step_2_example_property') }}</pre>
+                                        <strong class="small">{{ _('Methods') }} ({{ _('Automation') }}, {{ _('Step') }} 5):</strong>
+                                        <pre class="small bg-body-secondary p-2 rounded mt-1 mb-2">{{ _('welcome_step_2_example_method') }}</pre>
+                                        <strong class="small">Template (Jinja2):</strong>
+                                        <pre class="small bg-body-secondary p-2 rounded mt-1"><code>{{ _('welcome_step_2_example_template') }}</code></pre>
+                                    </div>
+                                    
+                                    <a href="/admin/Objects?view=class" class="btn btn-sm btn-primary" target="_blank">
+                                        <i class="fas fa-plus me-1"></i>{{ _('welcome_step_2_action') }}
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Step 3: Create Object -->
+                        <div class="accordion-item">
+                            <h2 class="accordion-header" id="headingStep3">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseStep3" aria-expanded="false" aria-controls="collapseStep3">
+                                    <i class="fas fa-box me-2"></i>{{ _('welcome_step_3_title') }}
+                                </button>
+                            </h2>
+                            <div id="collapseStep3" class="accordion-collapse collapse" aria-labelledby="headingStep3" data-bs-parent="#welcomeAccordion">
+                                <div class="accordion-body">
+                                    <p>{{ _('welcome_step_3_description') }}</p>
+                                    <p class="small text-muted">{{ _('welcome_step_3_detail') }}</p>
+                                    
+                                    <div class="alert alert-success mt-3">
+                                        <strong><i class="fas fa-lightbulb me-1"></i>{{ _('welcome_step_3_example_title') }}</strong>
+                                        <pre class="small bg-body-secondary p-2 rounded mt-2 mb-2">{{ _('welcome_step_3_example_object') }}</pre>
+                                        <pre class="small bg-body-secondary p-2 rounded mb-0">{{ _('welcome_step_3_example_property_value') }}</pre>
+                                    </div>
+                                    
+                                    <a href="/admin/Objects?view=object" class="btn btn-sm btn-primary" target="_blank">
+                                        <i class="fas fa-plus me-1"></i>{{ _('welcome_step_3_action') }}
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                        {% endif %}
+                        
+                        <!-- Step 4: Widgets (old panel — auto-display, offer switch to Customize grid) -->
+                        <div class="accordion-item">
+                            <h2 class="accordion-header" id="headingStep4">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseStep4" aria-expanded="false" aria-controls="collapseStep4">
+                                    <i class="fas fa-th me-2"></i>{{ _('welcome_step_4_title_old') }}
+                                </button>
+                            </h2>
+                            <div id="collapseStep4" class="accordion-collapse collapse" aria-labelledby="headingStep4" data-bs-parent="#welcomeAccordion">
+                                <div class="accordion-body">
+                                    <p>{{ _('welcome_step_4_description_old') }}</p>
+                                    
+                                    <div class="alert alert-info mt-3">
+                                        <p class="small mb-2">{{ _('welcome_step_4_switch_detail') }}</p>
+                                        <button type="button" id="switchToCustomizeGrid" class="btn btn-primary btn-sm">
+                                            <i class="fas fa-grip me-1"></i>{{ _('welcome_step_4_switch_btn') }}
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Step 5: Automation (conditional) -->
+                        {% if has_scheduler %}
+                        <div class="accordion-item">
+                            <h2 class="accordion-header" id="headingStep5">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseStep5" aria-expanded="false" aria-controls="collapseStep5">
+                                    <i class="fas fa-clock me-2"></i>{{ _('welcome_step_5_title') }}
+                                </button>
+                            </h2>
+                            <div id="collapseStep5" class="accordion-collapse collapse" aria-labelledby="headingStep5" data-bs-parent="#welcomeAccordion">
+                                <div class="accordion-body">
+                                    <p>{{ _('welcome_step_5_description') }}</p>
+                                    <p class="small text-muted">{{ _('welcome_step_5_detail') }}</p>
+                                    
+                                    <div class="alert alert-primary mt-3 mb-2">
+                                        <strong><i class="fas fa-clock me-1"></i>{{ _('welcome_step_5_example_title') }}</strong>
+                                        <pre class="small bg-body-secondary p-2 rounded mt-2 mb-0">{{ _('welcome_step_5_example_scheduler') }}</pre>
+                                    </div>
+                                    
+                                    <div class="alert alert-success mt-2 mb-3">
+                                        <strong><i class="fas fa-bolt me-1"></i>{{ _('welcome_step_5_example_event_title') }}</strong>
+                                        <pre class="small bg-body-secondary p-2 rounded mt-2 mb-0">{{ _('welcome_step_5_example_event') }}</pre>
+                                    </div>
+                                    
+                                    <a href="/admin/Scheduler" class="btn btn-sm btn-primary" target="_blank">
+                                        <i class="fas fa-calendar-alt me-1"></i>{{ _('welcome_step_5_action') }}
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                    
+                    <!-- Tips Section -->
+                    <div class="card bg-body-secondary mb-3">
+                        <div class="card-body">
+                            <h6 class="card-title"><i class="fas fa-lightbulb me-2 text-warning"></i>{{ _('welcome_tips_title') }}</h6>
+                            <ul class="small mb-0">
+                                <li>{{ _('welcome_tip_1') }}</li>
+                                <li>{{ _('welcome_tip_2') }}</li>
+                                <li>{{ _('welcome_tip_3') }}</li>
+                                <li>{{ _('welcome_tip_4') }}</li>
+                                <li>{{ _('welcome_tip_5') }}</li>
+                            </ul>
+                        </div>
+                    </div>
+                    
+                    <!-- Examples Section (collapsible) -->
+                    <div class="accordion mb-3" id="examplesSectionAccordion">
+                        <div class="accordion-item">
+                            <h2 class="accordion-header" id="headingExamplesSection">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseExamplesSection" aria-expanded="false" aria-controls="collapseExamplesSection">
+                                    <i class="fas fa-code me-2 text-success"></i>{{ _('welcome_examples_title') }}
+                                </button>
+                            </h2>
+                            <div id="collapseExamplesSection" class="accordion-collapse collapse" aria-labelledby="headingExamplesSection" data-bs-parent="#examplesSectionAccordion">
+                                <div class="accordion-body p-0">
+                                    <div class="accordion accordion-flush" id="examplesAccordion">
+                                        <!-- Example 1: Virtual Switch -->
+                                        <div class="accordion-item">
+                                            <h2 class="accordion-header" id="headingExample1">
+                                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseExample1" aria-expanded="false" aria-controls="collapseExample1">
+                                                    <i class="fas fa-toggle-on me-2"></i>{{ _('welcome_example_1_title') }}
+                                                </button>
+                                            </h2>
+                                            <div id="collapseExample1" class="accordion-collapse collapse" aria-labelledby="headingExample1" data-bs-parent="#examplesAccordion">
+                                                <div class="accordion-body">
+                                                    <p class="small">{{ _('welcome_example_1_description') }}</p>
+                                                    <p class="small mb-0"><strong>{{ _('Step') }}:</strong></p>
+                                                    <pre class="small bg-body-secondary p-2 rounded">{{ _('welcome_example_1_steps') }}</pre>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <!-- Example 2: Temperature Sensor -->
+                                        <div class="accordion-item">
+                                            <h2 class="accordion-header" id="headingExample2">
+                                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseExample2" aria-expanded="false" aria-controls="collapseExample2">
+                                                    <i class="fas fa-thermometer-half me-2"></i>{{ _('welcome_example_2_title') }}
+                                                </button>
+                                            </h2>
+                                            <div id="collapseExample2" class="accordion-collapse collapse" aria-labelledby="headingExample2" data-bs-parent="#examplesAccordion">
+                                                <div class="accordion-body">
+                                                    <p class="small">{{ _('welcome_example_2_description') }}</p>
+                                                    <p class="small mb-0"><strong>{{ _('Step') }}:</strong></p>
+                                                    <pre class="small bg-body-secondary p-2 rounded">{{ _('welcome_example_2_steps') }}</pre>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <!-- Example 3: Smart Light -->
+                                        <div class="accordion-item">
+                                            <h2 class="accordion-header" id="headingExample3">
+                                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseExample3" aria-expanded="false" aria-controls="collapseExample3">
+                                                    <i class="fas fa-lightbulb me-2"></i>{{ _('welcome_example_3_title') }}
+                                                </button>
+                                            </h2>
+                                            <div id="collapseExample3" class="accordion-collapse collapse" aria-labelledby="headingExample3" data-bs-parent="#examplesAccordion">
+                                                <div class="accordion-body">
+                                                    <p class="small">{{ _('welcome_example_3_description') }}</p>
+                                                    <p class="small mb-0"><strong>{{ _('Step') }}:</strong></p>
+                                                    <pre class="small bg-body-secondary p-2 rounded">{{ _('welcome_example_3_steps') }}</pre>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <!-- Example 4: Room -->
+                                        <div class="accordion-item">
+                                            <h2 class="accordion-header" id="headingExample4">
+                                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseExample4" aria-expanded="false" aria-controls="collapseExample4">
+                                                    <i class="fas fa-door-open me-2"></i>{{ _('welcome_example_4_title') }}
+                                                </button>
+                                            </h2>
+                                            <div id="collapseExample4" class="accordion-collapse collapse" aria-labelledby="headingExample4" data-bs-parent="#examplesAccordion">
+                                                <div class="accordion-body">
+                                                    <p class="small">{{ _('welcome_example_4_description') }}</p>
+                                                    <p class="small mb-0"><strong>{{ _('Step') }}:</strong></p>
+                                                    <pre class="small bg-body-secondary p-2 rounded">{{ _('welcome_example_4_steps') }}</pre>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <!-- Example 5: Mode -->
+                                        <div class="accordion-item">
+                                            <h2 class="accordion-header" id="headingExample5">
+                                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseExample5" aria-expanded="false" aria-controls="collapseExample5">
+                                                    <i class="fas fa-moon me-2"></i>{{ _('welcome_example_5_title') }}
+                                                </button>
+                                            </h2>
+                                            <div id="collapseExample5" class="accordion-collapse collapse" aria-labelledby="headingExample5" data-bs-parent="#examplesAccordion">
+                                                <div class="accordion-body">
+                                                    <p class="small">{{ _('welcome_example_5_description') }}</p>
+                                                    <p class="small mb-0"><strong>{{ _('Step') }}:</strong></p>
+                                                    <pre class="small bg-body-secondary p-2 rounded">{{ _('welcome_example_5_steps') }}</pre>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <!-- Example 6: Scenario -->
+                                        <div class="accordion-item">
+                                            <h2 class="accordion-header" id="headingExample6">
+                                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseExample6" aria-expanded="false" aria-controls="collapseExample6">
+                                                    <i class="fas fa-film me-2"></i>{{ _('welcome_example_6_title') }}
+                                                </button>
+                                            </h2>
+                                            <div id="collapseExample6" class="accordion-collapse collapse" aria-labelledby="headingExample6" data-bs-parent="#examplesAccordion">
+                                                <div class="accordion-body">
+                                                    <p class="small">{{ _('welcome_example_6_description') }}</p>
+                                                    <p class="small mb-0"><strong>{{ _('Step') }}:</strong></p>
+                                                    <pre class="small bg-body-secondary p-2 rounded">{{ _('welcome_example_6_steps') }}</pre>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <!-- Example 7: Device -->
+                                        <div class="accordion-item">
+                                            <h2 class="accordion-header" id="headingExample7">
+                                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseExample7" aria-expanded="false" aria-controls="collapseExample7">
+                                                    <i class="fas fa-plug me-2"></i>{{ _('welcome_example_7_title') }}
+                                                </button>
+                                            </h2>
+                                            <div id="collapseExample7" class="accordion-collapse collapse" aria-labelledby="headingExample7" data-bs-parent="#examplesAccordion">
+                                                <div class="accordion-body">
+                                                    <p class="small">{{ _('welcome_example_7_description') }}</p>
+                                                    <p class="small mb-0"><strong>{{ _('Step') }}:</strong></p>
+                                                    <pre class="small bg-body-secondary p-2 rounded">{{ _('welcome_example_7_steps') }}</pre>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <!-- Example 8: Sensor -->
+                                        <div class="accordion-item">
+                                            <h2 class="accordion-header" id="headingExample8">
+                                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseExample8" aria-expanded="false" aria-controls="collapseExample8">
+                                                    <i class="fas fa-broadcast-tower me-2"></i>{{ _('welcome_example_8_title') }}
+                                                </button>
+                                            </h2>
+                                            <div id="collapseExample8" class="accordion-collapse collapse" aria-labelledby="headingExample8" data-bs-parent="#examplesAccordion">
+                                                <div class="accordion-body">
+                                                    <p class="small">{{ _('welcome_example_8_description') }}</p>
+                                                    <p class="small mb-0"><strong>{{ _('Step') }}:</strong></p>
+                                                    <pre class="small bg-body-secondary p-2 rounded">{{ _('welcome_example_8_steps') }}</pre>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Action Buttons -->
+                    <div class="d-flex flex-wrap gap-2">
+                        {% if has_docs %}
+                        <a href="/docs" class="btn btn-outline-info" target="_blank">
+                            <i class="fas fa-book me-1"></i>{{ _('Open documentation') }}
+                        </a>
+                        {% endif %}
+                        <a href="/admin/Modules" class="btn btn-primary" target="_blank">
+                            <i class="fas fa-wrench me-1"></i>{{ _('welcome_link_modules') }}
+                        </a>
+                        {% if has_objects_module %}
+                        <a href="/admin/Objects" class="btn btn-outline-primary" target="_blank">
+                            <i class="fas fa-cubes me-1"></i>{{ _('welcome_link_objects') }}
+                        </a>
+                        {% endif %}
+                        {% if has_scheduler %}
+                        <a href="/admin/Scheduler" class="btn btn-outline-primary" target="_blank">
+                            <i class="fas fa-calendar-alt me-1"></i>{{ _('welcome_link_scheduler') }}
+                        </a>
+                        {% endif %}
+                        <button type="button" id="dismissWelcome" class="btn btn-outline-secondary ms-auto">
+                            <i class="fas fa-times me-1"></i>{{ _('Don\'t show again') }}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
         {% for key,template in widgets.items()%}
           {% if template %}
             <div class="widget-col col mb-2 px-1 col-widgets-3" data-widget-key="{{key}}">
@@ -211,6 +536,39 @@ document.addEventListener('DOMContentLoaded', function() {
             updateColumnClasses(currentColumns);
         }
     });
+
+    // Скрыть приветственное сообщение по кнопке (SystemVar.welcome = false)
+    const dismissWelcomeBtn = document.getElementById('dismissWelcome');
+    if (dismissWelcomeBtn) {
+        dismissWelcomeBtn.addEventListener('click', function() {
+            fetch('/api/property/set?object=SystemVar&property=welcome&value=false', { credentials: 'same-origin' })
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (data.success) {
+                        const welcomeCard = document.getElementById('welcomeCard');
+                        if (welcomeCard) welcomeCard.remove();
+                    }
+                });
+        });
+    }
+
+    // Переключение на панель Customize grid (SystemVar.control_panel_style = 'custom')
+    const switchToCustomizeBtn = document.getElementById('switchToCustomizeGrid');
+    if (switchToCustomizeBtn) {
+        switchToCustomizeBtn.addEventListener('click', function() {
+            switchToCustomizeBtn.disabled = true;
+            fetch('/api/property/set?object=SystemVar&property=control_panel_style&value=custom', { credentials: 'same-origin' })
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (data.success) {
+                        window.location.reload();
+                    } else {
+                        switchToCustomizeBtn.disabled = false;
+                    }
+                })
+                .catch(function() { switchToCustomizeBtn.disabled = false; });
+        });
+    }
 });
 </script>
     <script>

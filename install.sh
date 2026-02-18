@@ -96,15 +96,6 @@ fi
 
 echo "Setup complete. Please modify the database settings in config.yaml."
 
-# Generate documentation using pdoc
-echo "Generating documentation with pdoc..."
-if ! pdoc --docformat google --no-show-source --output-dir docs app plugins; then
-    echo "Error generating documentation."
-    exit 1
-fi
-
-echo "Documentation generated successfully in the 'docs' directory."
-
 # Instructions for starting the application
 echo "Installation completed successfully!"
 echo "To start the application, run the following command:"
