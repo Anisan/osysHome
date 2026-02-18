@@ -6,7 +6,7 @@ from flask_login import current_user
 from . import blueprint
 from app.logging_config import getLogger
 from app.authentication.handlers import handle_user_required, handle_editor_required
-from app.core.lib.common import getModulesByAction
+from app.core.lib.common import getModulesByAction, getModule
 from app.core.lib.object import getObject, getProperty, setProperty, addObjectProperty
 from app.core.lib.constants import PropertyType
 from app.core.main.ObjectsStorage import objects_storage
@@ -40,7 +40,20 @@ def control_panel():
                     object_render[key] = render
 
 
-        content = {"widgets":widgets, "objects": object_render}
+        show_welcome = getProperty("SystemVar.welcome") is not False
+        has_docs = getModule("Docs") is not None
+        has_objects_module = getModule("Objects") is not None
+        has_scheduler = getModule("Scheduler") is not None
+        has_users = getModule("Users") is not None
+        content = {
+            "widgets": widgets, 
+            "objects": object_render, 
+            "show_welcome": show_welcome, 
+            "has_docs": has_docs,
+            "has_objects_module": has_objects_module,
+            "has_scheduler": has_scheduler,
+            "has_users": has_users
+        }
         return render_template("control_panel.html", **content)
 
     columns = 12  # default
@@ -51,8 +64,20 @@ def control_panel():
             try:
                 columns = int(saved_columns)
             except (ValueError, TypeError):
-                pass        
-    content = {"columns":columns}
+                pass
+    show_welcome = getProperty("SystemVar.welcome") is not False
+    has_docs = getModule("Docs") is not None
+    has_objects_module = getModule("Objects") is not None
+    has_scheduler = getModule("Scheduler") is not None
+    has_users = getModule("Users") is not None
+    content = {
+        "columns": columns, 
+        "show_welcome": show_welcome, 
+        "has_docs": has_docs,
+        "has_objects_module": has_objects_module,
+        "has_scheduler": has_scheduler,
+        "has_users": has_users
+    }
     return render_template("control_panel_vue.html", **content)
 
 @blueprint.route("/pages")

@@ -61,6 +61,9 @@ def initSystemVar():
     addObjectProperty('LastSay','SystemVar',"Last 'say' message",7,PropertyType.String)
     addObjectProperty('UnreadNotify','SystemVar',"Flag indicating the presence of an unread notification",0,PropertyType.Bool)
     addObjectProperty('LastNotify','SystemVar',"Last 'notify' message",7,PropertyType.Dictionary)
+    addObjectProperty('welcome','SystemVar',"Show welcome message on control panel (first run)",0,PropertyType.Bool)
+    if getProperty("SystemVar.welcome") is None:
+        setProperty("SystemVar.welcome", True, "osysHome")
 
     type_editor = getProperty('SystemVar.code_editor')
     params = {
