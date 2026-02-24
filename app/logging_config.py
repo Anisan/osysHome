@@ -119,7 +119,9 @@ def get_security_audit_logger(logDirectory='logs'):
     )
     _security_audit_handler.setFormatter(formatter)
 
-    logger.setLevel(logging.WARNING)
+    # Уровень INFO, чтобы писать как успешные действия (LOGIN_SUCCESS, LOGOUT),
+    # так и предупреждения/ошибки безопасности.
+    logger.setLevel(logging.INFO)
     logger.addHandler(_security_audit_handler)
     logger.propagate = False
     return logger
@@ -150,4 +152,11 @@ def security_audit_log(event_type, ip=None, url='', endpoint='', reason='', user
     for k, v in extra.items():
         if v is not None and v != '':
             parts.append(f"{k}={v}")
-    logger.warning(" | ".join(str(p) for p in parts))
+
+    message = " | ".join(str(p) for p in parts)
+
+    # Успешные действия логируем на INFO, подозрительные/ошибки — на WARNING.
+    if event_type in ('LOGIN_SUCCESS', 'LOGOUT'):
+        logger.info(message)
+    else:
+        logger.warning(message)

@@ -93,11 +93,13 @@ class ConfigLoader(object):
         self.SESSION_LIFETIME_DAYS = app_config.get('session_lifetime_days', 31)
         self.PERMANENT_SESSION_LIFETIME = timedelta(days=self.SESSION_LIFETIME_DAYS)
 
-        # Session cookie security — включать в production (когда не debug)
+        # Session cookie security
         if not self.DEBUG:
-            self.SESSION_COOKIE_SECURE = app_config.get('session_cookie_secure', True)
+            # По умолчанию НЕ принуждаем Secure, если явно не задано в конфиге
+            self.SESSION_COOKIE_SECURE = app_config.get('session_cookie_secure', False)
             self.SESSION_COOKIE_SAMESITE = app_config.get('session_cookie_samesite', 'Lax')
         else:
+            # В режиме debug поведение остаётся тем же
             self.SESSION_COOKIE_SECURE = app_config.get('session_cookie_secure', False)
             self.SESSION_COOKIE_SAMESITE = app_config.get('session_cookie_samesite', 'Lax')
 

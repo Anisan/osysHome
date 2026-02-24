@@ -20,7 +20,7 @@ application:
   batch_writer_flush_interval: 0.5
   session_lifetime_days: 31  # Время жизни сессии в днях (по умолчанию 31 день, как в Flask)
   # Cookie безопасности (включаются автоматически при debug: false)
-  session_cookie_secure: true    # Требовать HTTPS для cookie (production)
+  session_cookie_secure: false   # Требовать HTTPS для cookie (production)
   session_cookie_samesite: 'Lax' # Защита от CSRF
   # Rate limiting — защита от brute-force и DoS
   rate_limit:

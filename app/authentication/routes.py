@@ -99,6 +99,14 @@ def login():
             setProperty(username + ".lastLogin",datetime.datetime.now(),source=ip)
             session.permanent = True
             login_user(user)
+            # Логирование успешного входа
+            security_audit_log(
+                'LOGIN_SUCCESS',
+                ip=ip,
+                url=request.url,
+                username=username,
+                reason='user_authenticated'
+            )
             return redirect("/")
 
         # Something (user or pass) is not ok
@@ -150,6 +158,15 @@ def login():
 
 @blueprint.route('/logout')
 def logout():
+    ip = _get_client_ip()
+    username = getattr(current_user, 'username', '') or 'anonymous'
+    security_audit_log(
+        'LOGOUT',
+        ip=ip,
+        url=request.url,
+        username=username,
+        reason='user_logout'
+    )
     logout_user()
     return redirect(url_for('auth.login'))
 
