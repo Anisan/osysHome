@@ -88,5 +88,66 @@ def getLogger(moduleName, level=None, logDirectory='logs'):
 
     return logger
 
-# Пример использования в модуле: 
-# logger = getLogger('module1')
+# === Security Audit Logger (несанкционированный доступ) ===
+_security_audit_handler = None
+
+
+def get_security_audit_logger(logDirectory='logs'):
+    """Логгер для аудита безопасности: несанкционированный доступ, неудачные логины, 401/403."""
+    global _security_audit_handler
+
+    logger = logging.getLogger('security_audit')
+    if logger.handlers:
+        return logger
+
+    if not os.path.exists(logDirectory):
+        os.makedirs(logDirectory)
+
+    log_file = os.path.join(logDirectory, 'security_audit.log')
+    formatter = logging.Formatter(
+        '%(asctime)s.%(msecs)03d[%(levelname)s]%(message)s',
+        datefmt='%H:%M:%S'
+    )
+
+    _security_audit_handler = logging.handlers.TimedRotatingFileHandler(
+        log_file,
+        when='midnight',
+        interval=1,
+        backupCount=30,
+        encoding='utf-8',
+        utc=False
+    )
+    _security_audit_handler.setFormatter(formatter)
+
+    logger.setLevel(logging.WARNING)
+    logger.addHandler(_security_audit_handler)
+    logger.propagate = False
+    return logger
+
+
+def security_audit_log(event_type, ip=None, url='', endpoint='', reason='', username='', user_agent='', **extra):
+    """
+    Запись события безопасности в security_audit.log.
+
+    Args:
+        event_type: UNAUTHORIZED, LOGIN_FAILED, API_KEY_MISSING, API_KEY_INVALID, FORBIDDEN, WS_UNAUTHORIZED
+        ip: IP-адрес клиента
+        url: URL запроса
+        endpoint: endpoint/method
+        reason: причина (опционально)
+        username: имя пользователя при логине (опционально)
+        user_agent: User-Agent (опционально)
+        **extra: дополнительные поля
+    """
+    logger = get_security_audit_logger()
+    parts = [f"[{event_type}]", f"IP={ip or '?'}", f"URL={url}", f"Endpoint={endpoint}"]
+    if reason:
+        parts.append(f"Reason={reason}")
+    if username:
+        parts.append(f"User={username}")
+    if user_agent:
+        parts.append(f"UA={user_agent[:80]}")
+    for k, v in extra.items():
+        if v is not None and v != '':
+            parts.append(f"{k}={v}")
+    logger.warning(" | ".join(str(p) for p in parts))

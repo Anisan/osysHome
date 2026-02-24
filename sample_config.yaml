@@ -19,6 +19,15 @@ application:
   pool_timeout_threshold: 60.0
   batch_writer_flush_interval: 0.5
   session_lifetime_days: 31  # Время жизни сессии в днях (по умолчанию 31 день, как в Flask)
+  # Cookie безопасности (включаются автоматически при debug: false)
+  session_cookie_secure: true    # Требовать HTTPS для cookie (production)
+  session_cookie_samesite: 'Lax' # Защита от CSRF
+  # Rate limiting — защита от brute-force и DoS
+  rate_limit:
+    enabled: true
+    default: '100 per minute'  # Общий лимит для всех маршрутов
+    login: '5 per minute'      # Строгий лимит для /login
+    api: '100 per minute'      # Лимит для API (использует default при отсутствии)
   
 database:  
   # Включить вывод SQL‑запросов в лог (удобно для отладки, выключайте в продакшене)

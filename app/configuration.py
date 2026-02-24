@@ -47,6 +47,16 @@ class ConfigLoader(object):
         self.SESSION_LIFETIME_DAYS = 31
         self.PERMANENT_SESSION_LIFETIME = timedelta(days=31)
 
+        # Session cookie security (production)
+        self.SESSION_COOKIE_SECURE = False
+        self.SESSION_COOKIE_SAMESITE = 'Lax'
+
+        # Rate limiting
+        self.RATELIMIT_ENABLED = True
+        self.RATELIMIT_DEFAULT = '100 per minute'
+        self.RATELIMIT_LOGIN = '5 per minute'
+        self.RATELIMIT_API = '100 per minute'
+
         # Service name systemd
         self.SERVICE_NAME = None  # None or 'service_name'
         self.SERVICE_AUTORESTART = False
@@ -82,6 +92,22 @@ class ConfigLoader(object):
         # Session lifetime configuration
         self.SESSION_LIFETIME_DAYS = app_config.get('session_lifetime_days', 31)
         self.PERMANENT_SESSION_LIFETIME = timedelta(days=self.SESSION_LIFETIME_DAYS)
+
+        # Session cookie security — включать в production (когда не debug)
+        if not self.DEBUG:
+            self.SESSION_COOKIE_SECURE = app_config.get('session_cookie_secure', True)
+            self.SESSION_COOKIE_SAMESITE = app_config.get('session_cookie_samesite', 'Lax')
+        else:
+            self.SESSION_COOKIE_SECURE = app_config.get('session_cookie_secure', False)
+            self.SESSION_COOKIE_SAMESITE = app_config.get('session_cookie_samesite', 'Lax')
+
+        # Rate limiting
+        rate_limit = app_config.get('rate_limit', {}) or {}
+        self.RATELIMIT_ENABLED = rate_limit.get('enabled', True)
+        default_limit = rate_limit.get('default', '100 per minute')
+        self.RATELIMIT_DEFAULT = default_limit if self.RATELIMIT_ENABLED else []
+        self.RATELIMIT_LOGIN = rate_limit.get('login', '5 per minute')
+        self.RATELIMIT_API = rate_limit.get('api', '100 per minute')
 
         db_config = self._config_data.get('database', {})
         self.SQLALCHEMY_ECHO = db_config.get('sqlalchemy_echo', False)

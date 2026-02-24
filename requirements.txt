@@ -7,6 +7,7 @@ flask_apispec
 flask-restx
 Flask-Bcrypt
 flask-login
+Flask-Limiter
 flask_socketio
 flask_wtf
 Flask-Caching

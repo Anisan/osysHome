@@ -2,22 +2,29 @@
 import os
 import json
 from importlib import import_module
-from flask import Flask, request, render_template, current_app, session, has_app_context
+from flask import Flask, request, render_template, current_app, session, has_app_context, jsonify
 # import flask_monitoringdashboard as dashboard
 from flask_login import current_user
 from flask import flash, redirect, url_for, abort
 from app.core.lib.object import getProperty
 from app import commands
 from app.exceptions import InvalidUsage
-from app.extensions import db, login_manager, cors, bcrypt, toolbar, cache
+from app.extensions import db, login_manager, cors, bcrypt, toolbar, cache, limiter
 from app.core.main.PluginsHelper import registerPlugins
 from app.core.utils import CustomJSONEncoder, CustomJSONProvider
 from app.core.intelli import build_intelli_cache
 from app.utils import get_current_version
 
-from .logging_config import getLogger
+from .logging_config import getLogger, security_audit_log
 _logger = getLogger('flask')
 _logger_error_http = getLogger('404')
+
+
+def _get_client_ip():
+    """IP клиента с учётом X-Forwarded-For (за reverse proxy)."""
+    if request.headers.getlist("X-Forwarded-For"):
+        return request.headers.getlist("X-Forwarded-For")[0]
+    return request.remote_addr or '?'
 
 def createApp(config_object):
     """An application factory, as explained here:
@@ -219,6 +226,8 @@ def registerExtensions(app):
     db.init_app(app)
     cors.init_app(app)
     login_manager.init_app(app)
+    if limiter:
+        limiter.init_app(app)
     if toolbar:
         toolbar.init_app(app)
 
@@ -239,9 +248,9 @@ def check_page_access(request):
     else:
         blueprint_name = "Core"  # Маршрут не принадлежит ни к одному blueprint
 
-    # check api key for api
+    # check api key for api (query param или заголовок)
     if not current_user.is_authenticated and blueprint_name == 'api':
-        api_key = request.args.get('apikey')
+        api_key = request.args.get('apikey') or request.headers.get('X-API-Key')
         if api_key:
             from app.utils import get_user_by_api_key
             user = get_user_by_api_key(api_key)
@@ -303,7 +312,11 @@ def check_page_access(request):
 
     # Проверяем, авторизован ли пользователь
     if not current_user.is_authenticated:
-        _logger.warning(f"Unauthorized access attempt from {request.remote_addr} to {request.url}")
+        security_audit_log(
+            'UNAUTHORIZED', ip=_get_client_ip(), url=request.url, endpoint=request.endpoint or '?',
+            reason='not_authenticated', user_agent=request.headers.get('User-Agent', '')
+        )
+        _logger.warning(f"Unauthorized access attempt from {_get_client_ip()} to {request.url}")
         return None
 
     # Проверяем роль пользователя
@@ -329,10 +342,25 @@ def registerErrorHandlers(app):
 
         # Проверяем доступ к странице
         access = check_page_access(request)
+
+        # Неавторизованный доступ
         if access is None:
+            # Для API возвращаем JSON 401 вместо HTML-редиректа
+            if request.blueprint == 'api':
+                return jsonify({
+                    'success': False,
+                    'error': 'Authentication required'
+                }), 401
             flash('You need to log in first.', 'error')
             return redirect(url_for('auth.login'))
-        if not access:
+
+        # Доступ запрещён (недостаточно прав)
+        if access is False:
+            if request.blueprint == 'api':
+                return jsonify({
+                    'success': False,
+                    'error': 'Forbidden'
+                }), 403
             abort(403)  # Возвращаем ошибку "Forbidden" если доступ запрещен
 
     def errorhandler(error):
@@ -351,6 +379,15 @@ def registerErrorHandlers(app):
 
     @app.errorhandler(403)
     def forbidden_error(error):
+        # Логирование в security_audit (доступ запрещён — может быть вызвано из других мест)
+        try:
+            security_audit_log(
+                'FORBIDDEN', ip=_get_client_ip(), url=request.url, endpoint=request.endpoint or '?',
+                reason='access_denied', username=getattr(current_user, 'username', '') or 'anonymous',
+                user_agent=request.headers.get('User-Agent', '')
+            )
+        except Exception:
+            pass
         _logger_error_http.warning(error)
         return render_template('errors/page-403.html'), 403
 
