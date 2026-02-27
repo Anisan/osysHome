@@ -439,23 +439,144 @@ def readNotifyAll(source: Optional[str] = None):
     callPluginFunction("wsServer","notify", {"data":notify_data})
 
 
-def getUrl(url) -> str:
-    """Get content from URL
+def requestUrl(
+    url: str,
+    method: str = "GET",
+    params: dict = None,
+    headers: dict = None,
+    json_data: dict = None,
+    data: dict = None,
+    cookies: dict = None,
+    timeout: float = None,
+) -> Optional[bytes]:
+    """Выполнить HTTP-запрос и вернуть содержимое ответа.
 
     Args:
-        url (str): URL
+        url: URL для запроса
+        method: HTTP-метод (GET, POST, PUT, PATCH, DELETE и др.)
+        params: query-параметры URL (для GET и др.)
+        headers: заголовки запроса
+        json_data: JSON-тело запроса (для POST, PUT и др.)
+        data: тело запроса (form-data, для POST и др.)
+        cookies: словарь cookies {name: value}
+        timeout: таймаут в секундах (по умолчанию Config.HTTP_REQUEST_TIMEOUT)
 
     Returns:
-        str: Content
+        bytes: содержимое ответа или None при ошибке
     """
     import requests
+    from app.configuration import Config
+
+    timeout = timeout if timeout is not None else Config.HTTP_REQUEST_TIMEOUT
 
     try:
-        result = requests.get(url)
+        result = requests.request(
+            method=method.upper(),
+            url=url,
+            params=params,
+            headers=headers,
+            json=json_data,
+            data=data,
+            cookies=cookies,
+            timeout=timeout,
+        )
         return result.content
     except Exception as e:
         _logger.exception(e)
     return None
+
+
+def getUrl(
+    url: str,
+    params: dict = None,
+    headers: dict = None,
+    cookies: dict = None,
+    timeout: float = None,
+) -> Optional[bytes]:
+    """GET-запрос (alias для requestUrl с method='GET')."""
+    return requestUrl(
+        url, method="GET", params=params, headers=headers, cookies=cookies, timeout=timeout
+    )
+
+
+def postUrl(
+    url: str,
+    params: dict = None,
+    headers: dict = None,
+    json_data: dict = None,
+    data: dict = None,
+    cookies: dict = None,
+    timeout: float = None,
+) -> Optional[bytes]:
+    """POST-запрос (alias для requestUrl с method='POST')."""
+    return requestUrl(
+        url,
+        method="POST",
+        params=params,
+        headers=headers,
+        json_data=json_data,
+        data=data,
+        cookies=cookies,
+        timeout=timeout,
+    )
+
+
+def putUrl(
+    url: str,
+    params: dict = None,
+    headers: dict = None,
+    json_data: dict = None,
+    data: dict = None,
+    cookies: dict = None,
+    timeout: float = None,
+) -> Optional[bytes]:
+    """PUT-запрос (alias для requestUrl с method='PUT')."""
+    return requestUrl(
+        url,
+        method="PUT",
+        params=params,
+        headers=headers,
+        json_data=json_data,
+        data=data,
+        cookies=cookies,
+        timeout=timeout,
+    )
+
+
+def patchUrl(
+    url: str,
+    params: dict = None,
+    headers: dict = None,
+    json_data: dict = None,
+    data: dict = None,
+    cookies: dict = None,
+    timeout: float = None,
+) -> Optional[bytes]:
+    """PATCH-запрос (alias для requestUrl с method='PATCH')."""
+    return requestUrl(
+        url,
+        method="PATCH",
+        params=params,
+        headers=headers,
+        json_data=json_data,
+        data=data,
+        cookies=cookies,
+        timeout=timeout,
+    )
+
+
+def deleteUrl(
+    url: str,
+    params: dict = None,
+    headers: dict = None,
+    cookies: dict = None,
+    timeout: float = None,
+) -> Optional[bytes]:
+    """DELETE-запрос (alias для requestUrl с method='DELETE')."""
+    return requestUrl(
+        url, method="DELETE", params=params, headers=headers, cookies=cookies, timeout=timeout
+    )
+
 
 def sendWebsocket(command: str, data: any, client_id:str=None) -> bool:
     """Send command to websocket

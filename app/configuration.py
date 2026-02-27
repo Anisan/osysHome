@@ -13,7 +13,6 @@ class ConfigLoader(object):
         self.SECRET_KEY = 'secret-key'
         current_dir = os.path.abspath(os.path.dirname(__file__))
         self.APP_DIR = os.path.dirname(current_dir)
-        self.PROJECT_ROOT = os.path.abspath(os.path.join(self.APP_DIR, os.pardir))
         # Assets Management
         self.ASSETS_ROOT = '/static/assets'
         self.PLUGINS_FOLDER = os.path.abspath(os.path.join(self.APP_DIR, "plugins"))
@@ -56,6 +55,9 @@ class ConfigLoader(object):
         self.RATELIMIT_DEFAULT = '100 per minute'
         self.RATELIMIT_LOGIN = '5 per minute'
         self.RATELIMIT_API = '100 per minute'
+
+        # HTTP requests timeout (seconds) - used by requests.get/post/etc
+        self.HTTP_REQUEST_TIMEOUT = 15
 
         # Service name systemd
         self.SERVICE_NAME = None  # None or 'service_name'
@@ -110,6 +112,8 @@ class ConfigLoader(object):
         self.RATELIMIT_DEFAULT = default_limit if self.RATELIMIT_ENABLED else []
         self.RATELIMIT_LOGIN = rate_limit.get('login', '5 per minute')
         self.RATELIMIT_API = rate_limit.get('api', '100 per minute')
+
+        self.HTTP_REQUEST_TIMEOUT = app_config.get('http_request_timeout', 15)
 
         db_config = self._config_data.get('database', {})
         self.SQLALCHEMY_ECHO = db_config.get('sqlalchemy_echo', False)
