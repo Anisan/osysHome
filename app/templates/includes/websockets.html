@@ -82,6 +82,10 @@
   });
 
   socket.on('changeProperty', function (msg) {
+    if (msg.property === 'SystemVar.NeedRestart') {
+      var el = document.getElementById('needRestartIndicator');
+      if (el) el.style.display = (msg.value === true || msg.value === 'true') ? '' : 'none';
+    }
     var elements = document.querySelectorAll(`[id^="prop:${msg.property}"]`);
     elements.forEach(element => {
       if (element.id === `prop:${msg.property}`)
