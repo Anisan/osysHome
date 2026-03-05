@@ -55,6 +55,15 @@
   var socket = io.connect(window.location.protocol + '//' + document.domain + ':' + location.port);
   var hasConnectedOnce = false;
 
+  function sendCurrentPage() {
+    try {
+      var page = window.location.pathname + window.location.search + window.location.hash;
+      socket.emit('page', page);
+    } catch (e) {
+      console.warn('Failed to send current page via websocket', e);
+    }
+  }
+
   socket.on('connect', function () {
     console.log('Connected to server');
     document.getElementById('overlay').style.display = 'none';
@@ -67,6 +76,7 @@
 
     hasConnectedOnce = true;
     subscribe();
+    sendCurrentPage();
   });
 
   socket.on('disconnect', function () {
@@ -576,6 +586,9 @@
       socket.emit('subscribeProperties', propList);
     if (objectList.length > 0)
       socket.emit('subscribeObjects', objectList);
+
+    // Отправляем текущую страницу после подписки
+    sendCurrentPage();
   }
 
   // Bootstrap modal fix for pages with stacking contexts (e.g. /admin/Objects):
@@ -628,6 +641,10 @@
 
   document.addEventListener('DOMContentLoaded', function () {
     setupModalPortal();
-    subscribe()
+    subscribe();
+
+    // На случай SPA/изменения истории обновляем страницу клиента
+    window.addEventListener('popstate', sendCurrentPage);
+    window.addEventListener('hashchange', sendCurrentPage);
   });
 </script>
