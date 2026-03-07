@@ -84,6 +84,20 @@
         background-color: #e9ecef;
         border-radius: 0.25rem;
     }
+
+    .cp-objects-list {
+        max-height: 55vh;
+        overflow-y: auto;
+    }
+
+    .cp-objects-list .list-group-item {
+        user-select: none;
+    }
+
+    .cp-objects-list .cp-object-key {
+        font-family: Consolas, Verdana, monospace;
+        font-size: 0.85rem;
+    }
 </style>
 {% endblock stylesheets %}
 
@@ -95,6 +109,9 @@
     <h1 class="ms-2">{{ _('Welcome!')}}</h1>
     {% endif %}
     <div class="columns-controls">
+        <button type="button" id="editObjectsBtn" class="btn btn-outline-primary" title="{{ _('Edit displayed objects') }}">
+            <i class="feather icon-list"></i>
+        </button>
         <button type="button" id="decreaseColumns" class="btn btn-outline-secondary">
             <i class="feather icon-minus"></i>
         </button>
@@ -464,6 +481,68 @@
         {%endfor%}
     </div>
 </div>  
+
+<!-- Control panel objects modal -->
+<div class="modal fade"
+     id="controlPanelObjectsModal"
+     tabindex="-1"
+     aria-labelledby="controlPanelObjectsModalLabel"
+     aria-hidden="true"
+     data-initial-selected='{{ (control_panel_objects or [])|tojson }}'
+     data-i18n='{{ {
+        "loading": _("Loading..."),
+        "noResultsFound": _("No results found"),
+        "add": _("Add"),
+        "added": _("Added"),
+        "available": _("available"),
+        "items": _("items"),
+        "saving": _("Saving..."),
+        "saved": _("Saved"),
+        "saveFailed": _("Save failed"),
+        "noObjectsSelected": _("No objects selected"),
+        "notAvailable": _("Not available"),
+        "moveUp": _("Move up"),
+        "moveDown": _("Move down"),
+        "remove": _("Remove")
+     }|tojson }}'>
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="controlPanelObjectsModalLabel">{{ _('Displayed objects') }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ _('Close') }}"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row g-3">
+                    <div class="col-12 col-lg-6">
+                        <div class="d-flex align-items-center justify-content-between mb-2">
+                            <div class="fw-bold">{{ _('Shown on control panel') }}</div>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" id="cpObjectsClearBtn">
+                                <i class="feather icon-trash-2 me-1"></i>{{ _('Clear') }}
+                            </button>
+                        </div>
+                        <div class="list-group cp-objects-list" id="cpSelectedObjectsList"></div>
+                        <div class="small text-muted mt-2" id="cpSelectedObjectsHint"></div>
+                    </div>
+                    <div class="col-12 col-lg-6">
+                        <div class="fw-bold mb-2">{{ _('Available objects') }}</div>
+                        <div class="mb-2">
+                            <input type="text" class="form-control" id="cpObjectsSearch" placeholder="{{ _('Search...') }}">
+                        </div>
+                        <div class="list-group cp-objects-list" id="cpAvailableObjectsList"></div>
+                        <div class="small text-muted mt-2" id="cpAvailableObjectsHint"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <div class="me-auto small text-muted" id="cpObjectsSaveStatus"></div>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ _('Close') }}</button>
+                <button type="button" class="btn btn-primary" id="cpObjectsSaveBtn">
+                    <i class="feather icon-save me-1"></i>{{ _('Save') }}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 <!-- Widgets end -->
 {% endblock %}
 
@@ -567,6 +646,296 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                 })
                 .catch(function() { switchToCustomizeBtn.disabled = false; });
+        });
+    }
+
+    // -------- Control panel objects modal (old panel) --------
+    const editObjectsBtn = document.getElementById('editObjectsBtn');
+    const modalEl = document.getElementById('controlPanelObjectsModal');
+    const selectedListEl = document.getElementById('cpSelectedObjectsList');
+    const availableListEl = document.getElementById('cpAvailableObjectsList');
+    const searchEl = document.getElementById('cpObjectsSearch');
+    const saveBtn = document.getElementById('cpObjectsSaveBtn');
+    const clearBtn = document.getElementById('cpObjectsClearBtn');
+    const saveStatusEl = document.getElementById('cpObjectsSaveStatus');
+    const selectedHintEl = document.getElementById('cpSelectedObjectsHint');
+    const availableHintEl = document.getElementById('cpAvailableObjectsHint');
+
+    const cpI18n = (function() {
+        if (!modalEl) return {};
+        try {
+            return JSON.parse(modalEl.getAttribute('data-i18n') || '{}') || {};
+        } catch (e) {
+            return {};
+        }
+    })();
+
+    const initialSelectedObjects = (function() {
+        if (!modalEl) return [];
+        try {
+            return JSON.parse(modalEl.getAttribute('data-initial-selected') || '[]') || [];
+        } catch (e) {
+            return [];
+        }
+    })();
+
+    let cpObjectsModal = null;
+    let availableObjects = [];
+    let availableObjectsMap = new Map();
+    let selectedKeys = Array.isArray(initialSelectedObjects) ? [...initialSelectedObjects] : [];
+    let loadingAvailable = false;
+
+    function setSaveStatus(text, isError) {
+        if (!saveStatusEl) return;
+        saveStatusEl.textContent = text || '';
+        saveStatusEl.classList.toggle('text-danger', !!isError);
+        saveStatusEl.classList.toggle('text-muted', !isError);
+    }
+
+    function buildObjectTitle(key) {
+        const obj = availableObjectsMap.get(key);
+        if (!obj) return key;
+        return obj.title || obj.key || key;
+    }
+
+    function buildObjectDescription(key) {
+        const obj = availableObjectsMap.get(key);
+        if (!obj) return '';
+        return obj.description || '';
+    }
+
+    function renderSelectedList() {
+        if (!selectedListEl) return;
+        selectedListEl.innerHTML = '';
+
+        if (!selectedKeys || selectedKeys.length === 0) {
+            selectedListEl.innerHTML = `
+                <div class="list-group-item text-muted">
+                    <i class="feather icon-info me-1"></i>${escapeHtml(cpI18n.noObjectsSelected || 'No objects selected')}
+                </div>
+            `;
+        } else {
+            selectedKeys.forEach((key, idx) => {
+                const title = buildObjectTitle(key);
+                const desc = buildObjectDescription(key);
+                const missing = !availableObjectsMap.has(key);
+
+                const item = document.createElement('div');
+                item.className = 'list-group-item d-flex align-items-start gap-2';
+                item.dataset.key = key;
+                item.innerHTML = `
+                    <div class="d-flex flex-column flex-grow-1">
+                        <div class="d-flex align-items-center justify-content-between gap-2">
+                            <div class="fw-semibold">${escapeHtml(title)}</div>
+                            ${missing ? `<span class="badge bg-warning text-dark">${escapeHtml(cpI18n.notAvailable || 'Not available')}</span>` : ``}
+                        </div>
+                        <div class="cp-object-key text-muted">${escapeHtml(key)}</div>
+                        ${desc ? `<div class="small text-muted mt-1">${escapeHtml(desc)}</div>` : ``}
+                    </div>
+                    <div class="btn-group btn-group-sm ms-auto" role="group" aria-label="Reorder">
+                        <button type="button" class="btn btn-outline-secondary" data-action="up" ${idx === 0 ? 'disabled' : ''} title="${escapeHtml(cpI18n.moveUp || 'Move up')}">
+                            <i class="feather icon-chevron-up"></i>
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary" data-action="down" ${idx === selectedKeys.length - 1 ? 'disabled' : ''} title="${escapeHtml(cpI18n.moveDown || 'Move down')}">
+                            <i class="feather icon-chevron-down"></i>
+                        </button>
+                        <button type="button" class="btn btn-outline-danger" data-action="remove" title="${escapeHtml(cpI18n.remove || 'Remove')}">
+                            <i class="feather icon-x"></i>
+                        </button>
+                    </div>
+                `;
+
+                item.addEventListener('click', function(e) {
+                    const btn = e.target.closest('button[data-action]');
+                    if (!btn) return;
+                    const action = btn.getAttribute('data-action');
+                    if (!action) return;
+
+                    if (action === 'remove') {
+                        selectedKeys = selectedKeys.filter(k => k !== key);
+                    } else if (action === 'up' && idx > 0) {
+                        const tmp = selectedKeys[idx - 1];
+                        selectedKeys[idx - 1] = selectedKeys[idx];
+                        selectedKeys[idx] = tmp;
+                    } else if (action === 'down' && idx < selectedKeys.length - 1) {
+                        const tmp = selectedKeys[idx + 1];
+                        selectedKeys[idx + 1] = selectedKeys[idx];
+                        selectedKeys[idx] = tmp;
+                    }
+
+                    renderSelectedList();
+                    renderAvailableList();
+                });
+
+                selectedListEl.appendChild(item);
+            });
+        }
+
+        if (selectedHintEl) {
+            selectedHintEl.textContent = `${selectedKeys.length} ${cpI18n.items || 'items'}`;
+        }
+    }
+
+    function renderAvailableList() {
+        if (!availableListEl) return;
+        const term = (searchEl && searchEl.value ? searchEl.value.trim().toLowerCase() : '');
+
+        availableListEl.innerHTML = '';
+        if (loadingAvailable) {
+            availableListEl.innerHTML = `
+                <div class="list-group-item text-muted">
+                    <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                    ${escapeHtml(cpI18n.loading || 'Loading...')}
+                </div>
+            `;
+            return;
+        }
+
+        const selectedSet = new Set(selectedKeys || []);
+        let list = Array.isArray(availableObjects) ? availableObjects : [];
+        if (term) {
+            list = list.filter(o => {
+                const t = (o.title || o.key || '').toLowerCase();
+                const d = (o.description || '').toLowerCase();
+                return t.includes(term) || d.includes(term) || String(o.key || '').toLowerCase().includes(term);
+            });
+        }
+
+        if (!list || list.length === 0) {
+            availableListEl.innerHTML = `
+                <div class="list-group-item text-muted">
+                    <i class="feather icon-search me-1"></i>${escapeHtml(cpI18n.noResultsFound || 'No results found')}
+                </div>
+            `;
+        } else {
+            list.forEach(obj => {
+                const key = obj.key;
+                const title = obj.title || obj.key || key;
+                const desc = obj.description || '';
+                const already = selectedSet.has(key);
+
+                const item = document.createElement('button');
+                item.type = 'button';
+                item.className = 'list-group-item list-group-item-action text-start d-flex align-items-start gap-2';
+                item.disabled = already;
+                item.innerHTML = `
+                    <div class="flex-grow-1">
+                        <div class="fw-semibold">${escapeHtml(title)}</div>
+                        <div class="cp-object-key text-muted">${escapeHtml(key)}</div>
+                        ${desc ? `<div class="small text-muted mt-1">${escapeHtml(desc)}</div>` : ``}
+                    </div>
+                    <div class="ms-auto">
+                        <span class="badge ${already ? 'bg-secondary' : 'bg-primary'}">${escapeHtml(already ? (cpI18n.added || 'Added') : (cpI18n.add || 'Add'))}</span>
+                    </div>
+                `;
+                item.addEventListener('click', function() {
+                    if (already) return;
+                    selectedKeys.push(key);
+                    renderSelectedList();
+                    renderAvailableList();
+                });
+                availableListEl.appendChild(item);
+            });
+        }
+
+        if (availableHintEl) {
+            availableHintEl.textContent = `${(Array.isArray(availableObjects) ? availableObjects.length : 0)} ${cpI18n.available || 'available'}`;
+        }
+    }
+
+    function escapeHtml(str) {
+        return String(str ?? '')
+            .replaceAll('&', '&amp;')
+            .replaceAll('<', '&lt;')
+            .replaceAll('>', '&gt;')
+            .replaceAll('"', '&quot;')
+            .replaceAll("'", '&#039;');
+    }
+
+    function loadAvailableObjects() {
+        if (loadingAvailable) return Promise.resolve();
+        loadingAvailable = true;
+        renderAvailableList();
+        return fetch('/admin/available-widgets', { credentials: 'same-origin' })
+            .then(r => r.json())
+            .then(data => {
+                if (data && data.success) {
+                    availableObjects = Array.isArray(data.objects) ? data.objects : [];
+                    availableObjectsMap = new Map();
+                    availableObjects.forEach(o => {
+                        if (o && o.key) availableObjectsMap.set(o.key, o);
+                    });
+                } else {
+                    availableObjects = [];
+                    availableObjectsMap = new Map();
+                }
+            })
+            .catch(() => {
+                availableObjects = [];
+                availableObjectsMap = new Map();
+            })
+            .finally(() => {
+                loadingAvailable = false;
+                renderSelectedList();
+                renderAvailableList();
+            });
+    }
+
+    function openObjectsModal() {
+        if (!modalEl) return;
+        if (!cpObjectsModal) {
+            cpObjectsModal = new bootstrap.Modal(modalEl);
+        }
+        setSaveStatus('', false);
+        renderSelectedList();
+        loadAvailableObjects();
+        cpObjectsModal.show();
+        if (searchEl) {
+            searchEl.value = '';
+            setTimeout(() => searchEl.focus(), 200);
+        }
+    }
+
+    if (editObjectsBtn) {
+        editObjectsBtn.addEventListener('click', openObjectsModal);
+    }
+
+    if (searchEl) {
+        searchEl.addEventListener('input', function() {
+            renderAvailableList();
+        });
+    }
+
+    if (clearBtn) {
+        clearBtn.addEventListener('click', function() {
+            selectedKeys = [];
+            renderSelectedList();
+            renderAvailableList();
+        });
+    }
+
+    if (saveBtn) {
+        saveBtn.addEventListener('click', function() {
+            const list = Array.isArray(selectedKeys) ? selectedKeys : [];
+            saveBtn.disabled = true;
+            setSaveStatus(cpI18n.saving || 'Saving...', false);
+
+            const payload = encodeURIComponent(JSON.stringify(list));
+            const url = `/api/property/set?object=SystemVar&property=control_panel_objects&value=${payload}`;
+            fetch(url, { credentials: 'same-origin' })
+                .then(r => r.json())
+                .then(data => {
+                    if (data && data.success) {
+                        setSaveStatus(cpI18n.saved || 'Saved', false);
+                        window.location.reload();
+                    } else {
+                        setSaveStatus(cpI18n.saveFailed || 'Save failed', true);
+                    }
+                })
+                .catch(() => setSaveStatus(cpI18n.saveFailed || 'Save failed', true))
+                .finally(() => {
+                    saveBtn.disabled = false;
+                });
         });
     }
 });
