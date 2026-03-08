@@ -94,6 +94,10 @@ class BatchWriter:
         thread = threading.Thread(target=self._flush_internal, daemon=True, name="BatchWriterFlush")
         thread.start()
 
+    def flush_sync(self):
+        """Принудительно и синхронно записывает текущий батч (для init-сценариев)"""
+        self._flush_internal()
+
     def _flush_internal(self):
         """Внутренний метод для записи батча (вызывается в отдельном потоке)"""
         start_time = time.time()

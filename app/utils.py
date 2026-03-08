@@ -102,6 +102,8 @@ def initSystemVar():
     addObjectProperty('analytics_uuid','SystemVar',"Unique installation ID for analytics",0, PropertyType.String, update=True)
     if not getProperty("SystemVar.analytics_uuid"):
         setProperty("SystemVar.analytics_uuid", str(uuid.uuid4()).replace("-", ""), "osysHome")
+        from app.core.main.ObjectManager import _batch_writer
+        _batch_writer.flush_sync()
     addObjectProperty('analytics_uuid','SystemVar',"Unique installation ID for analytics",0, PropertyType.String, params={"read_only": True}, update=True)
 
     users = getObjectsByClass('Users')
