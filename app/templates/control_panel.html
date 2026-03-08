@@ -139,6 +139,44 @@
     
     {# First-run helper: show welcome card when SystemVar.welcome is true (dismissed by button) #}
     <div class="row mx-1" id="widgetsContainer" style="display: none;">
+        {% if show_analytics_ask %}
+        <div class="col-12 mb-3" id="analyticsCard">
+            <div class="card border-secondary">
+                <div class="card-body">
+                    <h5 class="card-title">
+                        <i class="fas fa-chart-bar me-2"></i>{{ _('analytics_opt_in_title') }}
+                    </h5>
+                    <p class="card-text">{{ _('analytics_opt_in_description') }}</p>
+                    <div class="accordion accordion-flush mb-3" id="analyticsDataAccordion">
+                        <div class="accordion-item">
+                            <h2 class="accordion-header">
+                                <button class="accordion-button collapsed py-2" type="button" data-bs-toggle="collapse" data-bs-target="#analyticsDataCollapse">
+                                    {{ _('analytics_opt_in_what_sent') }}
+                                </button>
+                            </h2>
+                            <div id="analyticsDataCollapse" class="accordion-collapse collapse">
+                                <div class="accordion-body small">
+                                    <p class="mb-1"><strong>Basic:</strong> {{ _('analytics_data_basic') }}</p>
+                                    <p class="mb-0"><strong>Extended:</strong> {{ _('analytics_data_extended') }}</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="btn-group" role="group">
+                        <button type="button" id="analyticsOptBasic" class="btn btn-primary btn-sm">
+                            <i class="fas fa-shield-alt me-1"></i>{{ _('analytics_opt_in_basic') }}
+                        </button>
+                        <button type="button" id="analyticsOptExtended" class="btn btn-outline-primary btn-sm">
+                            <i class="fas fa-chart-line me-1"></i>{{ _('analytics_opt_in_extended') }}
+                        </button>
+                        <button type="button" id="analyticsOptOut" class="btn btn-outline-secondary btn-sm">
+                            <i class="fas fa-times me-1"></i>{{ _('analytics_opt_in_no') }}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
         {% if show_welcome %}
         <div class="col-12 mb-3" id="welcomeCard">
             <div class="card border-info">
@@ -628,6 +666,63 @@ document.addEventListener('DOMContentLoaded', function() {
                         if (welcomeCard) welcomeCard.remove();
                     }
                 });
+        });
+    }
+
+    // Analytics opt-in
+    const analyticsOptBasic = document.getElementById('analyticsOptBasic');
+    const analyticsOptExtended = document.getElementById('analyticsOptExtended');
+    const analyticsOptOut = document.getElementById('analyticsOptOut');
+    function disableAnalyticsBtns() {
+        if (analyticsOptBasic) analyticsOptBasic.disabled = true;
+        if (analyticsOptExtended) analyticsOptExtended.disabled = true;
+        if (analyticsOptOut) analyticsOptOut.disabled = true;
+    }
+    function enableAnalyticsBtns() {
+        if (analyticsOptBasic) analyticsOptBasic.disabled = false;
+        if (analyticsOptExtended) analyticsOptExtended.disabled = false;
+        if (analyticsOptOut) analyticsOptOut.disabled = false;
+    }
+    if (analyticsOptBasic) {
+        analyticsOptBasic.addEventListener('click', function() {
+            disableAnalyticsBtns();
+            fetch('/api/utils/analytics?enabled=basic', { method: 'POST', credentials: 'same-origin' })
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (data.success) {
+                        const card = document.getElementById('analyticsCard');
+                        if (card) card.remove();
+                    } else enableAnalyticsBtns();
+                })
+                .catch(enableAnalyticsBtns);
+        });
+    }
+    if (analyticsOptExtended) {
+        analyticsOptExtended.addEventListener('click', function() {
+            disableAnalyticsBtns();
+            fetch('/api/utils/analytics?enabled=extended', { method: 'POST', credentials: 'same-origin' })
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (data.success) {
+                        const card = document.getElementById('analyticsCard');
+                        if (card) card.remove();
+                    } else enableAnalyticsBtns();
+                })
+                .catch(enableAnalyticsBtns);
+        });
+    }
+    if (analyticsOptOut) {
+        analyticsOptOut.addEventListener('click', function() {
+            disableAnalyticsBtns();
+            fetch('/api/utils/analytics?enabled=disabled', { method: 'POST', credentials: 'same-origin' })
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (data.success) {
+                        const card = document.getElementById('analyticsCard');
+                        if (card) card.remove();
+                    } else enableAnalyticsBtns();
+                })
+                .catch(enableAnalyticsBtns);
         });
     }
 

@@ -313,3 +313,43 @@ class NotificationStats(Resource):
                 "success": True,
                 "stats": {"total": total, "unread": unread, "sources": sources},
             }, 200
+
+
+@utils_ns.route("/analytics")
+class AnalyticsSettings(Resource):
+    @api_key_required
+    @handle_admin_required
+    @utils_ns.doc(security="apikey")
+    def get(self):
+        """
+        Get analytics opt-in status. Enum: disabled, basic, extended. null/empty = not asked.
+        """
+        from app.core.lib.object import getProperty
+
+        val = getProperty("SystemVar.analytics_enabled")
+        # Legacy: "true"/"false" -> map to basic/disabled
+        if str(val).lower() in ("true", "1", "yes"):
+            val = "basic"
+        elif str(val).lower() in ("false", "0", "no"):
+            val = "disabled"
+        return {
+            "success": True,
+            "analytics_enabled": val,
+            "asked": val not in (None, ""),
+        }, 200
+
+    @api_key_required
+    @handle_admin_required
+    @utils_ns.doc(security="apikey")
+    @utils_ns.param("enabled", "disabled | basic | extended", _in="query", required=True)
+    def post(self):
+        """
+        Set analytics level (explicit consent). disabled, basic, extended.
+        """
+        from app.core.lib.object import setProperty
+
+        enabled = request.args.get("enabled", "").lower()
+        if enabled not in ("disabled", "basic", "extended"):
+            return {"success": False, "msg": "enabled must be disabled, basic or extended"}, 400
+        setProperty("SystemVar.analytics_enabled", enabled, "api")
+        return {"success": True, "analytics_enabled": enabled}, 200

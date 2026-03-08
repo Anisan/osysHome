@@ -41,15 +41,17 @@ def control_panel():
 
 
         show_welcome = getProperty("SystemVar.welcome") is not False
+        show_analytics_ask = getProperty("SystemVar.analytics_enabled") in (None, "")
         has_docs = getModule("Docs") is not None
         has_objects_module = getModule("Objects") is not None
         has_scheduler = getModule("Scheduler") is not None
         has_users = getModule("Users") is not None
         content = {
-            "widgets": widgets, 
+            "widgets": widgets,
             "objects": object_render,
             "control_panel_objects": control_panel_objects,
-            "show_welcome": show_welcome, 
+            "show_welcome": show_welcome,
+            "show_analytics_ask": show_analytics_ask,
             "has_docs": has_docs,
             "has_objects_module": has_objects_module,
             "has_scheduler": has_scheduler,
@@ -67,13 +69,15 @@ def control_panel():
             except (ValueError, TypeError):
                 pass
     show_welcome = getProperty("SystemVar.welcome") is not False
+    show_analytics_ask = getProperty("SystemVar.analytics_enabled") is None
     has_docs = getModule("Docs") is not None
     has_objects_module = getModule("Objects") is not None
     has_scheduler = getModule("Scheduler") is not None
     has_users = getModule("Users") is not None
     content = {
-        "columns": columns, 
-        "show_welcome": show_welcome, 
+        "columns": columns,
+        "show_welcome": show_welcome,
+        "show_analytics_ask": show_analytics_ask,
         "has_docs": has_docs,
         "has_objects_module": has_objects_module,
         "has_scheduler": has_scheduler,
