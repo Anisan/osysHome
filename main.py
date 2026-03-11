@@ -2,7 +2,7 @@
 """Main module for start system"""
 from app.configuration import Config
 from app import createApp
-from app.utils import initSystemVar, startSystemVar, get_current_version
+from app.utils import initSystemVar, startSystemVar, init_analytics_scheduler, get_current_version
 from app.core.main.PluginsHelper import start_plugins, stop_plugins
 from app.logging_config import getLogger
 
@@ -21,6 +21,10 @@ if __name__ == '__main__':
     start_plugins()
 
     startSystemVar()
+
+    _logger.info("Init analytics scheduler")
+    with app.app_context():
+        init_analytics_scheduler()
 
     _logger.info("Run flask")
     app.run(

@@ -35,9 +35,7 @@
         {% endif %}
       </ul>
       <h4 class="mt-1 me-3" id="unreadNotifyIndicator" style="display: none;"><span class=" blink badge bg-warning text-black"><i class="fas fa-bell me-2"></i>{{ _('Unreaded notify')}}</span></h4>
-      {%if getProperty("SystemVar.NeedRestart") == True %}
-      <h4 class="mt-1 me-3"><span class=" blink badge bg-warning text-black"><i class="fas fa-power-off me-2"></i>{{ _('Need restart osysHome')}}</span></h4>
-      {%endif%}
+      <h4 class="mt-1 me-3" id="needRestartIndicator" style="display:none;" data-prop-display="SystemVar.NeedRestart"><span class="blink badge bg-warning text-black"><i class="fas fa-power-off me-2"></i>{{ _('Need restart osysHome')}}</span></h4>
       {% if 'admin' in request.path %}
       <button class="btn btn-outline-secondary me-2" data-bs-toggle="modal" data-bs-target="#consoleModal"><i class="fa-solid fa-terminal me-2"></i>{{ _('Console')}}</button>
       <button class="btn btn-outline-success me-2" data-bs-toggle="modal" data-bs-target="#searchModal"><i class="fa-solid fa-magnifying-glass me-2"></i>{{ _('Search')}}</button>

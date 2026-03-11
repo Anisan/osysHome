@@ -8,13 +8,18 @@ from flask_login import (
 
 from . import blueprint
 from .forms import LoginForm
-from app.extensions import login_manager
+from app.extensions import login_manager, limiter, cache
 from app.core.models.Users import User
 from app.core.lib.object import getObject, getObjectsByClass, addObject, setProperty
 from app import safe_translate as _
 
-from app.logging_config import getLogger
-_logger = getLogger("security")
+from app.logging_config import security_audit_log
+
+
+def _get_client_ip():
+    if request.headers.getlist("X-Forwarded-For"):
+        return request.headers.getlist("X-Forwarded-For")[0]
+    return request.remote_addr or '?'
 
 @blueprint.route('/')
 def route_default():
@@ -22,7 +27,19 @@ def route_default():
 
 # Login & Registration
 
+def _login_rate_limit():
+    from app.configuration import Config
+    return Config.RATELIMIT_LOGIN if Config.RATELIMIT_ENABLED else '10000 per minute'
+
+
+def _apply_login_limit(f):
+    if limiter:
+        return limiter.limit(_login_rate_limit)(f)
+    return f
+
+
 @blueprint.route('/login', methods=['GET', 'POST'])
+@_apply_login_limit
 def login():
     login_form = LoginForm(request.form)
     users = getObjectsByClass('Users')
@@ -41,6 +58,20 @@ def login():
         if not password:
             return render_template('accounts/login.html',
                                    msg=_('Password cannot be empty'),
+                                   register=False,
+                                   form=login_form)
+
+        ip = _get_client_ip()
+
+        # Проверка на блокировку по username+ip (эскалация после N неудач)
+        lock_key = f"login_lock:{username}:{ip}"
+        lock_info = cache.get(lock_key)
+        if lock_info:
+            # Уже заблокирован — не даём даже проверять пароль
+            # Логирование события блокировки выполняется в момент её установки,
+            # поэтому здесь повторно в audit-лог не пишем, чтобы избежать дублей.
+            return render_template('accounts/login.html',
+                                   msg=_('Wrong user or password'),
                                    register=False,
                                    form=login_form)
 
@@ -65,20 +96,44 @@ def login():
 
         # Check the password
         if user and user.password and user.check_password(password):
-            ip = ""
-            if request.headers.getlist("X-Forwarded-For"):
-                ip = request.headers.getlist("X-Forwarded-For")[0]
-            else:
-                ip = request.remote_addr
             setProperty(username + ".lastLogin",datetime.datetime.now(),source=ip)
             session.permanent = True
             login_user(user)
+            # Логирование успешного входа
+            security_audit_log(
+                'LOGIN_SUCCESS',
+                ip=ip,
+                url=request.url,
+                username=username,
+                reason='user_authenticated'
+            )
             return redirect("/")
 
         # Something (user or pass) is not ok
-        ip = request.headers.getlist("X-Forwarded-For")[0] if request.headers.getlist("X-Forwarded-For") else request.remote_addr
-        _logger.warning(f"Failed login attempt for user '{username}' from {ip}")
 
+        # Регистрируем неудачную попытку для username+ip
+        fail_key = f"login_fail:{username}:{ip}"
+        # окно блокировки, сек
+        lock_timeout = 15 * 60
+        fail_count = cache.get(fail_key) or 0
+        fail_count += 1
+        # храним счётчик в том же временном окне, что и блокировку
+        cache.set(fail_key, fail_count, timeout=lock_timeout)
+
+        # после N неудач — блокируем на lock_timeout
+        max_failures = 5
+        if fail_count >= max_failures:
+            cache.set(lock_key, True, timeout=lock_timeout)
+            security_audit_log(
+                'LOGIN_LOCKED',
+                ip=ip,
+                url=request.url,
+                username=username,
+                reason=f'too_many_failed_attempts({fail_count})'
+            )
+
+        security_audit_log('LOGIN_FAILED', ip=ip, url=request.url, username=username)
+        
         return render_template('accounts/login.html',
                                msg=_('Wrong user or password'),
                                register=False,
@@ -103,6 +158,15 @@ def login():
 
 @blueprint.route('/logout')
 def logout():
+    ip = _get_client_ip()
+    username = getattr(current_user, 'username', '') or 'anonymous'
+    security_audit_log(
+        'LOGOUT',
+        ip=ip,
+        url=request.url,
+        username=username,
+        reason='user_logout'
+    )
     logout_user()
     return redirect(url_for('auth.login'))
 
@@ -110,6 +174,13 @@ def logout():
 
 @login_manager.unauthorized_handler
 def unauthorized_handler():
+    try:
+        security_audit_log(
+            'UNAUTHORIZED', ip=_get_client_ip(), url=request.url, endpoint=request.endpoint or '?',
+            reason='login_required', user_agent=request.headers.get('User-Agent', '')
+        )
+    except Exception:
+        pass
     return render_template('errors/page-403.html'), 403
 
 

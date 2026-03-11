@@ -290,10 +290,10 @@ def deleteObjectProperty(object_property: str) -> bool:
         prop = session.query(Property).filter(Property.name == property_name, Property.object_id == obj.id).one_or_none()
         if not prop:
             return False
-        values = session.query(Value).filter(Value.object_id == obj.id,Value.name == property_name).all()
+        values = session.query(Value).filter(Value.object_id == obj.id, Value.name == property_name).all()
         for value in values:
             session.query(History).filter(History.value_id == value.id).delete(synchronize_session=False)
-            session.delete(values)
+            session.delete(value)
         session.delete(prop)
         session.commit()
         objects_storage.reload_object(obj.id)

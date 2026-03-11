@@ -13,7 +13,6 @@ class ConfigLoader(object):
         self.SECRET_KEY = 'secret-key'
         current_dir = os.path.abspath(os.path.dirname(__file__))
         self.APP_DIR = os.path.dirname(current_dir)
-        self.PROJECT_ROOT = os.path.abspath(os.path.join(self.APP_DIR, os.pardir))
         # Assets Management
         self.ASSETS_ROOT = '/static/assets'
         self.PLUGINS_FOLDER = os.path.abspath(os.path.join(self.APP_DIR, "plugins"))
@@ -46,6 +45,19 @@ class ConfigLoader(object):
         # Session lifetime (default 31 days, same as Flask default)
         self.SESSION_LIFETIME_DAYS = 31
         self.PERMANENT_SESSION_LIFETIME = timedelta(days=31)
+
+        # Session cookie security (production)
+        self.SESSION_COOKIE_SECURE = False
+        self.SESSION_COOKIE_SAMESITE = 'Lax'
+
+        # Rate limiting
+        self.RATELIMIT_ENABLED = True
+        self.RATELIMIT_DEFAULT = '100 per minute'
+        self.RATELIMIT_LOGIN = '5 per minute'
+        self.RATELIMIT_API = '100 per minute'
+
+        # HTTP requests timeout (seconds) - used by requests.get/post/etc
+        self.HTTP_REQUEST_TIMEOUT = 15
 
         # Service name systemd
         self.SERVICE_NAME = None  # None or 'service_name'
@@ -82,6 +94,26 @@ class ConfigLoader(object):
         # Session lifetime configuration
         self.SESSION_LIFETIME_DAYS = app_config.get('session_lifetime_days', 31)
         self.PERMANENT_SESSION_LIFETIME = timedelta(days=self.SESSION_LIFETIME_DAYS)
+
+        # Session cookie security
+        if not self.DEBUG:
+            # По умолчанию НЕ принуждаем Secure, если явно не задано в конфиге
+            self.SESSION_COOKIE_SECURE = app_config.get('session_cookie_secure', False)
+            self.SESSION_COOKIE_SAMESITE = app_config.get('session_cookie_samesite', 'Lax')
+        else:
+            # В режиме debug поведение остаётся тем же
+            self.SESSION_COOKIE_SECURE = app_config.get('session_cookie_secure', False)
+            self.SESSION_COOKIE_SAMESITE = app_config.get('session_cookie_samesite', 'Lax')
+
+        # Rate limiting
+        rate_limit = app_config.get('rate_limit', {}) or {}
+        self.RATELIMIT_ENABLED = rate_limit.get('enabled', True)
+        default_limit = rate_limit.get('default', '100 per minute')
+        self.RATELIMIT_DEFAULT = default_limit if self.RATELIMIT_ENABLED else []
+        self.RATELIMIT_LOGIN = rate_limit.get('login', '5 per minute')
+        self.RATELIMIT_API = rate_limit.get('api', '100 per minute')
+
+        self.HTTP_REQUEST_TIMEOUT = app_config.get('http_request_timeout', 15)
 
         db_config = self._config_data.get('database', {})
         self.SQLALCHEMY_ECHO = db_config.get('sqlalchemy_echo', False)

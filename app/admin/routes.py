@@ -28,10 +28,10 @@ def control_panel():
             except Exception as ex:
                 _logger.exception(ex)
 
-        objects = getProperty("SystemVar.control_panel_objects")
+        control_panel_objects = getProperty("SystemVar.control_panel_objects") or []
         object_render = {}
-        if objects:
-            for key in objects:
+        if control_panel_objects:
+            for key in control_panel_objects:
                 obj = getObject(key)
                 if not obj:
                     continue
@@ -41,14 +41,17 @@ def control_panel():
 
 
         show_welcome = getProperty("SystemVar.welcome") is not False
+        show_analytics_ask = getProperty("SystemVar.analytics_enabled") in (None, "")
         has_docs = getModule("Docs") is not None
         has_objects_module = getModule("Objects") is not None
         has_scheduler = getModule("Scheduler") is not None
         has_users = getModule("Users") is not None
         content = {
-            "widgets": widgets, 
-            "objects": object_render, 
-            "show_welcome": show_welcome, 
+            "widgets": widgets,
+            "objects": object_render,
+            "control_panel_objects": control_panel_objects,
+            "show_welcome": show_welcome,
+            "show_analytics_ask": show_analytics_ask,
             "has_docs": has_docs,
             "has_objects_module": has_objects_module,
             "has_scheduler": has_scheduler,
@@ -66,13 +69,15 @@ def control_panel():
             except (ValueError, TypeError):
                 pass
     show_welcome = getProperty("SystemVar.welcome") is not False
+    show_analytics_ask = getProperty("SystemVar.analytics_enabled") is None
     has_docs = getModule("Docs") is not None
     has_objects_module = getModule("Objects") is not None
     has_scheduler = getModule("Scheduler") is not None
     has_users = getModule("Users") is not None
     content = {
-        "columns": columns, 
-        "show_welcome": show_welcome, 
+        "columns": columns,
+        "show_welcome": show_welcome,
+        "show_analytics_ask": show_analytics_ask,
         "has_docs": has_docs,
         "has_objects_module": has_objects_module,
         "has_scheduler": has_scheduler,

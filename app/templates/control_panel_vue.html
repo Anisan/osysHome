@@ -201,6 +201,41 @@
       </template>
     </div>
   </div>
+  <!-- Analytics opt-in -->
+  <div v-if="showAnalyticsAsk" class="mb-3" id="analyticsCard">
+    <div class="card border-secondary">
+      <div class="card-body">
+        <h5 class="card-title">
+          <i class="fas fa-chart-bar me-2"></i>{{ _('analytics_opt_in_title') }}
+        </h5>
+        <p class="card-text">{{ _('analytics_opt_in_description') }}</p>
+        <div class="accordion accordion-flush mb-3">
+          <div class="accordion-item">
+            <h2 class="accordion-header">
+              <button class="accordion-button collapsed py-2" type="button" data-bs-toggle="collapse" data-bs-target="#analyticsDataCollapseVue">{{ _('analytics_opt_in_what_sent') }}</button>
+            </h2>
+            <div id="analyticsDataCollapseVue" class="accordion-collapse collapse">
+              <div class="accordion-body small">
+                <p class="mb-1"><strong>Basic:</strong> {{ _('analytics_data_basic') }}</p>
+                <p class="mb-0"><strong>Extended:</strong> {{ _('analytics_data_extended') }}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="btn-group" role="group">
+          <button type="button" @click="setAnalytics('basic')" class="btn btn-primary btn-sm" :disabled="analyticsSaving">
+            <i class="fas fa-shield-alt me-1"></i>{{ _('analytics_opt_in_basic') }}
+          </button>
+          <button type="button" @click="setAnalytics('extended')" class="btn btn-outline-primary btn-sm" :disabled="analyticsSaving">
+            <i class="fas fa-chart-line me-1"></i>{{ _('analytics_opt_in_extended') }}
+          </button>
+          <button type="button" @click="setAnalytics('disabled')" class="btn btn-outline-secondary btn-sm" :disabled="analyticsSaving">
+            <i class="fas fa-times me-1"></i>{{ _('analytics_opt_in_no') }}
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
   <!-- Приветственное сообщение (SystemVar.welcome), скрывается по кнопке -->
   <div v-if="showWelcome" class="mb-3" id="welcomeCard">
     <div class="card border-info">
@@ -660,6 +695,8 @@
         savingLayout: false,
         columns: {{ columns|default(12) }},
         showWelcome: {{ show_welcome|default(false)|tojson }},
+        showAnalyticsAsk: {{ show_analytics_ask|default(false)|tojson }},
+        analyticsSaving: false,
         hasDocs: {{ has_docs|default(false)|tojson }},
         hasObjectsModule: {{ has_objects_module|default(false)|tojson }},
         hasScheduler: {{ has_scheduler|default(false)|tojson }},
@@ -975,7 +1012,20 @@
               }
             });
         },
-        
+
+        setAnalytics: function (level) {
+          const self = this;
+          self.analyticsSaving = true;
+          fetch('/api/utils/analytics?enabled=' + level, { method: 'POST', credentials: 'same-origin' })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+              if (data.success) {
+                self.showAnalyticsAsk = false;
+              }
+            })
+            .finally(function () { self.analyticsSaving = false; });
+        },
+
         /**
          * Формирует HTML содержимого карточки
          */

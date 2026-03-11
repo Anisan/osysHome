@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Helper utilities and decorators."""
+import uuid
 from pathlib import Path
 import subprocess
 import datetime
@@ -87,7 +88,24 @@ def initSystemVar():
         "default_value": 'custom',
     }
     addObjectProperty('control_panel_style','SystemVar',"Style control panel",0, PropertyType.Enum, params=params, update=True)
-    
+
+    # Analytics (opt-in, like Home Assistant). Enum: disabled=no, basic=version/plugins/counts, extended=future
+    params = {
+        "icon": "fas fa-chart-bar",
+        "enum_values": {
+            "disabled": "Disabled",
+            "basic": "Basic",
+            "extended": "Extended",
+        },
+    }
+    addObjectProperty('analytics_enabled','SystemVar',"Analytics opt-in level",0, PropertyType.Enum, params=params, update=True)
+    addObjectProperty('analytics_uuid','SystemVar',"Unique installation ID for analytics",0, PropertyType.String, update=True)
+    if not getProperty("SystemVar.analytics_uuid"):
+        setProperty("SystemVar.analytics_uuid", str(uuid.uuid4()).replace("-", ""), "osysHome")
+        from app.core.main.ObjectManager import _batch_writer
+        _batch_writer.flush_sync()
+    addObjectProperty('analytics_uuid','SystemVar',"Unique installation ID for analytics",0, PropertyType.String, params={"read_only": True}, update=True)
+
     users = getObjectsByClass('Users')
     if users:
         initPermissions()
@@ -105,6 +123,19 @@ def startSystemVar():
     from app.core.lib.object import setProperty
     setProperty("SystemVar.Started",datetime.datetime.now(), "osysHome")
     setProperty("SystemVar.NeedRestart", False, "osysHome")
+
+
+def init_analytics_scheduler():
+    """Планирует отправку аналитики: первая через 15 мин (1 мин в DEBUG), далее раз в 24 ч."""
+    from app.configuration import Config
+    from app.core.lib.common import setTimeout, addCronJob, clearScheduledJob
+
+    clearScheduledJob("osyshome_analytics%")
+    code = "from app.analytics.sender import send_analytics; send_analytics()"
+    first_delay = 60 if Config.DEBUG else 900  # 1 min в DEBUG, 15 мин в production
+    setTimeout("osyshome_analytics_first", code, first_delay)
+    # Ежедневная отправка в 4:00 (cron: мин час день мес день_недели)
+    addCronJob("osyshome_analytics_daily", code, "0 4 * * *")
 
 def get_current_version():
     ver_file = Path("VERSION")
