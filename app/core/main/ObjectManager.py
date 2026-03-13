@@ -1513,7 +1513,11 @@ class ObjectManager:
         """Clean history of all properties"""
         count = {}
         for key, prop in self.properties.items():
-            deleted_count, all = prop.cleanHistory()
+            res = prop.cleanHistory()
+            if res is None:
+                # SQLite locked or session_scope swallowed OperationalError
+                res = (0, 0)
+            deleted_count, all = res
             count[key] = {"history": prop.history, "deleted":deleted_count, "all": all}
         return count
 

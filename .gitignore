@@ -13,3 +13,5 @@ files/*
 config.yaml
 backups/
 docs_dev/
+*.db-wal
+*.db-shm
