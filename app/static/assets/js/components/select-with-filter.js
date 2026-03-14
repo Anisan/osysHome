@@ -7,6 +7,7 @@ Vue.component('select-with-filter', {
             isOpen: false,
             selectedKey: null,
             initialSet: true,
+            _fromValueSync: false,
             dropTop: 0,
             dropLeft: 0,
             dropWidth: 0
@@ -14,11 +15,15 @@ Vue.component('select-with-filter', {
     },
     watch: {
         value(newVal) {
+            this._fromValueSync = true;
             this.selectedKey = newVal;
         },
         selectedKey(newVal) {
             if (!this.initialSet) {
-                this.$emit('changed', newVal);
+                if (!this._fromValueSync) {
+                    this.$emit('changed', newVal);
+                }
+                this._fromValueSync = false;
             }
             this.$emit('input', newVal);
             this.initialSet = false;
