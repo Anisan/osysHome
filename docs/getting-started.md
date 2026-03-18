@@ -55,7 +55,29 @@ Installation takes 1–5 minutes depending on your internet speed. Once complete
 
 ---
 
-## 5. Create the Configuration File
+## 5. Install Recommended Modules
+
+Create the plugins directory and clone the recommended modules (same set as in `README.md`):
+
+```bash
+mkdir plugins
+```
+
+```bash
+git clone https://github.com/Anisan/osysHome-Modules.git plugins/Modules
+git clone https://github.com/Anisan/osysHome-Objects.git plugins/Objects
+git clone https://github.com/Anisan/osysHome-Users.git plugins/Users
+git clone https://github.com/Anisan/osysHome-Scheduler.git plugins/Scheduler
+git clone https://github.com/Anisan/osysHome-wsServer.git plugins/wsServer
+git clone https://github.com/Anisan/osysHome-Dashboard.git plugins/Dashboard
+git clone https://github.com/Anisan/osysHome-Docs.git plugins/Docs
+```
+
+> If `plugins` already exists, the `mkdir plugins` step can be skipped.
+
+---
+
+## 6. Create the Configuration File
 
 Copy the configuration template:
 
@@ -86,7 +108,7 @@ All configuration parameters are described in detail in the [Configuration](conf
 
 ---
 
-## 6. First Run
+## 7. First Run
 
 ```bash
 python main.py
@@ -111,7 +133,7 @@ INFO  [main] Running on http://0.0.0.0:5000
 
 ---
 
-## 7. Log In
+## 8. Log In
 
 Open a browser and navigate to:
 
@@ -125,7 +147,7 @@ On the first run you will be prompted to create an administrator account. Enter 
 
 ---
 
-## 8. Next Steps
+## 9. Next Steps
 
 | Task | Document |
 |------|----------|

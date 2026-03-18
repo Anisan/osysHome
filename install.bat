@@ -71,6 +71,7 @@ for %%M in (
     "Scheduler=https://github.com/Anisan/osysHome-Scheduler/archive/refs/heads/master.zip"
     "wsServer=https://github.com/Anisan/osysHome-wsServer/archive/refs/heads/master.zip"
     "Dashboard=https://github.com/Anisan/osysHome-Dashboard/archive/refs/heads/master.zip"
+    "Docs=https://github.com/Anisan/osysHome-Docs/archive/refs/heads/master.zip"
 ) do (
     :: Remove surrounding quotes from %%M
     set "MODULE_PAIR=%%M"

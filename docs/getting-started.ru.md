@@ -55,7 +55,29 @@ pip install -r requirements.txt
 
 ---
 
-## 5. Создание конфигурационного файла
+## 5. Установка рекомендуемых модулей
+
+Создайте папку плагинов и клонируйте рекомендуемые модули (тот же набор, что и в `README.md`):
+
+```bash
+mkdir plugins
+```
+
+```bash
+git clone https://github.com/Anisan/osysHome-Modules.git plugins/Modules
+git clone https://github.com/Anisan/osysHome-Objects.git plugins/Objects
+git clone https://github.com/Anisan/osysHome-Users.git plugins/Users
+git clone https://github.com/Anisan/osysHome-Scheduler.git plugins/Scheduler
+git clone https://github.com/Anisan/osysHome-wsServer.git plugins/wsServer
+git clone https://github.com/Anisan/osysHome-Dashboard.git plugins/Dashboard
+git clone https://github.com/Anisan/osysHome-Docs.git plugins/Docs
+```
+
+> Если папка `plugins` уже существует, шаг `mkdir plugins` можно пропустить.
+
+---
+
+## 6. Создание конфигурационного файла
 
 Скопируйте шаблон конфигурации:
 
@@ -86,7 +108,7 @@ database:
 
 ---
 
-## 6. Первый запуск
+## 7. Первый запуск
 
 ```bash
 python main.py
@@ -111,7 +133,7 @@ INFO  [main] Running on http://0.0.0.0:5000
 
 ---
 
-## 7. Вход в систему
+## 8. Вход в систему
 
 Откройте браузер и перейдите по адресу:
 
@@ -125,7 +147,7 @@ http://localhost:5000
 
 ---
 
-## 8. Что дальше
+## 9. Что дальше
 
 | Задача | Документ |
 |--------|----------|

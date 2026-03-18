@@ -52,7 +52,17 @@ mkdir plugins -ErrorAction SilentlyContinue
 .\scripts\install_recommended_plugins.ps1
 ```
 
-You can also run the `git clone` commands from `Install recommended modules` section in `README.md` manually.
+If you prefer, you can install the same recommended set manually (same as `README.md`):
+
+```bash
+git clone https://github.com/Anisan/osysHome-Modules.git plugins/Modules
+git clone https://github.com/Anisan/osysHome-Objects.git plugins/Objects
+git clone https://github.com/Anisan/osysHome-Users.git plugins/Users
+git clone https://github.com/Anisan/osysHome-Scheduler.git plugins/Scheduler
+git clone https://github.com/Anisan/osysHome-wsServer.git plugins/wsServer
+git clone https://github.com/Anisan/osysHome-Dashboard.git plugins/Dashboard
+git clone https://github.com/Anisan/osysHome-Docs.git plugins/Docs
+```
 
 ### 4. Create minimal config
 
@@ -194,7 +204,17 @@ mkdir plugins -ErrorAction SilentlyContinue
 .\scripts\install_recommended_plugins.ps1
 ```
 
-Также вы можете вручную выполнить `git clone` команды из секции `Install recommended modules` в `README.md`.
+Если удобнее, можете поставить тот же набор вручную (как в `README.md`):
+
+```bash
+git clone https://github.com/Anisan/osysHome-Modules.git plugins/Modules
+git clone https://github.com/Anisan/osysHome-Objects.git plugins/Objects
+git clone https://github.com/Anisan/osysHome-Users.git plugins/Users
+git clone https://github.com/Anisan/osysHome-Scheduler.git plugins/Scheduler
+git clone https://github.com/Anisan/osysHome-wsServer.git plugins/wsServer
+git clone https://github.com/Anisan/osysHome-Dashboard.git plugins/Dashboard
+git clone https://github.com/Anisan/osysHome-Docs.git plugins/Docs
+```
 
 ### 4. Создание минимальной конфигурации
 

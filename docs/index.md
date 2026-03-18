@@ -57,7 +57,6 @@ osysHome
 | Speech / TTS | Google TTS, Yandex TTS, Yandex SpeechKit |
 | Notifications | Telegram Bot |
 | Location | GPS Tracker, Google Location, Friends2GIS |
-| AI | AIAutomation, AIRecommender |
 | System | Backup, Scheduler, Modules, Objects, Users, ConsoleMonitor |
 
 ---

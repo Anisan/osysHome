@@ -95,6 +95,14 @@ def createApp(config_object):
         }
 
     @app.context_processor
+    def inject_plugin_flags():
+        # Keep this lightweight: used by base templates to hide/show links.
+        from app.core.lib.common import getModule
+        return {
+            'has_docs': getModule("Docs") is not None,
+        }
+
+    @app.context_processor
     def inject_config():
         return dict(config=config_object)
 

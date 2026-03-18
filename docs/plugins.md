@@ -91,8 +91,6 @@ Installed by default and provide core functionality.
 | **GpsTracker** | GPS coordinate tracking |
 | **GoogleLocation** | Geolocation via Google API |
 | **Friends2GIS** | Location map based on 2GIS |
-| **AIAutomation** | AI-driven automations using ML |
-| **AIRecommender** | Device control recommendations |
 
 ---
 

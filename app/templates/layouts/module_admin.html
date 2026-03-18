@@ -21,7 +21,9 @@
             </ul>
             <div class="col text-end" id="module-help-info">
                 <span id="readme-link-container"></span>
-                <a href="/docs/plugins/{{ request.path.split("/")[-1]}}.html" target="_blank"><i class="fas fa-info-circle"></i> {{ _('Help')}}</a>
+                {% if has_docs|default(false) %}
+                <a href="/docs" target="_blank"><i class="fas fa-info-circle"></i> {{ _('Help')}}</a>
+                {% endif %}
             </div>
             </div>
         </div>
