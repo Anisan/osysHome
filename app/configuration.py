@@ -70,7 +70,7 @@ class ConfigLoader(object):
         if not config_path.exists():
             raise FileNotFoundError(
                 f"Configuration file {config_file} not found. "
-                f"Please copy config_sample.yaml to {config_file} and configure it."
+                f"Please copy sample_config.yaml to {config_file} and configure it."
             )
 
         try:

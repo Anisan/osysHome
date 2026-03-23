@@ -9,6 +9,7 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.orm import sessionmaker, scoped_session
 from contextlib import contextmanager
 from sqlalchemy import create_engine, exc, event, inspect, text, ForeignKey
+
 from sqlalchemy.exc import ProgrammingError
 from app.configuration import Config
 from .extensions import db
@@ -65,6 +66,15 @@ def reference_col(tablename, nullable=False, pk_name='id', **kwargs):
 
 # define the database
 engine = create_engine(Config.SQLALCHEMY_DATABASE_URI, pool_size=Config.SQLALCHEMY_POOL_SIZE, max_overflow=Config.SQLALCHEMY_POOL_SIZE + 10)
+
+# Enable WAL for SQLite: better concurrency, fewer "database is locked" errors
+if 'sqlite' in Config.SQLALCHEMY_DATABASE_URI:
+    @event.listens_for(engine, "connect")
+    def _set_sqlite_pragma(dbapi_connection, connection_record):
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA journal_mode=WAL")
+        cursor.close()
+
 Base.metadata.create_all(engine)
 Base.metadata.bind = engine
 DBSession = sessionmaker(bind=engine)

@@ -36,6 +36,7 @@ osysHome (Object System smartHome) is smart home system developed in Python that
 * git clone https://github.com/Anisan/osysHome-Scheduler.git plugins/Scheduler
 * git clone https://github.com/Anisan/osysHome-wsServer.git plugins/wsServer
 * git clone https://github.com/Anisan/osysHome-Dashboard.git plugins/Dashboard
+* git clone https://github.com/Anisan/osysHome-Docs.git plugins/Docs
 
 ## Settings
 
