@@ -8,14 +8,14 @@ Binding is the core mechanism in osysHome that connects a **virtual object** in 
 
 ## Why Binding Exists
 
-In osysHome the object `LivingRoomLamp` is a database record. The physical lamp is controlled by a plugin (MQTT, Tuya, z2m, etc.). Binding creates the bridge between them:
+In osysHome the object `LivingRoomLamp` is a database record. The physical lamp is controlled by an integration plugin. Binding creates the bridge between them:
 
 - When the **lamp reports its state** → the plugin receives the device event and updates the object property in the system
 - When the **system changes a value** (`setProperty("LivingRoomLamp.state", True)` from an automation) → ObjectManager notifies the plugin → the plugin sends a command to the physical device
 
 ```
 Physical device
-        ↕  (MQTT / Tuya / Zigbee / ESPHome / ...)
+        ↕  (integration protocol handled by plugin)
     Plugin
         ↕  (link configured by the user)
  Object.Property  ←→  ObjectManager  ←→  Automations / API / UI
@@ -29,7 +29,7 @@ Each plugin stores its binding configuration in its **own DB table**. The core s
 
 ### Level 1 — Plugin table
 
-Each plugin maintains its own table of records for physical entities (MQTT topics, Zigbee devices, Tuya DPS codes, etc.). Each record contains:
+Each plugin maintains its own table of records for physical entities (addresses, identifiers, paths, etc.). Each record contains:
 
 | Field | Description |
 |-------|-------------|
@@ -44,8 +44,8 @@ This table is the source of truth for the plugin's configuration.
 The `linked` field on a `Value` record is a comma-separated string of plugin names. ObjectManager uses it to know whom to notify when a value changes.
 
 ```
-Value.linked = "Mqtt"        # on property change → call MqttPlugin.changeLinkedProperty(...)
-Value.linked = "Mqtt,Tuya"   # notify two plugins
+Value.linked = "PluginA"         # on property change → call PluginA.changeLinkedProperty(...)
+Value.linked = "PluginA,PluginB" # notify two plugins
 Value.linked = ""            # property is not linked to anything
 ```
 
@@ -58,42 +58,28 @@ When the user saves settings in the plugin's UI, the plugin itself calls `setLin
 from app.core.lib.object import setLinkToObject, removeLinkFromObject
 
 # Remove the old link (if any)
-removeLinkFromObject(old_object, old_property, "Mqtt")
+removeLinkFromObject(old_object, old_property, "PluginA")
 
 # Register the new link
-setLinkToObject(new_object, new_property, "Mqtt")
+setLinkToObject(new_object, new_property, "PluginA")
 ```
 
 ---
 
 ## How to Configure a Binding
 
-### Example: MQTT
+The exact UI and storage fields depend on the plugin implementation, but the core flow is always the same:
 
-1. Go to **Admin → Mqtt**
-2. Create or open a topic record
-3. In **Linked object** enter the object name (e.g., `LivingRoomLamp`)
-4. In **Linked property** enter the property name (e.g., `state`)
-5. Click **Save**
+1. Open a plugin's settings page in Admin UI
+2. Select a physical entity in that plugin
+3. Set **Linked object** and **Linked property**
+4. Save settings
 
-After saving, the form automatically:
+After saving, the plugin:
 
-- Updates `Topic.linked_object` and `Topic.linked_property` in the MQTT table
-- Calls `setLinkToObject("LivingRoomLamp", "state", "Mqtt")`
-- Adds `"Mqtt"` to `Value.linked`
-
-### Example: Zigbee2MQTT (z2m)
-
-1. Go to **Admin → z2m**
-2. Find the device and the desired property (expose)
-3. Fill in **Linked object** and **Linked property** for that property row
-4. Click **Save** — the plugin calls `setLinkToObject`
-
-### Example: Tuya
-
-1. Go to **Admin → Tuya** → select the device
-2. In the DPS code table, set **Linked object** and **Linked property** for each code
-3. Click **Save links** — the plugin calls `setLinkToObject` for each code
+- Stores `linked_object` and `linked_property` in its own table
+- Calls `setLinkToObject(...)` in the core
+- Updates `Value.linked` for the target property
 
 ---
 
@@ -107,13 +93,13 @@ Automation: setProperty("LivingRoomLamp.state", True)
 ObjectManager:
   1. Saves value to DB
   2. Calls the object method (if bound to property)
-  3. Reads Value.linked  →  ["Mqtt"]
+  3. Reads Value.linked  →  ["PluginA"]
   4. For each plugin (except source):
-       MqttPlugin.changeLinkedProperty("LivingRoomLamp", "state", True)
+       PluginA.changeLinkedProperty("LivingRoomLamp", "state", True)
         ↓
-Mqtt looks up its table: Topic where linked_object="LivingRoomLamp", linked_property="state"
+PluginA looks up its table by linked object/property
         ↓
-Mqtt publishes the value to the lamp's topic
+PluginA sends the value to the physical device endpoint
         ↓
 Physical lamp turns on
 ```
@@ -121,15 +107,15 @@ Physical lamp turns on
 ### Physical device → System
 
 ```
-Lamp physically changes state → sends event to MQTT broker
+Lamp physically changes state → sends event to plugin transport
         ↓
-Mqtt plugin receives the message
+PluginA receives the message
         ↓
-setProperty("LivingRoomLamp.state", True, source="Mqtt")
+setProperty("LivingRoomLamp.state", True, source="PluginA")
         ↓
 ObjectManager:
   • Saves value
-  • Value.linked = "Mqtt", but source = "Mqtt" → skip (loop prevention)
+  • Value.linked = "PluginA", but source = "PluginA" → skip (loop prevention)
   • proxy plugins: notify
   • WebSocket: update Dashboard in browser
 ```
@@ -139,9 +125,9 @@ ObjectManager:
 The `source` parameter is passed on every `setProperty` call. If the source matches a plugin name in `linked`, the callback to that plugin is skipped:
 
 ```python
-# Physical device → Mqtt → system
-setProperty("LivingRoomLamp.state", True, source="Mqtt")
-# ObjectManager: Mqtt is in linked, but source="Mqtt" → skip → no loop
+# Physical device → PluginA → system
+setProperty("LivingRoomLamp.state", True, source="PluginA")
+# ObjectManager: PluginA is in linked, but source="PluginA" → skip → no loop
 ```
 
 ---
@@ -171,40 +157,38 @@ def changeLinkedProperty(self, obj: str, prop: str, val):
 
     for rec in records:
         if not rec.readonly:
-            self.mqttPublish(rec.path_write or rec.path, val)
+            self.send_to_device(rec, val)
 ```
 
-The plugin looks up a record in **its own** table by the `(linked_object, linked_property)` pair. If no record is found (the user deleted the topic), the link is removed automatically.
+The plugin looks up a record in **its own** table by the `(linked_object, linked_property)` pair. If no record is found, the link is removed automatically.
 
 ---
 
-## Full Example: Lamp via MQTT
+## Full Example: Generic Integration Plugin
 
-**Step 1. User configures the topic in Admin → Mqtt:**
+**Step 1. User creates a binding in plugin settings:**
 
 ```
-Title:           Living Room Lamp
-Path:            home/living_room/lamp/state
-Path write:      home/living_room/lamp/set
-Linked object:   LivingRoomLamp
-Linked property: state
+Entity ID:        living_room_lamp
+Linked object:    LivingRoomLamp
+Linked property:  state
 ```
 
-After saving: `Value["LivingRoomLamp.state"].linked = "Mqtt"`
+After saving: `Value["LivingRoomLamp.state"].linked = "PluginA"`
 
 **Step 2. Automation turns the lamp on:**
 
 ```
 setProperty("LivingRoomLamp.state", True)
-→ Mqtt.changeLinkedProperty("LivingRoomLamp", "state", True)
-→ publish("home/living_room/lamp/set", True)
+→ PluginA.changeLinkedProperty("LivingRoomLamp", "state", True)
+→ plugin transport sends command to device
 → Physical lamp turns on
 ```
 
-**Step 3. Lamp confirms its state:**
+**Step 3. Device reports state back:**
 
 ```
-Lamp publishes True to "home/living_room/lamp/state"
-→ Mqtt: setProperty("LivingRoomLamp.state", True, source="Mqtt")
-→ ObjectManager: skip Mqtt (source), notify proxy plugins, update UI
+Device reports True
+→ PluginA: setProperty("LivingRoomLamp.state", True, source="PluginA")
+→ ObjectManager: skip PluginA (source), notify proxy plugins, update UI
 ```

@@ -55,25 +55,15 @@ pip install -r requirements.txt
 
 ---
 
-## 5. Установка рекомендуемых модулей
+## 5. Подготовка каталога плагинов
 
-Создайте папку плагинов и клонируйте рекомендуемые модули (тот же набор, что и в `README.md`):
+Создайте папку `plugins`, если она ещё не существует:
 
 ```bash
 mkdir plugins
 ```
 
-```bash
-git clone https://github.com/Anisan/osysHome-Modules.git plugins/Modules
-git clone https://github.com/Anisan/osysHome-Objects.git plugins/Objects
-git clone https://github.com/Anisan/osysHome-Users.git plugins/Users
-git clone https://github.com/Anisan/osysHome-Scheduler.git plugins/Scheduler
-git clone https://github.com/Anisan/osysHome-wsServer.git plugins/wsServer
-git clone https://github.com/Anisan/osysHome-Dashboard.git plugins/Dashboard
-git clone https://github.com/Anisan/osysHome-Docs.git plugins/Docs
-```
-
-> Если папка `plugins` уже существует, шаг `mkdir plugins` можно пропустить.
+> Инструкции по установке конкретных плагинов находятся в директориях самих плагинов: `plugins/<PluginName>/README*.md`.
 
 ---
 
@@ -125,8 +115,7 @@ python main.py
 ```
 INFO  [main] Starting osysHome...
 INFO  [PluginsHelper] Loading plugins...
-INFO  [Scheduler] Plugin initialized
-INFO  [Dashboard] Plugin initialized
+INFO  [PluginName] Plugin initialized
 ...
 INFO  [main] Running on http://0.0.0.0:5000
 ```
@@ -143,7 +132,7 @@ http://localhost:5000
 
 При первом запуске вам будет предложено создать учётную запись администратора. Введите логин и пароль — они будут сохранены в базе данных.
 
-> После создания аккаунта вы попадёте на **Dashboard** — главную страницу системы.
+> После создания аккаунта вы попадёте в основной веб-интерфейс системы.
 
 ---
 
@@ -153,7 +142,7 @@ http://localhost:5000
 |--------|----------|
 | Настроить параметры системы | [Конфигурация](configuration.ru.md) |
 | Понять, что такое объекты и свойства | [Основные концепции](core-concepts.ru.md) |
-| Добавить устройство | [Плагины](plugins.ru.md) |
+| Настроить и использовать плагины | [Плагины](plugins.ru.md) |
 | Создать автоматизацию | [Автоматизации](automation.ru.md) |
 
 ---

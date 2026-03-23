@@ -16,7 +16,7 @@ If you are new to the system, read the documents in this order:
 | 4 | [Property–Plugin Binding](binding.md) | How virtual objects are linked to real physical devices |
 | 5 | [Web Interface](web-interface.md) | How to use the system through a browser |
 | 6 | [Automations](automation.md) | How to create scenarios and schedules |
-| 7 | [Plugins](plugins.md) | How to connect and configure plugins |
+| 7 | [Plugins](plugins.md) | How the plugin system works at a high level |
 | 8 | [Plugin Development](plugin-development.md) | How to write your own plugin |
 
 ---
@@ -43,21 +43,15 @@ osysHome
 - **ObjectManager** — engine that stores all device state in the DB and in-memory cache
 - **BasePlugin** — base class inherited by all plugins
 - **PluginsHelper** — plugin discovery, loading, and startup
-- **Scheduler** — system plugin for executing scheduled tasks
-- **Dashboard** — web interface and widgets on the main page
+- **Plugin system** — extension mechanism for protocols and integrations
+- **Web UI** — browser interface for managing system state
 
 ---
 
-## Supported Protocols & Integrations
+## Integrations
 
-| Category | Plugins |
-|----------|---------|
-| Devices | MQTT, Zigbee2MQTT (z2m), Tuya, ESPHome, Bluetooth, Modbus, OpenHASP |
-| Smart Home | Xiaomi Home, Yandex Devices, ThinQ (LG), Hisense TV, Keenetic |
-| Speech / TTS | Google TTS, Yandex TTS, Yandex SpeechKit |
-| Notifications | Telegram Bot |
-| Location | GPS Tracker, Google Location, Friends2GIS |
-| System | Backup, Scheduler, Modules, Objects, Users, ConsoleMonitor |
+Integration support is implemented via plugins.  
+Plugin-specific setup is documented inside each plugin directory under `plugins/<PluginName>/README*.md`.
 
 ---
 

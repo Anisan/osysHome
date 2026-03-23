@@ -57,13 +57,17 @@ Cron-выражения задают повторяющееся расписан
 | `*/15 * * * *` | Каждые 15 минут |
 | `*/30 * * * * *` | Каждые 30 секунд (6 полей — с секундами) |
 
-> osysHome поддерживает **6-полевые** Cron-выражения (с секундами в первом поле).
+> Поддержка Cron-формата зависит от установленной версии `croniter`.
+> Если используется 6-полевый формат (с секундами), проверьте его в вашем runtime.
 
 ---
 
 ## Код задачи
 
-В коде задачи доступны все встроенные функции системы.
+В коде задачи доступны предзагруженные функции из модулей:
+`app.core.lib.common`, `app.core.lib.constants`,
+`app.core.lib.object`, `app.core.lib.cache`, `app.core.lib.sql`,
+а также runtime-переменные `params` и `logger`.
 
 ### Управление устройствами
 
@@ -127,8 +131,8 @@ if not any_motion:
 | `say("текст")` | Произнести текст через TTS |
 | `playSound("file.mp3")` | Воспроизвести звуковой файл |
 | `runCode("код")` | Выполнить строку кода |
-| `datetime` | Объект `datetime` из стандартной библиотеки |
-| `log("сообщение")` | Записать в лог задачи |
+| `datetime` | Модуль Python `datetime`, доступный в runtime |
+| `logger.info("сообщение")` | Записать в лог задачи |
 
 ---
 
@@ -210,14 +214,13 @@ else:
 Вы можете создавать задачи программно из методов объектов или других задач:
 
 ```python
-from app.core.lib.common import addCronJob, clearTimeout
+from app.core.lib.common import setTimeout, clearTimeout
 
-# Создать разовую задачу (аналог setTimeout)
-# Выключить лампу через 30 минут
-addCronJob(
+# Создать разовую задачу: выключить лампу через 30 минут
+setTimeout(
     name="TurnOffLamp",
     code="setProperty('LivingRoomLamp.state', False)",
-    runtime=datetime.now() + timedelta(minutes=30)
+    timeout=30 * 60
 )
 
 # Отменить задачу

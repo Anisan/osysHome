@@ -91,7 +91,38 @@
 
 - Хранится в таблице `Value` в базе данных
 - Записывается через пакетный писатель (`BatchWriter`) для производительности
-- История (таблица `History`) сохраняется за заданный период, если `history > 0`
+- История (таблица `History`) управляется параметром `history` у свойства (см. ниже)
+
+### Как работает `history` на практике
+
+`history` — целое число, которое влияет и на **запись** истории, и на её **очистку**.
+
+| Значение `history` | Запись в `History` при обычном `setProperty(..., save_history=None)` | Что будет при очистке |
+|---|---|---|
+| `> 0` | История пишется | Хранится окно `history` дней |
+| `= 0` | История не пишется | При очистке удаляется вся история свойства |
+| `< 0` | История по умолчанию не пишется | Хранится окно `abs(history)` дней |
+
+Важно:
+- Для `history < 0` запись можно включить точечно: `setProperty(..., save_history=True)`.
+- Для `history > 0` запись можно отключить точечно: `setProperty(..., save_history=False)`.
+- Запись в историю выполняется асинхронно через `BatchWriter`, поэтому новые точки могут появляться с небольшой задержкой.
+
+### Примеры
+
+```python
+# history = 7: история пишется по умолчанию
+setProperty("Weather.temp", 22.4, source="sensor")
+
+# history = 7: точечно не пишем в историю
+setProperty("Weather.temp", 22.5, source="sensor", save_history=False)
+
+# history = -30: по умолчанию история не пишется
+setProperty("Weather.temp", 23.0, source="sensor")
+
+# history = -30: принудительно сохранить точку в History
+setProperty("Weather.temp", 23.1, source="import", save_history=True)
+```
 
 ---
 
@@ -111,17 +142,18 @@
 
 | Переменная | Описание |
 |------------|----------|
-| `object` | Текущий объект (можно читать/менять его свойства) |
-| `value` | Новое значение (при вызове из триггера свойства) |
-| `old_value` | Предыдущее значение |
-| `args` | Дополнительные аргументы |
+| `self` | Текущий объект (эквивалент “object” в терминах документации) |
+| `params` | Словарь аргументов вызова метода. При вызове из триггера свойства содержит ключи: `VALUE`, `NEW_VALUE`, `OLD_VALUE`, `PROPERTY`, `SOURCE` |
+| `logger` | Логгер выполнения метода |
+| `source` | Источник вызова метода (например, `Scheduler` или `self.<method>`) |
 
 **Пример кода метода:**
 
 ```python
 # Метод "onTemperatureChange" у объекта BedroomSensor
-if value > 25:
-    say("В спальне жарко: " + str(value) + " градусов")
+if params and params.get("NEW_VALUE") is not None and params["NEW_VALUE"] > 25:
+    new_value = params["NEW_VALUE"]
+    say("В спальне жарко: " + str(new_value) + " градусов")
     setProperty("BedroomFan.state", True)
 ```
 

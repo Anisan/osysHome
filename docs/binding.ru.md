@@ -8,14 +8,14 @@
 
 ## Зачем нужно связывание
 
-В osysHome объект `LivingRoomLamp` — это запись в базе данных. Физическая лампа управляется плагином (MQTT, Tuya, z2m и т.д.). Связывание создаёт «мост» между ними:
+В osysHome объект `LivingRoomLamp` — это запись в базе данных. Физическая лампа управляется интеграционным плагином. Связывание создаёт «мост» между ними:
 
 - Когда **лампа сообщает о своём состоянии** → плагин принимает событие от устройства и обновляет свойство объекта в системе
 - Когда **система меняет значение** (`setProperty("LivingRoomLamp.state", True)` из автоматизации) → ObjectManager уведомляет плагин → плагин отправляет команду физическому устройству
 
 ```
 Физическое устройство
-        ↕  (MQTT / Tuya / Zigbee / ESPHome / ...)
+        ↕  (интеграционный протокол плагина)
     Плагин
         ↕  (связь, настроенная пользователем)
  Объект.Свойство  ←→  ObjectManager  ←→  Автоматизации / API / UI
@@ -29,7 +29,7 @@
 
 ### Уровень 1 — таблица плагина
 
-Каждый плагин ведёт свою таблицу с записями о физических сущностях (топики MQTT, устройства Zigbee, DPS-коды Tuya и т.д.). Каждая запись содержит поля:
+Каждый плагин ведёт свою таблицу с записями о физических сущностях (адреса, идентификаторы, пути и т.д.). Каждая запись содержит поля:
 
 | Поле | Описание |
 |------|----------|
@@ -44,8 +44,8 @@
 Поле `linked` записи `Value` — это строка с именами плагинов через запятую. ObjectManager использует её, чтобы знать, кого уведомить при изменении значения.
 
 ```
-Value.linked = "Mqtt"        # при изменении свойства → вызвать MqttPlugin.changeLinkedProperty(...)
-Value.linked = "Mqtt,Tuya"   # уведомить два плагина
+Value.linked = "PluginA"          # при изменении свойства → вызвать PluginA.changeLinkedProperty(...)
+Value.linked = "PluginA,PluginB"  # уведомить два плагина
 Value.linked = ""            # свойство ни с чем не связано
 ```
 
@@ -58,42 +58,28 @@ Value.linked = ""            # свойство ни с чем не связан
 from app.core.lib.object import setLinkToObject, removeLinkFromObject
 
 # Снять старую связь (если была)
-removeLinkFromObject(old_object, old_property, "Mqtt")
+removeLinkFromObject(old_object, old_property, "PluginA")
 
 # Установить новую связь
-setLinkToObject(new_object, new_property, "Mqtt")
+setLinkToObject(new_object, new_property, "PluginA")
 ```
 
 ---
 
 ## Как настроить связь
 
-### Пример: MQTT
+Точный UI и поля хранения зависят от реализации плагина, но общий поток всегда одинаковый:
 
-1. Перейдите в **Admin → Mqtt**
-2. Создайте или откройте запись топика
-3. В поле **Linked object** введите имя объекта (например, `LivingRoomLamp`)
-4. В поле **Linked property** введите имя свойства (например, `state`)
-5. Нажмите **Сохранить**
+1. Откройте страницу настроек плагина в Admin UI
+2. Выберите физическую сущность в этом плагине
+3. Укажите **Linked object** и **Linked property**
+4. Сохраните настройки
 
-После сохранения форма автоматически:
+После сохранения плагин:
 
-- Обновит `Topic.linked_object` и `Topic.linked_property` в таблице MQTT
-- Вызовет `setLinkToObject("LivingRoomLamp", "state", "Mqtt")`
-- В `Value.linked` появится `"Mqtt"`
-
-### Пример: Zigbee2MQTT (z2m)
-
-1. Перейдите в **Admin → z2m**
-2. Найдите устройство и нужное свойство (exposes)
-3. В строке свойства заполните **Linked object** и **Linked property**
-4. Нажмите **Сохранить** — плагин вызовет `setLinkToObject`
-
-### Пример: Tuya
-
-1. Перейдите в **Admin → Tuya** → нужное устройство
-2. В таблице DPS-кодов для каждого кода укажите **Linked object** и **Linked property**
-3. Нажмите **Save links** — плагин вызовет `setLinkToObject` для каждого кода
+- Записывает `linked_object` и `linked_property` в свою таблицу
+- Вызывает `setLinkToObject(...)` в ядре
+- Обновляет `Value.linked` для целевого свойства
 
 ---
 
@@ -107,13 +93,13 @@ setLinkToObject(new_object, new_property, "Mqtt")
 ObjectManager:
   1. Сохраняет значение в БД
   2. Вызывает метод объекта (если привязан к свойству)
-  3. Читает Value.linked  →  ["Mqtt"]
+  3. Читает Value.linked  →  ["PluginA"]
   4. Для каждого плагина (кроме source):
-       MqttPlugin.changeLinkedProperty("LivingRoomLamp", "state", True)
+       PluginA.changeLinkedProperty("LivingRoomLamp", "state", True)
         ↓
-Mqtt находит в своей таблице: Topic где linked_object="LivingRoomLamp", linked_property="state"
+PluginA находит запись в своей таблице по linked object/property
         ↓
-Mqtt публикует значение в топик физической лампы
+PluginA отправляет значение в транспорт физического устройства
         ↓
 Лампа включается физически
 ```
@@ -121,15 +107,15 @@ Mqtt публикует значение в топик физической ла
 ### Физическое устройство → Система
 
 ```
-Лампа физически изменила состояние → отправила событие в MQTT broker
+Лампа физически изменила состояние → отправила событие в транспорт плагина
         ↓
-Плагин Mqtt получает сообщение
+Плагин PluginA получает сообщение
         ↓
-setProperty("LivingRoomLamp.state", True, source="Mqtt")
+setProperty("LivingRoomLamp.state", True, source="PluginA")
         ↓
 ObjectManager:
   • Сохраняет значение
-  • Value.linked = "Mqtt", но source = "Mqtt" → пропустить (защита от петли)
+  • Value.linked = "PluginA", но source = "PluginA" → пропустить (защита от петли)
   • proxy-плагины: уведомить
   • WebSocket: обновить Dashboard в браузере
 ```
@@ -139,9 +125,9 @@ ObjectManager:
 Параметр `source` передаётся при каждом вызове `setProperty`. Если источник изменения совпадает с именем плагина в `linked` — обратный вызов пропускается:
 
 ```python
-# Физическое устройство → Mqtt → система
-setProperty("LivingRoomLamp.state", True, source="Mqtt")
-# ObjectManager: Mqtt есть в linked, но source="Mqtt" → skip → нет петли
+# Физическое устройство → PluginA → система
+setProperty("LivingRoomLamp.state", True, source="PluginA")
+# ObjectManager: PluginA есть в linked, но source="PluginA" → skip → нет петли
 ```
 
 ---
@@ -171,40 +157,38 @@ def changeLinkedProperty(self, obj: str, prop: str, val):
 
     for rec in records:
         if not rec.readonly:
-            self.mqttPublish(rec.path_write or rec.path, val)
+            self.send_to_device(rec, val)
 ```
 
-Плагин ищет запись в **своей** таблице по паре `(linked_object, linked_property)`. Если запись не найдена (пользователь удалил топик) — связь снимается автоматически.
+Плагин ищет запись в **своей** таблице по паре `(linked_object, linked_property)`. Если запись не найдена — связь снимается автоматически.
 
 ---
 
-## Полный пример: лампа через MQTT
+## Полный пример: обобщённый интеграционный плагин
 
-**Шаг 1. Пользователь настраивает топик в Admin → Mqtt:**
+**Шаг 1. Пользователь создаёт связь в настройках плагина:**
 
 ```
-Title:          Лампа в гостиной
-Path:           home/living_room/lamp/state
-Path write:     home/living_room/lamp/set
-Linked object:  LivingRoomLamp
-Linked property: state
+Entity ID:        living_room_lamp
+Linked object:    LivingRoomLamp
+Linked property:  state
 ```
 
-После сохранения: `Value["LivingRoomLamp.state"].linked = "Mqtt"`
+После сохранения: `Value["LivingRoomLamp.state"].linked = "PluginA"`
 
 **Шаг 2. Автоматизация включает лампу:**
 
 ```
 setProperty("LivingRoomLamp.state", True)
-→ Mqtt.changeLinkedProperty("LivingRoomLamp", "state", True)
-→ publish("home/living_room/lamp/set", True)
+→ PluginA.changeLinkedProperty("LivingRoomLamp", "state", True)
+→ транспорт плагина отправляет команду устройству
 → Лампа включается
 ```
 
-**Шаг 3. Лампа подтверждает состояние:**
+**Шаг 3. Устройство подтверждает состояние:**
 
 ```
-Лампа публикует True в "home/living_room/lamp/state"
-→ Mqtt: setProperty("LivingRoomLamp.state", True, source="Mqtt")
-→ ObjectManager: пропустить Mqtt (source), уведомить proxy, обновить UI
+Устройство сообщает значение True
+→ PluginA: setProperty("LivingRoomLamp.state", True, source="PluginA")
+→ ObjectManager: пропустить PluginA (source), уведомить proxy, обновить UI
 ```

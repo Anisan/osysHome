@@ -57,13 +57,17 @@ Cron expressions define a repeating schedule:
 | `*/15 * * * *` | Every 15 minutes |
 | `*/30 * * * * *` | Every 30 seconds (6 fields — with seconds) |
 
-> osysHome supports **6-field** cron expressions (seconds in the first field).
+> Cron format support depends on the installed `croniter` version.
+> If you use a 6-field format (with seconds), verify it in your runtime.
 
 ---
 
 ## Task Code
 
-All built-in system functions are available inside task code.
+Task code has preloaded helpers from:
+`app.core.lib.common`, `app.core.lib.constants`,
+`app.core.lib.object`, `app.core.lib.cache`, `app.core.lib.sql`,
+and runtime variables `params` and `logger`.
 
 ### Controlling Devices
 
@@ -127,8 +131,8 @@ if not any_motion:
 | `say("text")` | Speak text via TTS |
 | `playSound("file.mp3")` | Play an audio file |
 | `runCode("code")` | Execute a code string |
-| `datetime` | `datetime` object from the standard library |
-| `log("message")` | Write to the task log |
+| `datetime` | Python `datetime` module available in runtime |
+| `logger.info("message")` | Write to task log |
 
 ---
 
@@ -209,14 +213,13 @@ This is useful for:
 You can create tasks programmatically from object methods or other tasks:
 
 ```python
-from app.core.lib.common import addCronJob, clearTimeout
+from app.core.lib.common import setTimeout, clearTimeout
 
-# Create a one-time task (like setTimeout)
-# Turn off the lamp in 30 minutes
-addCronJob(
+# Create one-time task: turn off lamp in 30 minutes
+setTimeout(
     name="TurnOffLamp",
     code="setProperty('LivingRoomLamp.state', False)",
-    runtime=datetime.now() + timedelta(minutes=30)
+    timeout=30 * 60
 )
 
 # Cancel the task

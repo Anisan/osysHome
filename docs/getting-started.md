@@ -55,29 +55,19 @@ Installation takes 1–5 minutes depending on your internet speed. Once complete
 
 ---
 
-## 5. Install Recommended Modules
+## 5. Prepare Plugin Directory
 
-Create the plugins directory and clone the recommended modules (same set as in `README.md`):
+Create the `plugins` directory if it does not exist yet:
 
 ```bash
 mkdir plugins
 ```
 
-```bash
-git clone https://github.com/Anisan/osysHome-Modules.git plugins/Modules
-git clone https://github.com/Anisan/osysHome-Objects.git plugins/Objects
-git clone https://github.com/Anisan/osysHome-Users.git plugins/Users
-git clone https://github.com/Anisan/osysHome-Scheduler.git plugins/Scheduler
-git clone https://github.com/Anisan/osysHome-wsServer.git plugins/wsServer
-git clone https://github.com/Anisan/osysHome-Dashboard.git plugins/Dashboard
-git clone https://github.com/Anisan/osysHome-Docs.git plugins/Docs
-```
-
-> If `plugins` already exists, the `mkdir plugins` step can be skipped.
+> Plugin-specific installation instructions are documented in each plugin directory (`plugins/<PluginName>/README*.md`).
 
 ---
 
-## 6. Create the Configuration File
+## 6. Create Configuration File
 
 Copy the configuration template:
 
@@ -125,8 +115,7 @@ You will see output similar to this in the terminal:
 ```
 INFO  [main] Starting osysHome...
 INFO  [PluginsHelper] Loading plugins...
-INFO  [Scheduler] Plugin initialized
-INFO  [Dashboard] Plugin initialized
+INFO  [PluginName] Plugin initialized
 ...
 INFO  [main] Running on http://0.0.0.0:5000
 ```
@@ -143,7 +132,7 @@ http://localhost:5000
 
 On the first run you will be prompted to create an administrator account. Enter a login and password — they will be saved in the database.
 
-> After creating the account you will be taken to the **Dashboard** — the main page of the system.
+> After creating the account you will be taken to the main web interface.
 
 ---
 
@@ -153,7 +142,7 @@ On the first run you will be prompted to create an administrator account. Enter 
 |------|----------|
 | Configure system parameters | [Configuration](configuration.md) |
 | Understand objects and properties | [Core Concepts](core-concepts.md) |
-| Add a device | [Plugins](plugins.md) |
+| Configure and use plugins | [Plugins](plugins.md) |
 | Create an automation | [Automations](automation.md) |
 
 ---

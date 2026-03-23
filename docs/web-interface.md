@@ -154,16 +154,10 @@ Centralised log viewer for the system.
 
 ---
 
-## Change History (HistoryView)
+## Change History
 
-The **HistoryView** plugin (if installed) allows you to plot property value changes over time.
-
-1. Go to **Admin → HistoryView**
-2. Select an object and property
-3. Specify a time range
-4. The system displays a chart based on saved values
-
-> History is only stored for properties where `history > 0` (number of days to retain).
+Historical values are available for properties where `history > 0` (retention period in days).
+Visualization and advanced analysis are provided by optional plugins documented in their own directories.
 
 ---
 
