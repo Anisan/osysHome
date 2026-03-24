@@ -62,6 +62,7 @@ class ConfigLoader(object):
         # Service name systemd
         self.SERVICE_NAME = None  # None or 'service_name'
         self.SERVICE_AUTORESTART = False
+        self.SERVICE_DOCKER_CONTAINER = None  # None or 'container_name'
 
     def load_from_file(self, config_file):
         """Загружает конфигурацию из YAML файла."""
@@ -133,6 +134,7 @@ class ConfigLoader(object):
         service_config = self._config_data.get('service', {})
         self.SERVICE_AUTORESTART = service_config.get('autorestart', False)
         self.SERVICE_NAME = service_config.get('name', None)
+        self.SERVICE_DOCKER_CONTAINER = service_config.get('docker_container', None)
 
 def load_config(config_file='config.yaml'):
     """Удобная функция для загрузки конфигурации."""

@@ -104,7 +104,11 @@ def createApp(config_object):
 
     @app.context_processor
     def inject_config():
-        return dict(config=config_object)
+        from app.admin.tools import can_restart_system
+        return {
+            'config': config_object,
+            'can_restart_system': can_restart_system(),
+        }
 
     # === Собираем IntelliSense-кэш ПОСЛЕ создания приложения ===
     with app.app_context():

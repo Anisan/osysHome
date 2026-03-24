@@ -55,3 +55,4 @@ cache:
 service:  
   autorestart: False  
   name: null # Или имя сервиса 'osyshome'  
+  docker_container: null # Или имя Docker контейнера для restart
