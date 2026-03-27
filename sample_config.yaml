@@ -1,58 +1,139 @@
-# Рабочая конфигурация osysHome  
-# Этот файл создается пользователем на основе sample_config.yaml  
-  
-application:  
-  # Язык интерфейса по умолчанию (например: en, ru, de)
-  default_language: 'en'  
-  # Часовой пояс по умолчанию для отображения дат/времени
+# Working osysHome configuration
+# This file is created by the user based on sample_config.yaml
+
+application:
+  # Default UI language.
+  # Examples: 'en', 'ru', 'de'.
+  default_language: 'en'
+
+  # Default timezone for displaying dates and times.
+  # Use an IANA timezone name such as 'Europe/Moscow'.
   default_timezone: 'Europe/Moscow'
-  # Секретный ключ Flask для сессий и токенов — ОБЯЗАТЕЛЬНО смените в рабочей среде
-  secret_key: 'your-secret-key-here'  
-  # Режим отладки (True для разработки, False для продакшена)
-  debug: false  
-  # Порт HTTP, на котором будет слушать osysHome
-  app_port: 5000  
-  # Имя окружения (production / development и т.п.), используется в логике приложения
+
+  # Flask secret key used for sessions and tokens.
+  # Replace this with a unique value in real deployments.
+  secret_key: 'your-secret-key-here'
+
+  # Global application debug mode.
+  # true: useful for development, false: safer and faster for production.
+  debug: false
+
+  # HTTP port used by the application.
+  app_port: 5000
+
+  # Application environment name.
+  # Common values are 'production' and 'development'.
   env: 'production'
+
+  # Base size of the internal worker thread pool.
+  # Affects concurrent background task processing.
   pool_size: 20
+
+  # Maximum size of the worker thread pool.
+  # If null, the application uses its internal default behavior.
   pool_max_size: 100
+
+  # Threshold in seconds after which a pool task is considered slow.
   pool_timeout_threshold: 60.0
+
+  # Forced flush interval for batched writes, in seconds.
+  # Lower values write data sooner but increase write frequency.
   batch_writer_flush_interval: 0.5
-  session_lifetime_days: 31  # Время жизни сессии в днях (по умолчанию 31 день, как в Flask)
-  http_request_timeout: 15   # Таймаут HTTP-запросов (секунды), по умолчанию 15
-  # Cookie безопасности (включаются автоматически при debug: false)
-  session_cookie_secure: false   # Требовать HTTPS для cookie (production)
-  session_cookie_samesite: 'Lax' # Защита от CSRF
-  # Rate limiting — защита от brute-force и DoS
+
+  # User session lifetime in days.
+  # Default is 31 days, matching Flask's default behavior.
+  session_lifetime_days: 31
+
+  # Timeout for outbound HTTP requests in seconds.
+  # Used as the default timeout for requests.get/post and similar calls.
+  http_request_timeout: 15
+
+  # Require HTTPS for the session cookie.
+  # Usually true in production behind an HTTPS reverse proxy.
+  session_cookie_secure: false
+
+  # SameSite policy for the session cookie.
+  # 'Lax' is a good default for most deployments.
+  session_cookie_samesite: 'Lax'
+
+  # Rate limiting to protect against brute-force attempts and overload.
   rate_limit:
+    # Enable or disable rate limiting globally.
     enabled: true
-    default: '100 per minute'  # Общий лимит для всех маршрутов
-    login: '5 per minute'      # Строгий лимит для /login
-    api: '100 per minute'      # Лимит для API (использует default при отсутствии)
-  
-database:  
-  # Включить вывод SQL‑запросов в лог (удобно для отладки, выключайте в продакшене)
-  sqlalchemy_echo: false  
-  # Размер пула соединений SQLAlchemy
+
+    # Default rate limit for all routes.
+    default: '100 per minute'
+
+    # Dedicated rate limit for the login page.
+    login: '5 per minute'
+
+    # Rate limit for API routes.
+    # Used when no more specific API limit is configured elsewhere.
+    api: '100 per minute'
+
+database:
+  # Print SQL statements to the log.
+  # Useful for SQL debugging, but noisy and slower in production.
+  sqlalchemy_echo: false
+
+  # SQLAlchemy connection pool size.
+  # Most relevant for PostgreSQL and MySQL/MariaDB.
   pool_size: 20
-  # Имя файла БД SQLite. Файл создаётся в корне проекта, если connection_string не задан.
-  db_name: 'app.db'  
-  # Для SQLite используется db_name.  
-  # Для PostgreSQL/MySQL раскомментируйте и настройте одну из строк ниже.
-  # Пример PostgreSQL:
-  # connection_string: 'postgresql://osyshome:password@localhost/osyshome'  
-  # Пример MySQL:
+
+  # SQLite database filename.
+  # Used only when connection_string is not set.
+  db_name: 'app.db'
+
+  # External database connection string.
+  # Usually not needed for SQLite, where db_name is used instead.
+  # PostgreSQL example:
+  # connection_string: 'postgresql://osyshome:password@localhost/osyshome'
+  # MySQL example:
   # connection_string: 'mysql://osyshome:password@localhost/app'
-  
-cache:  
-  # Путь к каталогу файлового кеша (если используется файловый backend)
-  file_path: 'cache'  
-  # Тип кеша: 'simple' (по умолчанию, in‑memory), либо другой поддерживаемый backend
+
+debug_tools:
+  # Enable extra heavy debugging tools.
+  # These are usually kept disabled even when application.debug is true.
+  enabled: false
+
+  # Enable the template editor inside Flask Debug Toolbar.
+  # Rarely needed in normal development.
+  template_editor_enabled: false
+
+  # Enable request profiling in Debug Toolbar.
+  # This can noticeably slow page rendering.
+  profiler_enabled: false
+
+  # Output filename used by the profiler.
+  profiler_dump_filename: 'dump.prof'
+
+  # Intercept HTTP redirects in Debug Toolbar instead of following them normally.
+  intercept_redirects: false
+
+  # Collect SQL query statistics for each HTTP request.
+  # Useful for investigating slow pages, but adds overhead.
+  sqlalchemy_record_queries: false
+
+cache:
+  # Path to the cache directory.
+  # Used by file-based cache backends.
+  file_path: 'cache'
+
+  # Cache backend type.
+  # 'simple' stores data in process memory.
   type: 'simple'
-  # Время жизни записей кеша в секундах
+
+  # Cache entry lifetime in seconds.
   timeout: 300
-  
-service:  
-  autorestart: False  
-  name: null # Или имя сервиса 'osyshome'  
-  docker_container: null # Или имя Docker контейнера для restart
+
+service:
+  # Allow automatic restart handling through built-in restart actions.
+  autorestart: False
+
+  # systemd service name for service management.
+  # Leave null if systemd is not used.
+  name: null
+
+  # Docker container name for restart management through Docker.
+  # Leave null if the application is not running in a container.
+  docker_container: null

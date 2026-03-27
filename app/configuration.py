@@ -24,7 +24,7 @@ class ConfigLoader(object):
         self.DEFAULT_TIMEZONE = "Europe/Moscow"
 
         self.POOL_SIZE = 30  # Размер пула потоков
-        self.POOL_MAX_SIZE = None # Максимальный размер пула потоков (по-умолчанию 5*POOL_SIZE)
+        self.POOL_MAX_SIZE = None  # Максимальный размер пула потоков (по умолчанию 5*POOL_SIZE)
         self.POOL_TIMEOUT_THRESHOLD = 60.0  # Порог таймаута задач в секундах
         self.BATCH_WRITER_FLUSH_INTERVAL = 0.5  # Интервал записи батча в секундах
 
@@ -35,6 +35,7 @@ class ConfigLoader(object):
         DB_PATH = os.path.join(self.APP_DIR, DB_NAME)
         self.SQLALCHEMY_DATABASE_URI = 'sqlite:///{0}'.format(DB_PATH)
         self.SQLALCHEMY_POOL_SIZE = 20  # Пул потоков для выполнения запросов к БД
+        self.SQLALCHEMY_RECORD_QUERIES = False
 
         self.CACHE_FILE_PATH = "cache"  # Замените на путь к вашей папке кеша
         self.CACHE_DEFAULT_TIMEOUT = 300
@@ -64,6 +65,13 @@ class ConfigLoader(object):
         self.SERVICE_AUTORESTART = False
         self.SERVICE_DOCKER_CONTAINER = None  # None or 'container_name'
 
+        # Debug tools
+        self.DEBUG_TOOLS_ENABLED = False
+        self.DEBUG_TB_TEMPLATE_EDITOR_ENABLED = False
+        self.DEBUG_TB_PROFILER_ENABLED = False
+        self.DEBUG_TB_PROFILER_DUMP_FILENAME = 'dump.prof'
+        self.DEBUG_TB_INTERCEPT_REDIRECTS = False
+
     def load_from_file(self, config_file):
         """Загружает конфигурацию из YAML файла."""
         config_path = Path(config_file)
@@ -91,7 +99,7 @@ class ConfigLoader(object):
         self.POOL_MAX_SIZE = app_config.get('pool_max_size', None)
         self.POOL_TIMEOUT_THRESHOLD = app_config.get('pool_timeout_threshold', 60.0)
         self.BATCH_WRITER_FLUSH_INTERVAL = app_config.get('batch_writer_flush_interval', 0.5)
-        
+
         # Session lifetime configuration
         self.SESSION_LIFETIME_DAYS = app_config.get('session_lifetime_days', 31)
         self.PERMANENT_SESSION_LIFETIME = timedelta(days=self.SESSION_LIFETIME_DAYS)
@@ -126,6 +134,14 @@ class ConfigLoader(object):
             DB_PATH = os.path.join(self.APP_DIR, DB_NAME)
             self.SQLALCHEMY_DATABASE_URI = f'sqlite:///{DB_PATH}'
 
+        debug_tools_config = self._config_data.get('debug_tools', {})
+        self.DEBUG_TOOLS_ENABLED = debug_tools_config.get('enabled', False)
+        self.DEBUG_TB_TEMPLATE_EDITOR_ENABLED = debug_tools_config.get('template_editor_enabled', False)
+        self.DEBUG_TB_PROFILER_ENABLED = debug_tools_config.get('profiler_enabled', False)
+        self.DEBUG_TB_PROFILER_DUMP_FILENAME = debug_tools_config.get('profiler_dump_filename', 'dump.prof')
+        self.DEBUG_TB_INTERCEPT_REDIRECTS = debug_tools_config.get('intercept_redirects', False)
+        self.SQLALCHEMY_RECORD_QUERIES = debug_tools_config.get('sqlalchemy_record_queries', False)
+
         cache_config = self._config_data.get('cache', {})
         self.CACHE_FILE_PATH = os.path.abspath(os.path.join(self.APP_DIR, cache_config.get('file_path', 'cache')))
         self.CACHE_TYPE = cache_config.get('type', 'simple')
@@ -135,6 +151,7 @@ class ConfigLoader(object):
         self.SERVICE_AUTORESTART = service_config.get('autorestart', False)
         self.SERVICE_NAME = service_config.get('name', None)
         self.SERVICE_DOCKER_CONTAINER = service_config.get('docker_container', None)
+
 
 def load_config(config_file='config.yaml'):
     """Удобная функция для загрузки конфигурации."""

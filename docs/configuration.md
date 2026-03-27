@@ -2,18 +2,15 @@
 
 All osysHome configuration is stored in the `config.yaml` file at the project root. This file is created from the `sample_config.yaml` template during initial setup.
 
----
-
 ## File Structure
 
 ```yaml
 application:   # Core application settings
 database:      # Database settings
+debug_tools:   # Optional heavy debug tools
 cache:         # Cache settings
 service:       # Service management
 ```
-
----
 
 ## `application` Section
 
@@ -31,22 +28,26 @@ application:
   batch_writer_flush_interval: 0.5
   session_lifetime_days: 31
   http_request_timeout: 15
+  session_cookie_secure: false
+  session_cookie_samesite: 'Lax'
 ```
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
-| `default_language` | UI language (`ru`, `en`) | `en` |
-| `default_timezone` | Timezone for date/time display | `Europe/Moscow` |
-| `secret_key` | Flask secret key for session signing. **Must be changed!** | — |
-| `debug` | Debug mode: `true` — detailed errors in browser, `false` — production | `false` |
-| `app_port` | HTTP server port | `5000` |
-| `env` | Environment (`production` / `development`) | `production` |
-| `pool_size` | Base thread pool size for method execution | `20` |
-| `pool_max_size` | Maximum thread pool size | `100` |
-| `pool_timeout_threshold` | Threshold (sec) for warnings about long-running pool tasks | `60.0` |
-| `batch_writer_flush_interval` | Interval (sec) for batching property value writes to DB | `0.5` |
+| `default_language` | Default UI language (`en`, `ru`, `de`, etc.) | `en` |
+| `default_timezone` | Default timezone for displaying dates and times | `Europe/Moscow` |
+| `secret_key` | Flask secret key used for sessions and tokens. Must be changed in real deployments. | `your-secret-key-here` |
+| `debug` | Global application debug mode | `false` |
+| `app_port` | HTTP port used by the application | `5000` |
+| `env` | Environment name such as `production` or `development` | `production` |
+| `pool_size` | Base size of the internal worker thread pool | `20` |
+| `pool_max_size` | Maximum size of the worker thread pool | `100` |
+| `pool_timeout_threshold` | Threshold in seconds after which a pool task is considered slow | `60.0` |
+| `batch_writer_flush_interval` | Forced flush interval for batched writes in seconds | `0.5` |
 | `session_lifetime_days` | User session lifetime in days | `31` |
-| `http_request_timeout` | HTTP request timeout (sec) | `15` |
+| `http_request_timeout` | Default timeout for outbound HTTP requests in seconds | `15` |
+| `session_cookie_secure` | Require HTTPS for the session cookie | `false` |
+| `session_cookie_samesite` | SameSite policy for the session cookie | `Lax` |
 
 ### Rate Limiting
 
@@ -59,44 +60,27 @@ application:
     api: '100 per minute'
 ```
 
-| Parameter | Description |
-|-----------|-------------|
-| `enabled` | Enable brute-force / DoS protection |
-| `default` | Global rate limit for all routes |
-| `login` | Strict limit for the login page |
-| `api` | Limit for the REST API |
-
-### Session Security (for HTTPS)
-
-```yaml
-application:
-  session_cookie_secure: true    # HTTPS only!
-  session_cookie_samesite: 'Lax' # CSRF protection
-```
-
-> Keep `session_cookie_secure: false` when running without HTTPS (local deployment).
-
----
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `enabled` | Enable brute-force / overload protection | `true` |
+| `default` | Default limit for all routes | `100 per minute` |
+| `login` | Dedicated limit for the login page | `5 per minute` |
+| `api` | Limit for API routes | `100 per minute` |
 
 ## `database` Section
 
-### SQLite (default, requires no installation)
+### SQLite Example
 
 ```yaml
 database:
   sqlalchemy_echo: false
-  pool_size: 5
+  pool_size: 20
   db_name: 'app.db'
 ```
 
-The database is created automatically in the project root on first run.
+The SQLite database file is created automatically in the project root on first run.
 
-### PostgreSQL (recommended for production)
-
-```bash
-# Install driver
-pip install psycopg2-binary
-```
+### PostgreSQL Example
 
 ```yaml
 database:
@@ -105,25 +89,44 @@ database:
   connection_string: 'postgresql://user:password@localhost/osyshome'
 ```
 
-### MySQL / MariaDB
-
-```bash
-pip install PyMySQL
-```
+### MySQL / MariaDB Example
 
 ```yaml
 database:
+  sqlalchemy_echo: false
+  pool_size: 20
   connection_string: 'mysql+pymysql://user:password@localhost/osyshome'
 ```
 
-| Parameter | Description |
-|-----------|-------------|
-| `sqlalchemy_echo` | Print SQL queries to log (debug only) |
-| `pool_size` | SQLAlchemy connection pool size |
-| `db_name` | SQLite filename (ignored if `connection_string` is set) |
-| `connection_string` | Connection string for PostgreSQL or MySQL |
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `sqlalchemy_echo` | Print SQL statements to the log | `false` |
+| `pool_size` | SQLAlchemy connection pool size | `20` |
+| `db_name` | SQLite filename, used when `connection_string` is not set | `app.db` |
+| `connection_string` | External database connection string for PostgreSQL/MySQL/MariaDB | not set |
 
----
+## `debug_tools` Section
+
+This section controls optional heavy debugging features. It is separate from `application.debug`, so you can keep normal Flask debug mode enabled while leaving expensive tooling disabled.
+
+```yaml
+debug_tools:
+  enabled: false
+  template_editor_enabled: false
+  profiler_enabled: false
+  profiler_dump_filename: 'dump.prof'
+  intercept_redirects: false
+  sqlalchemy_record_queries: false
+```
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `enabled` | Enable Flask Debug Toolbar | `false` |
+| `template_editor_enabled` | Enable the template editor inside Debug Toolbar | `false` |
+| `profiler_enabled` | Enable request profiling in Debug Toolbar | `false` |
+| `profiler_dump_filename` | Output filename used by the profiler | `dump.prof` |
+| `intercept_redirects` | Intercept redirects in Debug Toolbar instead of following them normally | `false` |
+| `sqlalchemy_record_queries` | Collect SQL query statistics for each HTTP request | `false` |
 
 ## `cache` Section
 
@@ -134,13 +137,11 @@ cache:
   timeout: 300
 ```
 
-| Parameter | Description |
-|-----------|-------------|
-| `file_path` | Directory for file cache (TTS MP3 files and other data) |
-| `type` | Cache type: `simple` — in-memory, `filesystem` — file-based |
-| `timeout` | Cache entry lifetime in seconds |
-
----
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `file_path` | Path to the cache directory | `cache` |
+| `type` | Cache backend type, for example `simple` | `simple` |
+| `timeout` | Cache entry lifetime in seconds | `300` |
 
 ## `service` Section
 
@@ -148,26 +149,19 @@ cache:
 service:
   autorestart: false
   name: null
+  docker_container: null
 ```
 
-| Parameter | Description |
-|-----------|-------------|
-| `autorestart` | Allow service restart from the web interface |
-| `name` | systemd service name (e.g., `osyshome`) for UI control |
-
----
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `autorestart` | Allow built-in restart actions to restart the service automatically | `false` |
+| `name` | systemd service name used for restart/control operations | `null` |
+| `docker_container` | Docker container name used for restart/control operations | `null` |
 
 ## Security Tips
 
-1. **Change `secret_key`** — use a random string of 32+ characters:
-   ```bash
-   python -c "import secrets; print(secrets.token_hex(32))"
-   ```
-
-2. **Don't commit `config.yaml`** to a public repository — the file contains passwords and secrets.
-
-3. **Enable `session_cookie_secure: true`** when using HTTPS / nginx proxy.
-
-4. **In production** set `debug: false` and `sqlalchemy_echo: false`.
-
-5. **PostgreSQL** is preferred over SQLite for more than 5–10 active users or a high frequency of device state updates.
+1. Change `secret_key` to a long random value before production use.
+2. Do not commit `config.yaml` to a public repository.
+3. Set `session_cookie_secure: true` when running behind HTTPS.
+4. In production, keep `debug: false`, `sqlalchemy_echo: false`, and `debug_tools.enabled: false`.
+5. Enable `sqlalchemy_record_queries` only temporarily while investigating slow pages.
