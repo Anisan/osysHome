@@ -2,6 +2,12 @@
 
 This document explains the high‑level architecture of osysHome: main components, data flow, and key terms.
 
+Related docs:
+- [Boot Sequence](BOOT_SEQUENCE.md)
+- [Core Runtime](CORE_RUNTIME.md)
+- [Security & Access](SECURITY_ACCESS.md)
+- [Consistency & Timezones](CONSISTENCY_TIMEZONES.md)
+
 ---
 
 ### 1. High‑level diagram

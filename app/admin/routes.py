@@ -223,8 +223,7 @@ def get_available_widgets():
         available_objects = []
         for key, obj in sorted(objects_storage.items(), key=lambda x: x[0].lower()):
             try:
-                render = obj.render()
-                if render:
+                if obj.has_render_template():
                     available_objects.append({
                         'key': key,
                         'title': obj.name,

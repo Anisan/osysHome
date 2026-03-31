@@ -9,6 +9,12 @@ This document describes several core subsystems that are frequently used by plug
 
 It is a companion to `ARCHITECTURE.md`, which focuses on high‑level components.
 
+Related docs:
+- [Architecture](ARCHITECTURE.md)
+- [Boot Sequence](BOOT_SEQUENCE.md)
+- [Security & Access](SECURITY_ACCESS.md)
+- [Consistency & Timezones](CONSISTENCY_TIMEZONES.md)
+
 ---
 
 ### 1. Configuration (`Config`)
