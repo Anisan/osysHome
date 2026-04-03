@@ -121,34 +121,6 @@
     background: rgba(13, 110, 253, 1);
     transform: scale(1.1);
   }
-  /* Скрывает элементы до инициализации Vue */
-  [v-cloak] {
-    position: relative;
-    min-height: 200px;
-  }
-  [v-cloak] > * {
-    display: none !important;
-  }
-  /* Показываем спиннер пока v-cloak активен */
-  [v-cloak]::before {
-    content: '';
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    width: 3rem;
-    height: 3rem;
-    border: 4px solid #f3f3f3;
-    border-top: 4px solid #0d6efd;
-    border-radius: 50%;
-    animation: spin 1s linear infinite;
-    display: block;
-    z-index: 1000;
-  }
-  @keyframes spin {
-    0% { transform: translate(-50%, -50%) rotate(0deg); }
-    100% { transform: translate(-50%, -50%) rotate(360deg); }
-  }
 </style>
 <main id="app" v-cloak>
   <!-- Индикатор режима редактирования -->
