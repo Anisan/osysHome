@@ -7,6 +7,66 @@ import datetime
 from app.core.models.Users import User  # noqa
 from app.core.lib.constants import PropertyType
 
+# Виджет класса Users на панели управления (Jinja2). Совпадает с рекомендуемым шаблоном в БД.
+USERS_CLASS_TEMPLATE = """
+<div class="users-cp-widget d-flex flex-column gap-2">
+  <div class="d-flex align-items-start gap-3">
+    {% if object.image %}
+    <img src="{{ object.image|e }}" alt="" class="rounded-circle flex-shrink-0 shadow-sm border border-light" width="76" height="76" style="object-fit:cover;" loading="lazy">
+    {% else %}
+    <div class="rounded-circle flex-shrink-0 d-flex align-items-center justify-content-center bg-body-secondary text-secondary-emphasis border" style="width:76px;height:76px;">
+      <i class="fas fa-user" style="font-size:2rem;opacity:0.85;"></i>
+    </div>
+    {% endif %}
+    <div class="min-w-0 flex-grow-1">
+      <div class="fw-semibold lh-sm text-truncate" title="{{ (object.description or object.name)|e }}">{{ object.description or object.name }}</div>
+      <div class="small text-muted font-monospace text-truncate">{{ object.name }}</div>
+      {% if object.role %}
+      <span class="badge rounded-pill bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 mt-2">{{ object.role }}</span>
+      {% endif %}
+    </div>
+  </div>
+  {% if object.lastLogin or object.timezone or object.home_page %}
+  <div class="d-flex flex-column gap-2 pt-2 border-top border-secondary border-opacity-25">
+    {% if object.lastLogin %}
+    <div class="d-flex align-items-start gap-2 small">
+      <span class="text-primary mt-1"><i class="fas fa-clock fa-fw"></i></span>
+      <div class="min-w-0">
+        <div class="text-uppercase text-muted" style="font-size:0.65rem;letter-spacing:0.06em;">Last login</div>
+        <div class="text-body-secondary">{{ object.lastLogin }}</div>
+      </div>
+    </div>
+    {% endif %}
+    {% if object.timezone %}
+    <div class="d-flex align-items-start gap-2 small">
+      <span class="text-primary mt-1"><i class="fas fa-globe fa-fw"></i></span>
+      <div class="min-w-0">
+        <div class="text-uppercase text-muted" style="font-size:0.65rem;letter-spacing:0.06em;">Timezone</div>
+        <div class="text-body-secondary text-break">{{ object.timezone }}</div>
+      </div>
+    </div>
+    {% endif %}
+    {% if object.home_page %}
+    <div class="d-flex align-items-start gap-2 small">
+      <span class="text-primary mt-1"><i class="fas fa-home fa-fw"></i></span>
+      <div class="min-w-0">
+        <div class="text-uppercase text-muted" style="font-size:0.65rem;letter-spacing:0.06em;">Home page</div>
+        <div class="text-body-secondary text-break">
+          {% if object.home_page.startswith('http://') or object.home_page.startswith('https://') %}
+          <a href="{{ object.home_page|e }}" target="_blank" rel="noopener noreferrer" class="link-primary">{{ object.home_page|e }}</a>
+          {% else %}
+          {{ object.home_page|e }}
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>
+""".strip()
+
+
 def load_user(id):
     from app.core.lib.object import getObject
     obj = getObject(id)
@@ -33,26 +93,33 @@ def initSystemVar():
     # Create class users
     cls_user = addClass('Users','Users osysHome')
     if not cls_user['template']:
-        # def template for Users
-        cls_user['template'] = '''<div class="row">
-    {% if object.image %}
-    <img class="col pe-0" src="{{object.image}}"  style="width:auto;height:80px;object-fit:contain;" alt="{{object.name}}">
-    {% endif %}
-    <div class="col-auto">
-        <h5 class="m-1">{{object.description}}</h5>
-        Role: <b>{{object.role}}</b><br>
-        Login: {{object.lastLogin}}
-    </div>
-</div>
-'''
+        cls_user['template'] = USERS_CLASS_TEMPLATE
         updateClass(cls_user)
-        
-    addClassProperty('password', 'Users', 'Hash password', 0, type=PropertyType.String)
-    addClassProperty('role', 'Users', 'Role user', 0, type=PropertyType.String)
-    addClassProperty('home_page', 'Users', 'Home page for user (default: admin)', 0, type=PropertyType.String)
-    addClassProperty('image', 'Users', 'User`s avatar', 0, type=PropertyType.String)
-    addClassProperty('lastLogin', 'Users', 'Last login', 7, type=PropertyType.Datetime)
-    addClassProperty('timezone', 'Users', 'Timezone user', 0, type=PropertyType.String)
+
+    addClassProperty(
+        'password', 'Users', 'Hash password', 0, type=PropertyType.String,
+        params={'icon': 'fas fa-key'}, update=True,
+    )
+    addClassProperty(
+        'role', 'Users', 'Role user', 0, type=PropertyType.String,
+        params={'icon': 'fas fa-user-tag'}, update=True,
+    )
+    addClassProperty(
+        'home_page', 'Users', 'Home page for user (default: admin)', 0, type=PropertyType.String,
+        params={'icon': 'fas fa-home'}, update=True,
+    )
+    addClassProperty(
+        'image', 'Users', 'User`s avatar', 0, type=PropertyType.String,
+        params={'icon': 'fas fa-image'}, update=True,
+    )
+    addClassProperty(
+        'lastLogin', 'Users', 'Last login', 7, type=PropertyType.Datetime,
+        params={'icon': 'fas fa-clock'}, update=True,
+    )
+    addClassProperty(
+        'timezone', 'Users', 'Timezone user', 0, type=PropertyType.String,
+        params={'icon': 'fas fa-globe'}, update=True,
+    )
 
     # Create SystemVar
     addObject("SystemVar",None,"System variable")

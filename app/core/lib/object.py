@@ -11,13 +11,14 @@ from app.core.main.ObjectManager import ObjectManager, PropertyManager, ObjectLo
 from app.core.lib.constants import PropertyType
 
 _logger = getLogger('object')
+_UNSET = object()
 
 
 def _get_object_logger(object_name: str):
     """Create a logger adapter with object name context"""
     return ObjectLoggerAdapter(_logger, {'object_name': object_name})
 
-def addClass(name:str, description:str='', parentId:int=None, update:bool=False) -> dict:
+def addClass(name:str, description:str=_UNSET, parentId:int=_UNSET, update:bool=False) -> dict:
     """Add a class to the database.
 
     Args:
@@ -34,14 +35,18 @@ def addClass(name:str, description:str='', parentId:int=None, update:bool=False)
         if not cls:
             cls = Class()
             cls.name = name
-            cls.description = description
-            cls.parent_id = parentId
+            if description is not _UNSET:
+                cls.description = description
+            if parentId is not _UNSET:
+                cls.parent_id = parentId
             session.add(cls)
             session.commit()
             objects_storage.reload_objects_by_class(cls.id)
         elif update:
-            cls.description = description
-            cls.parent_id = parentId
+            if description is not _UNSET:
+                cls.description = description
+            if parentId is not _UNSET:
+                cls.parent_id = parentId
             session.commit()
             objects_storage.reload_objects_by_class(cls.id)
         return row2dict(cls)
@@ -83,7 +88,16 @@ def updateClass(cls:dict) -> bool:
         return True
 
 
-def addClassProperty(name:str, class_name:str, description:str='', history:int=0, type:PropertyType=PropertyType.Empty, method_name:str=None, update:bool=False) -> Property:
+def addClassProperty(
+    name: str,
+    class_name: str,
+    description: str = _UNSET,
+    history: int = _UNSET,
+    type: PropertyType = _UNSET,
+    method_name: str = _UNSET,
+    params: dict = _UNSET,
+    update: bool = False,
+) -> Property:
     """Add a property class to the database
 
     Args:
@@ -93,6 +107,7 @@ def addClassProperty(name:str, class_name:str, description:str='', history:int=0
         history (int, optional): Save history (days). Defaults to 0.
         type (PropertyType, optional): Type property. Defaults to PropertyType.Empty.
         method_name (str, optional): Call method on change value property. Defaults to None.
+        params (dict, optional): Property params JSON (icon, color, validation and UI metadata). Defaults to None.
         update (bool, optional): Update existing property if it exists. Defaults to False.
 
     Returns:
@@ -106,11 +121,14 @@ def addClassProperty(name:str, class_name:str, description:str='', history:int=0
         if not prop:
             prop = Property()
             prop.name = name
-            prop.description = description
+            if description is not _UNSET:
+                prop.description = description
             prop.class_id = cls.id
-            prop.history = history
-            prop.type = type.value
-            if method_name:
+            prop.history = 0 if history is _UNSET else history
+            prop.type = (PropertyType.Empty if type is _UNSET else type).value
+            if params is not _UNSET:
+                prop.params = json.dumps(params)
+            if method_name is not _UNSET and method_name:
                 method = session.query(Method).filter(Method.name == method_name, Method.class_id == cls.id).one_or_none()
                 if method:
                     prop.method_id = method.id
@@ -118,22 +136,35 @@ def addClassProperty(name:str, class_name:str, description:str='', history:int=0
             session.commit()
             objects_storage.reload_objects_by_class(cls.id)
         elif update:
-            prop.description = description
-            prop.history = history
-            prop.type = type.value
-            if method_name:
-                method = session.query(Method).filter(Method.name == method_name, Method.class_id == cls.id).one_or_none()
-                if method:
-                    prop.method_id = method.id
+            if description is not _UNSET:
+                prop.description = description
+            if history is not _UNSET:
+                prop.history = history
+            if type is not _UNSET:
+                prop.type = type.value
+            if params is not _UNSET:
+                prop.params = json.dumps(params)
+            if method_name is not _UNSET:
+                if method_name:
+                    method = session.query(Method).filter(Method.name == method_name, Method.class_id == cls.id).one_or_none()
+                    if method:
+                        prop.method_id = method.id
+                    else:
+                        prop.method_id = None
                 else:
                     prop.method_id = None
-            else:
-                prop.method_id = None
             session.commit()
             objects_storage.reload_objects_by_class(cls.id)
         return prop
 
-def addClassMethod(name:str, class_name:str, description:str='', code:str='', call_parent:int=0, update:bool=False) -> Method:
+def addClassMethod(
+    name:str,
+    class_name:str,
+    description:str=_UNSET,
+    code:str=_UNSET,
+    call_parent:int=_UNSET,
+    update:bool=False,
+) -> Method:
     """Add a method class to the database
 
     Args:
@@ -156,21 +187,26 @@ def addClassMethod(name:str, class_name:str, description:str='', code:str='', ca
             method = Method()
             method.name = name
             method.class_id = cls.id
-            method.description = description
-            method.code = code
-            method.call_parent = call_parent
+            if description is not _UNSET:
+                method.description = description
+            if code is not _UNSET:
+                method.code = code
+            method.call_parent = 0 if call_parent is _UNSET else call_parent
             session.add(method)
             session.commit()
             objects_storage.reload_objects_by_class(cls.id)
         elif update:
-            method.description = description
-            method.code = code
-            method.call_parent = call_parent
+            if description is not _UNSET:
+                method.description = description
+            if code is not _UNSET:
+                method.code = code
+            if call_parent is not _UNSET:
+                method.call_parent = call_parent
             session.commit()
             objects_storage.reload_objects_by_class(cls.id)
         return method
 
-def addObject(name:str, class_name:str, description='', update:bool=False) -> ObjectManager:
+def addObject(name:str, class_name:str=_UNSET, description=_UNSET, update:bool=False) -> ObjectManager:
     """Add a object to the database
 
     Args:
@@ -185,23 +221,37 @@ def addObject(name:str, class_name:str, description='', update:bool=False) -> Ob
     with session_scope() as session:
         obj = session.query(Object).filter(Object.name == name).one_or_none()
         if not obj:
-            cls = session.query(Class).filter(Class.name == class_name).one_or_none()
+            cls = None
+            if class_name is not _UNSET and class_name:
+                cls = session.query(Class).filter(Class.name == class_name).one_or_none()
             obj = Object()
             obj.name = name
             obj.class_id = cls.id if cls else None
-            obj.description = description
+            if description is not _UNSET:
+                obj.description = description
             session.add(obj)
             session.commit()
             objects_storage.reload_object(obj.id)
         elif update:
-            cls = session.query(Class).filter(Class.name == class_name).one_or_none()
-            obj.class_id = cls.id if cls else obj.class_id
-            obj.description = description
+            if class_name is not _UNSET:
+                cls = session.query(Class).filter(Class.name == class_name).one_or_none()
+                obj.class_id = cls.id if cls else obj.class_id
+            if description is not _UNSET:
+                obj.description = description
             session.commit()
             objects_storage.reload_object(obj.id)
         return objects_storage.getObjectByName(name)
 
-def addObjectProperty(name:str, object_name:str, description:str='', history:int=0, type:PropertyType=PropertyType.Empty, method_name:str=None, params:dict=None, update:bool=False) -> bool:
+def addObjectProperty(
+    name:str,
+    object_name:str,
+    description:str=_UNSET,
+    history:int=_UNSET,
+    type:PropertyType=_UNSET,
+    method_name:str=_UNSET,
+    params:dict=_UNSET,
+    update:bool=False,
+) -> bool:
     """Add a property object to the database
 
     Args:
@@ -225,12 +275,14 @@ def addObjectProperty(name:str, object_name:str, description:str='', history:int
         if not prop:
             prop = Property()
             prop.name = name
-            prop.description = description
+            if description is not _UNSET:
+                prop.description = description
             prop.object_id = obj.id
-            prop.history = history
-            prop.type = type.value
-            prop.params = json.dumps(params)
-            if method_name:
+            prop.history = 0 if history is _UNSET else history
+            prop.type = (PropertyType.Empty if type is _UNSET else type).value
+            if params is not _UNSET:
+                prop.params = json.dumps(params)
+            if method_name is not _UNSET and method_name:
                 method = session.query(Method).filter(Method.name == method_name, Method.object_id == obj.id).one_or_none()
                 if method:
                     prop.method_id = method.id
@@ -244,26 +296,31 @@ def addObjectProperty(name:str, object_name:str, description:str='', history:int
             session.commit()
             objects_storage.reload_object(obj.id)
         elif update:
-            prop.description = description
-            prop.history = history
-            prop.type = type.value
-            prop.params = json.dumps(params)
-            if method_name:
-                method = session.query(Method).filter(Method.name == method_name, Method.object_id == obj.id).one_or_none()
-                if method:
-                    prop.method_id = method.id
-                else:
-                    cls = session.query(Class).filter(Class.id == obj.class_id).one_or_none()
-                    if cls:
-                        method = session.query(Method).filter(Method.name == method_name, Method.class_id == cls.id).one_or_none()
-                        if method:
-                            prop.method_id = method.id
+            if description is not _UNSET:
+                prop.description = description
+            if history is not _UNSET:
+                prop.history = history
+            if type is not _UNSET:
+                prop.type = type.value
+            if params is not _UNSET:
+                prop.params = json.dumps(params)
+            if method_name is not _UNSET:
+                if method_name:
+                    method = session.query(Method).filter(Method.name == method_name, Method.object_id == obj.id).one_or_none()
+                    if method:
+                        prop.method_id = method.id
+                    else:
+                        cls = session.query(Class).filter(Class.id == obj.class_id).one_or_none()
+                        if cls:
+                            method = session.query(Method).filter(Method.name == method_name, Method.class_id == cls.id).one_or_none()
+                            if method:
+                                prop.method_id = method.id
+                            else:
+                                prop.method_id = None
                         else:
                             prop.method_id = None
-                    else:
-                        prop.method_id = None
-            else:
-                prop.method_id = None
+                else:
+                    prop.method_id = None
             session.commit()
             objects_storage.reload_object(obj.id)
         return True
@@ -299,7 +356,14 @@ def deleteObjectProperty(object_property: str) -> bool:
         objects_storage.reload_object(obj.id)
         return True
 
-def addObjectMethod(name:str, object_name:str, description:str='', code:str='', call_parent:int=0, update:bool=False) -> bool:
+def addObjectMethod(
+    name:str,
+    object_name:str,
+    description:str=_UNSET,
+    code:str=_UNSET,
+    call_parent:int=_UNSET,
+    update:bool=False,
+) -> bool:
     """Add a method object to the database
 
     Args:
@@ -326,17 +390,22 @@ def addObjectMethod(name:str, object_name:str, description:str='', code:str='', 
             method = Method()
             method.name = name
             method.object_id = obj.id
-            method.description = description
-            method.code = code
-            method.call_parent = call_parent
+            if description is not _UNSET:
+                method.description = description
+            if code is not _UNSET:
+                method.code = code
+            method.call_parent = 0 if call_parent is _UNSET else call_parent
             session.add(method)
             session.commit()
             objects_storage.reload_object(obj.id)
         elif obj_method and update:
             # Object method exists, update it
-            obj_method.description = description
-            obj_method.code = code
-            obj_method.call_parent = call_parent
+            if description is not _UNSET:
+                obj_method.description = description
+            if code is not _UNSET:
+                obj_method.code = code
+            if call_parent is not _UNSET:
+                obj_method.call_parent = call_parent
             session.commit()
             objects_storage.reload_object(obj.id)
         elif not obj_method and class_method and update:
@@ -344,9 +413,11 @@ def addObjectMethod(name:str, object_name:str, description:str='', code:str='', 
             method = Method()
             method.name = name
             method.object_id = obj.id
-            method.description = description
-            method.code = code
-            method.call_parent = call_parent
+            if description is not _UNSET:
+                method.description = description
+            if code is not _UNSET:
+                method.code = code
+            method.call_parent = class_method.call_parent if call_parent is _UNSET else call_parent
             session.add(method)
             session.commit()
             objects_storage.reload_object(obj.id)
@@ -741,7 +812,9 @@ def deleteObject(name: str):
         name (str): Name object
     """
     with session_scope() as session:
-        obj = session.query(Object).filter(Object.name == name).one_or_404()
+        obj = session.query(Object).filter(Object.name == name).one_or_none()
+        if not obj:
+            return False
         sql = delete(Value).where(Value.object_id == obj.id)
         session.execute(sql)
         sql = delete(Property).where(Property.object_id == obj.id)
@@ -751,6 +824,7 @@ def deleteObject(name: str):
         session.delete(obj)
         session.commit()
         objects_storage.remove_object(name)
+        return True
 
 def setLinkToObject(object_name:str, property_name:str, link:str) -> bool:
     """Set link for value
