@@ -878,6 +878,9 @@ class ObjectManager:
         object.__setattr__(self, "__permissions", None)
         object.__setattr__(self, "__templates", {})
         object.__setattr__(self, "_current_execution_source", None)
+        object.__setattr__(self, "_render_env", None)
+        object.__setattr__(self, "_render_template_name", None)
+        object.__setattr__(self, "_render_template", None)
         self.object_id = obj.id
         self.name = obj.name
         self.description = obj.description
@@ -1326,6 +1329,51 @@ class ObjectManager:
 
     def _setTemplates(self, templates):
         object.__setattr__(self, "__templates", templates)
+        self._reset_render_cache()
+
+    def _reset_render_cache(self):
+        object.__setattr__(self, "_render_env", None)
+        object.__setattr__(self, "_render_template_name", None)
+        object.__setattr__(self, "_render_template", None)
+
+    def _resolve_render_template_name(self, templates):
+        render_template = self.name
+        if templates.get(render_template):
+            return render_template
+
+        for parent in self.parents:
+            if templates.get(parent):
+                return parent
+
+        return None
+
+    def has_render_template(self) -> bool:
+        templates = object.__getattribute__(self, "__templates")
+        return self._resolve_render_template_name(templates) is not None
+
+    def _get_render_template(self, templates):
+        template_name = self._resolve_render_template_name(templates)
+        if not template_name:
+            return None
+
+        cached_template = object.__getattribute__(self, "_render_template")
+        cached_template_name = object.__getattribute__(self, "_render_template_name")
+        env = object.__getattribute__(self, "_render_env")
+
+        if cached_template is not None and cached_template_name == template_name and env is not None:
+            return cached_template
+
+        from jinja2 import Environment, DictLoader
+        from app.core.lib.object import getProperty
+
+        env = Environment(loader=DictLoader(templates))
+        env.globals.update(getProperty=getProperty)
+        template = env.get_template(template_name)
+
+        object.__setattr__(self, "_render_env", env)
+        object.__setattr__(self, "_render_template_name", template_name)
+        object.__setattr__(self, "_render_template", template)
+        return template
 
     def render(self) -> str:
         """Render object template
@@ -1334,27 +1382,9 @@ class ObjectManager:
             str: html view object
         """
         try:
-            result = ''
-
             templates = object.__getattribute__(self, "__templates")
-
-            from jinja2 import Environment, DictLoader
-            env = Environment(loader=DictLoader(
-                templates
-            ))
-            from app.core.lib.object import getProperty
-            env.globals.update(getProperty=getProperty)
-
-            render_template = self.name
-            if not templates.get(render_template):
-                for parent in self.parents:
-                    if templates.get(parent):
-                        render_template = parent
-                        break
-
-            if templates.get(render_template):
-                template = env.get_template(render_template)
-                result = template.render(object=self)
+            template = self._get_render_template(templates)
+            result = template.render(object=self) if template else ''
             if result == 'None':
                 result = ''
             return result

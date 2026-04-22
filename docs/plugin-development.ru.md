@@ -66,6 +66,9 @@ class MyPlugin(BasePlugin):
 
 ---
 
+> Примечание: в текущем ядре предпочтительнее передавать явное имя плагина в конструктор (`super().__init__(app, "MyPlugin")`) и использовать `layouts/module_admin.html` как базовый admin-шаблон.
+> Также `BasePlugin` предоставляет два встроенных маршрута: `/admin/<PluginName>` и `/page/<PluginName>`.
+
 ## Базовый класс BasePlugin
 
 `BasePlugin` предоставляет всю базовую инфраструктуру. При вызове `super().__init__(app, __name__)` происходит:

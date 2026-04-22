@@ -1,78 +1,155 @@
 <!-- [ navigation menu ] start -->
-<nav class="sidebar p-0">
-    {% for key,group in sidebar().items() %}
-    <div class="card mb-1 ml-2">
-        <div class="card-header d-flex justify-content-between align-items-center py-1" data-bs-toggle="collapse" data-bs-target="#collapse{{ key }}" aria-expanded="true" aria-controls="collapse{{ key }}">
-            <i class="fas fa-cogs"></i>
-              <div class="ps-3" style="white-space: nowrap;">
-                  {{ key }}
-              </div>
-            <i class="fas fa-chevron-down collapse-indicator ms-2" style="transition: transform 0.3s ease;"></i>
-        </div>
-        <div class="collapse" id="collapse{{ key }}">
-            <div class="card-body px-0 py-0">
-                <div class="list-group list-group-flush">
-                    {% for item in group %}
-                    <a  href="{{ item.route }}" class="list-group-item list-group-item-action{% if item.route in request.path %} list-group-item-primary {% endif %} d-flex justify-content-between align-items-start" data-module-name="{{ item.name }}">
-                            <img src="/{{item.name}}/static/{{item.name}}.png" height="24px" onError="this.src='{{ config.ASSETS_ROOT }}/images/module.png'">
-                            <div class="ms-2 me-auto" style="white-space: nowrap;">
-                                {{ item.title }}
-                            </div>
-                            {%if item.notify%}
-                            <span class="badge bg-warning text-black rounded-pill mt-1" data-notify-count="{{ item.notify }}">{{item.notify}}</span>
-                            {%else%}
-                            <span class="badge bg-warning text-black rounded-pill mt-1" data-notify-count="0" style="display: none;"></span>
-                            {%endif%}
-                    </a>
-                    {%endfor%}
+<style>
+    .sidebar-resizable {
+      position: relative;
+      flex: 0 0 auto;
+      width: 320px;
+      min-width: 220px;
+      max-width: min(640px, 80vw);
+      padding-right: 10px;
+    }
+
+    .sidebar-resizable .sidebar {
+      width: 100%;
+      min-width: 0;
+    }
+
+    .sidebar-resizer {
+      position: absolute;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      width: 12px;
+      cursor: col-resize;
+      user-select: none;
+      touch-action: none;
+      z-index: 10;
+      background: transparent;
+    }
+
+    .sidebar-resizer::before {
+      content: none;
+    }
+</style>
+
+<div class="sidebar-resizable" id="appSidebarContainer">
+    <nav class="sidebar p-0">
+        {% for key,group in sidebar().items() %}
+        <div class="card mb-1 ml-2">
+            <div class="card-header d-flex justify-content-between align-items-center py-1" data-bs-toggle="collapse" data-bs-target="#collapse{{ key }}" aria-expanded="true" aria-controls="collapse{{ key }}">
+                <i class="fas fa-cogs"></i>
+                  <div class="ps-3" style="white-space: nowrap;">
+                      {{ key }}
+                  </div>
+                <i class="fas fa-chevron-down collapse-indicator ms-2" style="transition: transform 0.3s ease;"></i>
+            </div>
+            <div class="collapse" id="collapse{{ key }}">
+                <div class="card-body px-0 py-0">
+                    <div class="list-group list-group-flush">
+                        {% for item in group %}
+                        <a  href="{{ item.route }}" class="list-group-item list-group-item-action{% if item.route in request.path %} list-group-item-primary {% endif %} d-flex justify-content-between align-items-start" data-module-name="{{ item.name }}">
+                                <img src="/{{item.name}}/static/{{item.name}}.png" height="24px" onError="this.src='{{ config.ASSETS_ROOT }}/images/module.png'">
+                                <div class="ms-2 me-auto" style="white-space: nowrap;">
+                                    {{ item.title }}
+                                </div>
+                                {%if item.notify%}
+                                <span class="badge bg-warning text-black rounded-pill mt-1" data-notify-count="{{ item.notify }}">{{item.notify}}</span>
+                                {%else%}
+                                <span class="badge bg-warning text-black rounded-pill mt-1" data-notify-count="0" style="display: none;"></span>
+                                {%endif%}
+                        </a>
+                        {%endfor%}
+                    </div>
                 </div>
             </div>
         </div>
-    </div>
-    {%endfor%}
-</nav>
+        {%endfor%}
+    </nav>
+    <div class="sidebar-resizer" id="appSidebarResizer" aria-hidden="true"></div>
+</div>
 <script>
-    function setSidebarWidth() {
-      // Calculate maximum width including hidden content
-      var sidebar = $('.sidebar');
-      var maxWidth = 0;
-      
-      // Store original states
-      var originalStates = [];
-      $('[id^="collapse"]').each(function() {
-        var element = $(this);
-        var wasVisible = element.hasClass('show');
-        originalStates.push({
-          element: element,
-          wasVisible: wasVisible
-        });
-        
-        // Temporarily show all collapsed elements to measure their width
-        if (!wasVisible) {
-          element.removeClass('collapse');
-          element.addClass('show');
-          element.css('display', 'block');
+    function getSidebarWidthLimits() {
+      return {
+        min: 220,
+        max: Math.min(640, Math.floor(window.innerWidth * 0.8))
+      };
+    }
+
+    function applySidebarWidth(width) {
+      var container = document.getElementById('appSidebarContainer');
+      if (!container) {
+        return;
+      }
+
+      var limits = getSidebarWidthLimits();
+      var safeWidth = Math.min(Math.max(width, limits.min), limits.max);
+      container.style.width = safeWidth + 'px';
+    }
+
+    function loadSidebarWidth() {
+      try {
+        var savedWidth = localStorage.getItem('sidebarWidth');
+        applySidebarWidth(savedWidth ? parseInt(savedWidth, 10) : 320);
+      } catch (e) {
+        applySidebarWidth(320);
+      }
+    }
+
+    function initSidebarResizer() {
+      var container = document.getElementById('appSidebarContainer');
+      var resizer = document.getElementById('appSidebarResizer');
+      if (!container || !resizer) {
+        return;
+      }
+
+      var isResizing = false;
+      var startX = 0;
+      var startWidth = 0;
+
+      function handleMouseMove(e) {
+        if (!isResizing) {
+          return;
         }
-      });
-      
-      // Force reflow to ensure layout is updated
-      sidebar[0].offsetHeight;
-      
-      // Measure the sidebar width with all content visible
-      maxWidth = sidebar[0].scrollWidth + 30;
-      
-      // Restore original states
-      originalStates.forEach(function(state) {
-        if (!state.wasVisible) {
-          state.element.removeClass('show');
-          state.element.addClass('collapse');
-          state.element.css('display', '');
+
+        e.preventDefault();
+        var newWidth = startWidth + (e.clientX - startX);
+        applySidebarWidth(newWidth);
+      }
+
+      function handleMouseUp() {
+        if (!isResizing) {
+          return;
         }
+
+        isResizing = false;
+        resizer.classList.remove('dragging');
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+
+        try {
+          localStorage.setItem('sidebarWidth', parseInt(container.offsetWidth, 10));
+        } catch (e) {}
+
+        document.removeEventListener('mousemove', handleMouseMove);
+        document.removeEventListener('mouseup', handleMouseUp);
+      }
+
+      resizer.addEventListener('mousedown', function(e) {
+        e.preventDefault();
+        isResizing = true;
+        startX = e.clientX;
+        startWidth = container.offsetWidth;
+        resizer.classList.add('dragging');
+        document.body.style.cursor = 'col-resize';
+        document.body.style.userSelect = 'none';
+
+        document.addEventListener('mousemove', handleMouseMove, { passive: false });
+        document.addEventListener('mouseup', handleMouseUp);
       });
-      
-      // Set the calculated width
-      sidebar.css('width', maxWidth + 'px');
-      sidebar.css('min-width', maxWidth + 'px');
+
+      window.addEventListener('resize', function() {
+        applySidebarWidth(container.offsetWidth);
+      });
     }
 
     function updateCollapseIndicators() {
@@ -145,10 +222,8 @@
     // Call the function to load configuration after document is loaded
 $(document).ready(function() {
     loadConfSidebar();
-    // Set sidebar width after content is loaded
-    setTimeout(function() {
-      setSidebarWidth();
-    }, 100);
+    loadSidebarWidth();
+    initSidebarResizer();
 });
     
 </script>

@@ -112,6 +112,10 @@
 
   // Cache for data-prop-attr-* bindings (rebuilt during subscribe())
   var __propAttrBindings = [];
+  // Track subscriptions owned by this script only.
+  var __subscribedProperties = new Set();
+  var __subscribedObjects = new Set();
+  var __subscriptionRefreshTimer = null;
   function rebuildPropAttrBindings() {
     __propAttrBindings = [];
     var nodes = document.querySelectorAll('*');
@@ -191,6 +195,15 @@
       if (b.node.isConnected === false) return;
       b.node.setAttribute(b.targetAttrName, str);
     });
+  }
+
+  function scheduleSubscriptionRefresh() {
+    if (__subscriptionRefreshTimer) {
+      clearTimeout(__subscriptionRefreshTimer);
+    }
+    __subscriptionRefreshTimer = setTimeout(function() {
+      subscribe(false);
+    }, 150);
   }
 
   socket.on('changeProperty', function (msg) {
@@ -453,8 +466,11 @@
         element.appendChild(script);
       });
     }
-    else
-      console.log("not found object")
+    else {
+      console.log("not found object");
+      // The object node can appear a bit later on dynamic pages.
+      scheduleSubscriptionRefresh();
+    }
   });
 
   function formatTime(number) {
@@ -672,7 +688,10 @@
     }
   });
 
-  function subscribe() {
+  function subscribe(sendPage) {
+    if (sendPage === undefined) {
+      sendPage = true;
+    }
     socket.emit('subscribeActions', ['say','playsound','notify']);
     var propSet = new Set();
 
@@ -711,20 +730,75 @@
     var propList = Array.from(propSet);
     console.log(propList);
     elements = document.querySelectorAll('[id^="obj:"]');
-    var objectList = [];
+    var objectSet = new Set();
     elements.forEach(function (element) {
-      var idWithoutProp = element.id.slice(4); // cut "prop:"
-      objectList.push(idWithoutProp);
+      var idWithoutProp = element.id.slice(4); // cut "obj:"
+      if (idWithoutProp) objectSet.add(idWithoutProp);
     });
+    var objectList = Array.from(objectSet);
     console.log(objectList);
-    // subscribe
-    if (propList.length > 0)
-      socket.emit('subscribeProperties', propList);
-    if (objectList.length > 0)
-      socket.emit('subscribeObjects', objectList);
+
+    // Keep property subscriptions synchronized with current DOM.
+    var propsToSubscribe = [];
+    var propsToUnsubscribe = [];
+    propList.forEach(function(prop) {
+      if (!__subscribedProperties.has(prop)) {
+        propsToSubscribe.push(prop);
+      }
+    });
+    __subscribedProperties.forEach(function(prop) {
+      if (!propSet.has(prop)) {
+        propsToUnsubscribe.push(prop);
+      }
+    });
+    if (propsToUnsubscribe.length > 0) {
+      socket.emit('unsubscribeProperties', propsToUnsubscribe);
+      propsToUnsubscribe.forEach(function(prop) { __subscribedProperties.delete(prop); });
+    }
+    if (propsToSubscribe.length > 0) {
+      socket.emit('subscribeProperties', propsToSubscribe);
+      propsToSubscribe.forEach(function(prop) { __subscribedProperties.add(prop); });
+    }
+
+    // Keep object subscriptions synchronized with current DOM.
+    var objectsToSubscribe = [];
+    var objectsToUnsubscribe = [];
+    objectList.forEach(function(objectName) {
+      if (!__subscribedObjects.has(objectName)) {
+        objectsToSubscribe.push(objectName);
+      }
+    });
+    __subscribedObjects.forEach(function(objectName) {
+      if (!objectSet.has(objectName)) {
+        objectsToUnsubscribe.push(objectName);
+      }
+    });
+    if (objectsToUnsubscribe.length > 0) {
+      socket.emit('unsubscribeObjects', objectsToUnsubscribe);
+      objectsToUnsubscribe.forEach(function(objectName) { __subscribedObjects.delete(objectName); });
+    }
+    if (objectsToSubscribe.length > 0) {
+      socket.emit('subscribeObjects', objectsToSubscribe);
+      objectsToSubscribe.forEach(function(objectName) { __subscribedObjects.add(objectName); });
+    }
 
     // Отправляем текущую страницу после подписки
-    sendCurrentPage();
+    if (sendPage) {
+      sendCurrentPage();
+    }
+  }
+
+  function setupSubscriptionObserver() {
+    if (!window.MutationObserver || !document.body) return;
+    var observer = new MutationObserver(function() {
+      scheduleSubscriptionRefresh();
+    });
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['id', 'data-prop-display', 'data-prop-text', 'data-prop-value', 'data-prop-checked']
+    });
   }
 
   // Bootstrap modal fix for pages with stacking contexts (e.g. /admin/Objects):
@@ -777,6 +851,7 @@
 
   document.addEventListener('DOMContentLoaded', function () {
     setupModalPortal();
+    setupSubscriptionObserver();
     subscribe();
 
     // На случай SPA/изменения истории обновляем страницу клиента

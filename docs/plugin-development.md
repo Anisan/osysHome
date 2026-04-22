@@ -66,6 +66,9 @@ After restarting the system, the plugin will appear in **Admin → Modules** and
 
 ---
 
+> Note: in current core it is safer to pass explicit plugin name in constructor (`super().__init__(app, "MyPlugin")`) and to use `layouts/module_admin.html` as admin template base.
+> Also, `BasePlugin` provides both built-in routes: `/admin/<PluginName>` and `/page/<PluginName>`.
+
 ## The BasePlugin Class
 
 `BasePlugin` provides all the core infrastructure. When `super().__init__(app, __name__)` is called, it:

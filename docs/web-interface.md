@@ -173,6 +173,9 @@ http://your-server:5000/api/
 
 ### Main Endpoints
 
+> Update: in current core code API namespaces are mounted as `/api/object`, `/api/class`, `/api/property`, `/api/method`, `/api/utils`, `/api/plugins`.
+> API key can be passed as query parameter `apikey` or header `X-API-Key`.
+
 ```http
 GET  /api/objects               — list all objects
 GET  /api/objects/{name}        — data for a specific object

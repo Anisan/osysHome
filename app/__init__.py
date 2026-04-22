@@ -43,21 +43,21 @@ def createApp(config_object):
     app.config.from_object(config_object)
     _logger.info("DB: %s", config_object.SQLALCHEMY_DATABASE_URI)
     app.config['SQLALCHEMY_DATABASE_URI'] = config_object.SQLALCHEMY_DATABASE_URI
+    app.config['SQLALCHEMY_ECHO'] = config_object.SQLALCHEMY_ECHO
     app.config['SQLALCHEMY_POOL_SIZE'] = config_object.SQLALCHEMY_POOL_SIZE
     app.config['PERMANENT_SESSION_LIFETIME'] = config_object.PERMANENT_SESSION_LIFETIME
+    app.config['DEBUG_TB_ENABLED'] = config_object.DEBUG and config_object.DEBUG_TOOLS_ENABLED
+    app.config['DEBUG_TB_TEMPLATE_EDITOR_ENABLED'] = config_object.DEBUG and config_object.DEBUG_TB_TEMPLATE_EDITOR_ENABLED
+    app.config['DEBUG_TB_PROFILER_ENABLED'] = config_object.DEBUG and config_object.DEBUG_TB_PROFILER_ENABLED
+    app.config['DEBUG_TB_PROFILER_DUMP_FILENAME'] = config_object.DEBUG_TB_PROFILER_DUMP_FILENAME
+    app.config['DEBUG_TB_INTERCEPT_REDIRECTS'] = config_object.DEBUG_TB_INTERCEPT_REDIRECTS
+    app.config['SQLALCHEMY_RECORD_QUERIES'] = config_object.DEBUG and config_object.SQLALCHEMY_RECORD_QUERIES
 
 # Установка CustomJSONProvider как JSON-провайдера
     app.json_provider_class = CustomJSONProvider
     app.json = CustomJSONProvider(app)  # Инициализация провайдера
 
     app.config.update(RESTX_JSON={"cls": CustomJSONEncoder})
-
-    if config_object.DEBUG:
-        app.config['DEBUG_TB_TEMPLATE_EDITOR_ENABLED'] = True
-        app.config['DEBUG_TB_PROFILER_ENABLED'] = False
-        app.config['DEBUG_TB_PROFILER_DUMP_FILENAME'] = "dump.prof"
-        app.config['DEBUG_TB_INTERCEPT_REDIRECTS'] = False
-        app.config['SQLALCHEMY_RECORD_QUERIES'] = True
 
     # from werkzeug.middleware.profiler import ProfilerMiddleware
     # app.wsgi_app = ProfilerMiddleware(app.wsgi_app, restrictions=[5], profile_dir='.')
@@ -104,7 +104,11 @@ def createApp(config_object):
 
     @app.context_processor
     def inject_config():
-        return dict(config=config_object)
+        from app.admin.tools import can_restart_system
+        return {
+            'config': config_object,
+            'can_restart_system': can_restart_system(),
+        }
 
     # === Собираем IntelliSense-кэш ПОСЛЕ создания приложения ===
     with app.app_context():
