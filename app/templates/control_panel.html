@@ -1039,17 +1039,24 @@ document.addEventListener('DOMContentLoaded', function() {
       // Функция для обновления времени на всех компонентах
       function updateAllTimes() {
         var timeComponents = document.querySelectorAll('.time-component'); // Находим все компоненты времени
+        var currentTimeMs = Date.now();
     
         // Обновляем время на каждом компоненте
         timeComponents.forEach(function(component) {
-          // Получаем текущее время
-          var currentTime = new Date();
-          // Получаем начальное время из атрибута data-start-time
-          var startTime = new Date(component.dataset.startTime);
+          var startTimeValue = component.dataset.startTime;
+          if (!startTimeValue) return;
+
+          var startTimeMs = Date.parse(startTimeValue);
+          if (Number.isNaN(startTimeMs)) return;
+
           // Вычисляем разницу между текущим временем и начальным временем
-          var elapsedTime = currentTime - startTime;
-          // Обновляем время на компоненте
-          component.textContent = formatTimeDiff(elapsedTime);
+          var elapsedTime = currentTimeMs - startTimeMs;
+          var formattedTime = formatTimeDiff(elapsedTime);
+
+          // Обновляем текст только если он действительно изменился, чтобы убрать мерцание
+          if (component.textContent !== formattedTime) {
+            component.textContent = formattedTime;
+          }
         });
       }
     

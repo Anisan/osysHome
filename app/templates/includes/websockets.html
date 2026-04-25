@@ -337,6 +337,18 @@
         childrenOnly: true,
         // Сохраняем скрипты и не пересоздаем их, если они не изменились
         onBeforeElUpdated: function(fromEl, toEl) {
+          // Для time-component сохраняем существующий DOM-узел,
+          // чтобы избежать мерцания при частых websocket-обновлениях.
+          if (fromEl.classList && toEl.classList &&
+              fromEl.classList.contains('time-component') &&
+              toEl.classList.contains('time-component')) {
+            var nextStartTime = toEl.getAttribute('data-start-time');
+            if (nextStartTime !== null && fromEl.getAttribute('data-start-time') !== nextStartTime) {
+              fromEl.setAttribute('data-start-time', nextStartTime);
+            }
+            return false;
+          }
+
           // Универсальное сохранение display для помеченных элементов
           // добавить в элемент data-preserve-display="true"
           if (fromEl.hasAttribute && fromEl.hasAttribute('data-preserve-display')) {
