@@ -82,6 +82,7 @@
   socket.on('disconnect', function () {
     console.log('Disconnected from server');
     document.getElementById('overlay').style.display = 'flex';
+    __actionsSubscribed = false;
   });
 
   socket.on('message', function (msg) {
@@ -116,6 +117,11 @@
   var __subscribedProperties = new Set();
   var __subscribedObjects = new Set();
   var __subscriptionRefreshTimer = null;
+  var __lastSubscriptionSignature = null;
+  var __actionsSubscribed = false;
+  var __pendingObjectUpdates = Object.create(null);
+  var __lastAppliedObjectHtml = Object.create(null);
+  var __objectUpdateDebounceMs = 120;
   function rebuildPropAttrBindings() {
     __propAttrBindings = [];
     var nodes = document.querySelectorAll('*');
@@ -203,7 +209,7 @@
     }
     __subscriptionRefreshTimer = setTimeout(function() {
       subscribe(false);
-    }, 150);
+    }, 500);
   }
 
   socket.on('changeProperty', function (msg) {
@@ -259,14 +265,13 @@
         element.textContent = msg.exec_time;
     });
   });
-  socket.on('changeObject', function (msg) {
-    console.log("change objects", msg)
-    var element = document.getElementById("obj:" + msg.object);
-    if (element) {
+  window.applyObjectHtmlUpdate = function(element, html) {
+    if (!element) return false;
+    if (typeof html !== 'string') return false;
+
       // Сохраняем открытые модалки ВНУТРИ этого объекта:
       // если объект перерендерится, модалка может исчезнуть из DOM, но мы хотим оставить ее открытой.
       // Решение: временно переносим открытую модалку в <body>, а после закрытия возвращаем в объект (если есть место).
-      var detachedOpenModals = [];
       var detachedModalIds = [];
       try {
         element.querySelectorAll('.modal.show').forEach(function(modalEl) {
@@ -311,7 +316,6 @@
           };
           modalEl.addEventListener('hidden.bs.modal', onHidden);
 
-          detachedOpenModals.push({ id: modalEl.id });
           detachedModalIds.push(modalEl.id);
         });
       } catch (e) {
@@ -322,7 +326,7 @@
       // иначе теряется идентичность DOM-узлов и браузер закрывает нативные UI (например color picker).
       // Обновляем DOM IN-PLACE и только дочерние узлы (childrenOnly), сохраняя wrapper `#obj:...`.
       var wrapper = document.createElement(element.tagName);
-      wrapper.innerHTML = msg.value;
+      wrapper.innerHTML = html;
 
       // Если пользователь сейчас взаимодействует с контролом внутри объекта (focus),
       // не обновляем этот контрол, чтобы не закрывать popover/picker и не сбрасывать ввод.
@@ -409,7 +413,7 @@
           if (detachedModalIds.length > 0 && node && node.id && detachedModalIds.indexOf(node.id) !== -1) {
             return false;
           }
-          return true;
+          return node;
         },
         onNodeAdded: function(node) {
           // Собираем новые скрипты для выполнения
@@ -447,6 +451,31 @@
       
       // Выполняем новые или измененные скрипты
       // Важно: скрипты, добавленные через innerHTML, не выполняются автоматически
+      // Some injected templates rely on DOMContentLoaded listeners. If the document is already loaded,
+      // those listeners would never fire, leaving controls uninitialized. Shim addEventListener temporarily.
+      function beginDomContentLoadedShim() {
+        var originalAddEventListener = document.addEventListener;
+        var isReady = (document.readyState === 'interactive' || document.readyState === 'complete');
+        if (!isReady) {
+          return function restore() {};
+        }
+        document.addEventListener = function(type, listener, options) {
+          if (type === 'DOMContentLoaded' && typeof listener === 'function') {
+            try {
+              listener.call(document, new Event('DOMContentLoaded'));
+            } catch (e) {
+              console.warn('Websocket: DOMContentLoaded listener threw', e);
+            }
+            return;
+          }
+          return originalAddEventListener.call(document, type, listener, options);
+        };
+        return function restore() {
+          document.addEventListener = originalAddEventListener;
+        };
+      }
+
+      var restoreDomContentLoadedShim = beginDomContentLoadedShim();
       scriptsToExecute.forEach(function(scriptInfo) {
         // Удаляем старые скрипты с таким же содержимым, если они есть
         var existingScripts = element.querySelectorAll('script');
@@ -477,12 +506,55 @@
         // Добавляем скрипт в элемент для выполнения браузером
         element.appendChild(script);
       });
+      restoreDomContentLoadedShim();
+      return true;
+  };
+
+  socket.on('changeObject', function (msg) {
+    // Dashboard page has its own dedicated changeObject handler with custom container ids
+    // (`dashboard-obj:<name>`). Skip global object-morph logic there to avoid duplicate
+    // processing, noisy logs, and resubscribe churn.
+    if (document.getElementById('dashboard-app')) {
+      return;
     }
-    else {
-      console.log("not found object");
-      // The object node can appear a bit later on dynamic pages.
-      scheduleSubscriptionRefresh();
+    if (!msg || !msg.object) {
+      return;
     }
+    var element = document.getElementById("obj:" + msg.object);
+    if (!element || typeof msg.value !== 'string') {
+      return;
+    }
+    var objectName = msg.object;
+    var html = msg.value;
+
+    // Skip exact duplicates to reduce needless DOM work.
+    if (__lastAppliedObjectHtml[objectName] === html) {
+      return;
+    }
+
+    // Coalesce burst updates per object and apply only the latest HTML.
+    var pending = __pendingObjectUpdates[objectName];
+    if (!pending) {
+      pending = { timer: null, html: null };
+      __pendingObjectUpdates[objectName] = pending;
+    }
+    pending.html = html;
+
+    if (pending.timer) {
+      clearTimeout(pending.timer);
+    }
+    pending.timer = setTimeout(function() {
+      var current = __pendingObjectUpdates[objectName];
+      if (!current) return;
+      var latestHtml = current.html;
+      current.timer = null;
+      if (typeof latestHtml !== 'string') return;
+      var target = document.getElementById("obj:" + objectName);
+      if (!target) return;
+      if (window.applyObjectHtmlUpdate(target, latestHtml)) {
+        __lastAppliedObjectHtml[objectName] = latestHtml;
+      }
+    }, __objectUpdateDebounceMs);
   });
 
   function formatTime(number) {
@@ -704,7 +776,10 @@
     if (sendPage === undefined) {
       sendPage = true;
     }
-    socket.emit('subscribeActions', ['say','playsound','notify']);
+    if (!__actionsSubscribed) {
+      socket.emit('subscribeActions', ['say','playsound','notify']);
+      __actionsSubscribed = true;
+    }
     var propSet = new Set();
 
     // id="prop:Some.Property"
@@ -740,7 +815,6 @@
     });
 
     var propList = Array.from(propSet);
-    console.log(propList);
     elements = document.querySelectorAll('[id^="obj:"]');
     var objectSet = new Set();
     elements.forEach(function (element) {
@@ -748,7 +822,21 @@
       if (idWithoutProp) objectSet.add(idWithoutProp);
     });
     var objectList = Array.from(objectSet);
-    console.log(objectList);
+
+    // Skip expensive re-subscription when effective sets did not change.
+    // This is important on pages with frequent DOM morphing (e.g. Dashboard).
+    var propSignature = propList.slice().sort().join('|');
+    var objectSignature = objectList.slice().sort().join('|');
+    var signature = 'p:' + propSignature + '::o:' + objectSignature;
+    var subscriptionsChanged = (__lastSubscriptionSignature !== signature);
+    __lastSubscriptionSignature = signature;
+
+    if (!subscriptionsChanged) {
+      if (sendPage) {
+        sendCurrentPage();
+      }
+      return;
+    }
 
     // Keep property subscriptions synchronized with current DOM.
     var propsToSubscribe = [];
