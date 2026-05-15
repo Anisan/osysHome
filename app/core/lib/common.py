@@ -246,27 +246,34 @@ def getModulesByAction(action: str):
     return [module["instance"] for _, module in plugins.items() if action in module["instance"].actions]
 
 
-def callPluginFunction(plugin: str, func: str, args):
-    """Call plugin function
+def callPluginFunction(plugin: str, func: str, args=None):
+    """Call a public method on a loaded plugin instance.
 
     Args:
-        plugin (str): Name plugin
-        func (str): Name function in plugin
-        ars (dict): Arguments
+        plugin: Plugin name (folder name), e.g. ``YandexDevices``.
+        func: Method name on the plugin class.
+        args: Keyword arguments passed to the method (``dict``).
+
+    Returns:
+        Whatever the plugin method returns, or ``None`` if the plugin or method
+        is missing or the call raised an exception.
     """
+    if args is None:
+        args = {}
     if plugin not in plugins:
-        return
+        _logger.error("Plugin '%s' not found.", plugin)
+        return None
     plugin_obj = plugins[plugin]["instance"]
 
-    # Вызываем функцию по её текстовому названию
     if hasattr(plugin_obj, func):
         function = getattr(plugin_obj, func)
         try:
-            function(**args)
+            return function(**args)
         except Exception as ex:
             _logger.exception(ex)
-    else:
-        _logger.error("Function '%s' not found in plugin %s.", func, plugin)
+            return None
+    _logger.error("Function '%s' not found in plugin %s.", func, plugin)
+    return None
 
 
 def say(message: str, level: int = 0, args: dict = None):
