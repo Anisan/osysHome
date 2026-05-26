@@ -15,6 +15,21 @@ from app.core.main.ObjectsStorage import objects_storage
 
 logger = getLogger("lsp")
 
+# Explicit imports for CustomFunction editor — pylsp often misses `import *` names.
+_CF_EDITOR_API_PRELUDE = [
+    "from app.core.lib.common import callPluginFunction, getModule, runCode, say, playSound, requestUrl",
+    "from app.core.lib.object import getObject, getProperty, setProperty, callMethod",
+]
+
+
+def _format_doc_markdown(doc: str) -> str:
+    """Docstrings as monospace block — Monaco treats hover/docs as Markdown."""
+    doc = (doc or "").strip()
+    if not doc:
+        return ""
+    safe = doc.replace("```", "\\`\\`\\`")
+    return f"```\n{safe}\n```"
+
 
 class PylspClient:
     """
@@ -316,7 +331,13 @@ class PylspClient:
             self._context_cache[cache_key] = result
             return result
 
-    def _prepare_lsp_code(self, user_code: str, object_name: Optional[str] = None, module_name: Optional[str] = None) -> tuple[str, int]:
+    def _prepare_lsp_code(
+        self,
+        user_code: str,
+        object_name: Optional[str] = None,
+        module_name: Optional[str] = None,
+        exclude_custom_function: Optional[str] = None,
+    ) -> tuple[str, int]:
         """
         Добавляет в пользовательский код пролог с импортами и подсказкой типа self.
         Возвращает готовый текст и смещение строк пролога.
@@ -327,15 +348,34 @@ class PylspClient:
             object_name: Имя объекта (для self binding)
             module_name: Путь к модулю для импорта класса (например, "plugins.TelegramBot")
                          Если указан, используется вместо ObjectManager для типа self
+            exclude_custom_function: редактор кода CF — без пролога других CF
         """
-        cache_key = (user_code, object_name, module_name)
+        try:
+            from app.core.main.CustomFunctionRegistry import custom_function_registry
+            cf_revision = custom_function_registry.get_lsp_revision()
+        except Exception:
+            cf_revision = 0
+
+        cache_key = (user_code, object_name, module_name, cf_revision, exclude_custom_function)
 
         # Проверяем кэш
         if cache_key in self._prepared_code_cache:
             return self._prepared_code_cache[cache_key]
 
-        # Создаем пролог
+        # Создаем пролог (стандартные import * как в runtime CustomFunction)
         prelude_lines = [f"from {mod} import *" for mod in MODULE_NAMES]
+        try:
+            from app.core.main.CustomFunctionRegistry import custom_function_registry
+            # CF code tab: imports yes, other CustomFunction defs no (avoid redefinition).
+            if not exclude_custom_function:
+                cf_prelude = custom_function_registry.get_lsp_prelude_lines()
+                if cf_prelude:
+                    prelude_lines.append("")
+                    prelude_lines.extend(cf_prelude)
+        except Exception as exc:
+            logger.debug("lsp custom function prelude skipped: %s", exc)
+        if exclude_custom_function:
+            prelude_lines.extend(_CF_EDITOR_API_PRELUDE)
         if object_name:
             # Используем ObjectManager по умолчанию
             prelude_lines.append("from app.core.main.ObjectManager import ObjectManager")
@@ -372,12 +412,18 @@ class PylspClient:
             },
         }
 
-    def _filter_diagnostics(self, diags: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def _filter_diagnostics(
+        self, diags: List[Dict[str, Any]], *, cf_editor: bool = False
+    ) -> List[Dict[str, Any]]:
         ignore_codes = {"F405", "F403", "F401", "E402"}
+        if cf_editor:
+            ignore_codes = ignore_codes | {"F811"}
         skip_phrases = [
             "unable to detect undefined names",
             "imported but unused",
         ]
+        if cf_editor:
+            skip_phrases = list(skip_phrases) + ["redefinition of unused", "redefinition of"]
         filtered = []
         for d in diags or []:
             code = str(d.get("code", "")).strip()
@@ -587,6 +633,56 @@ class PylspClient:
                 continue
             filtered.append(d)
         return filtered
+
+    def _custom_function_completions(self, prefix: str) -> List[Dict[str, Any]]:
+        try:
+            from app.core.main.CustomFunctionRegistry import custom_function_registry
+            items: List[Dict[str, Any]] = []
+            pfx = (prefix or '').lower()
+            for sym in custom_function_registry.get_intelli_cache():
+                name = sym.get('name') or ''
+                if not self._is_identifier(name):
+                    continue
+                if pfx and not name.lower().startswith(pfx):
+                    continue
+                cf_module = sym.get('module') or ''
+                doc = sym.get('doc') or ''
+                items.append({
+                    'name': name,
+                    'type': 'function',
+                    'signature': sym.get('signature') or '()',
+                    'doc': doc,
+                    'meta': cf_module or 'CustomFunction',
+                    'sortText': '0_' + name,
+                })
+            return items
+        except Exception as exc:
+            logger.debug("lsp custom_function_completions failed: %s", exc)
+            return []
+
+    def _custom_function_hover(self, word: str) -> Optional[str]:
+        if not word or not self._is_identifier(word):
+            return None
+        try:
+            from app.core.main.CustomFunctionRegistry import custom_function_registry
+            for sym in custom_function_registry.get_intelli_cache():
+                if sym.get('name') != word:
+                    continue
+                sig = sym.get('signature') or '()'
+                lines = [f"**{word}**`{sig}`"]
+                cf_module = sym.get('module') or ''
+                if cf_module.startswith('CustomFunction:'):
+                    lines.append(f"*{cf_module}*")
+                elif cf_module:
+                    lines.append(f"*{cf_module}*")
+                doc = sym.get('doc') or ''
+                if doc:
+                    lines.append('')
+                    lines.append(_format_doc_markdown(doc))
+                return '\n'.join(lines)
+        except Exception as exc:
+            logger.debug("lsp custom_function_hover failed: %s", exc)
+        return None
 
     def _object_name_completions(self, prefix: str, quote: str, in_string: bool) -> List[Dict[str, Any]]:
         try:
@@ -1008,6 +1104,7 @@ def run_lsp_action(
     timeout: float = 2.5,
     object_name: Optional[str] = None,
     module_name: Optional[str] = None,
+    exclude_custom_function: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Выполняет действие LSP и возвращает унифицированный ответ для API / WS.
@@ -1019,16 +1116,19 @@ def run_lsp_action(
         timeout: таймаут для diagnostics
         object_name: имя объекта для self binding
         module_name: путь к модулю для импорта класса (например, "plugins.TelegramBot")
+        exclude_custom_function: имя редактируемой CF (не дублировать её код в прологе)
     """
     normalized_action = (action or "").lower()
     safe_line = max(1, int(line or 1))
     safe_column = max(0, int(column or 0))
     obj_shape = pylsp_client._object_shape(object_name)
-    prepared_code, line_offset = pylsp_client._prepare_lsp_code(code, object_name, module_name)
+    prepared_code, line_offset = pylsp_client._prepare_lsp_code(
+        code, object_name, module_name, exclude_custom_function=exclude_custom_function
+    )
     adj_line = safe_line + line_offset
 
     if normalized_action == "completion":
-        items = pylsp_client.completion(prepared_code, adj_line, safe_column)
+        items = pylsp_client.completion(prepared_code, adj_line, safe_column) or []
         # Дополняем подсказками из shape, чтобы у методов был description
         prefix = pylsp_client._prefix_at(code, safe_line, safe_column)
         if obj_shape and object_name and pylsp_client._is_self_context(code, safe_line, safe_column):
@@ -1089,16 +1189,48 @@ def run_lsp_action(
                 else:
                     items = pylsp_client._object_name_completions(cm_prefix, cm_quote, cm_in_string) + items
 
+        if not gp_ctx and not cm_ctx:
+            cf_items = pylsp_client._custom_function_completions(prefix)
+            if exclude_custom_function:
+                try:
+                    from app.core.main.CustomFunctionRegistry import custom_function_registry
+                    own_symbols = custom_function_registry.get_exported_symbols(
+                        exclude_custom_function
+                    )
+                    cf_items = [
+                        itm for itm in cf_items
+                        if (itm.get('name') or '') not in own_symbols
+                    ]
+                except Exception:
+                    pass
+            cf_names = {c.get('name') for c in cf_items}
+            items = cf_items + [
+                itm for itm in items
+                if (itm.get('name') or itm.get('label') or '') not in cf_names
+            ]
+
         items = pylsp_client._filter_private_items(items, prefix)
+        if prefix:
+            pfx = prefix.lower()
+            items = [
+                itm for itm in items
+                if not pfx
+                or (itm.get('name') or itm.get('label') or '').lower().startswith(pfx)
+            ]
         return {"action": "completion", "items": items}
 
     if normalized_action == "hover":
+        word = pylsp_client._word_at(code, safe_line, safe_column)
+        # In CF code editor use pylsp on buffer (live docstring), not stale registry text.
+        if not exclude_custom_function:
+            cf_hover = pylsp_client._custom_function_hover(word)
+            if cf_hover:
+                return {"action": "hover", "hover": {"contents": cf_hover}}
+
         hover = pylsp_client.hover(prepared_code, adj_line, safe_column)
         if hover and hover.get("range"):
             hover["range"] = pylsp_client._shift_range(hover.get("range"), line_offset)
         if not hover or not hover.get("contents"):
-            word = pylsp_client._word_at(code, safe_line, safe_column)
-
             # Сначала проверяем, находится ли курсор на члене объекта (object.member)
             # Применяем только если есть self и указан object_name
             if object_name:
@@ -1144,14 +1276,19 @@ def run_lsp_action(
 
     if normalized_action == "diagnostics":
         diags = pylsp_client.diagnostics(prepared_code, timeout=timeout)
+        diags = pylsp_client._drop_prelude_diags(diags, line_offset)
         shifted = []
         for diag in diags:
             rng = pylsp_client._shift_range(diag.get("range"), line_offset)
-            if rng:
-                diag = dict(diag)
-                diag["range"] = rng
+            if rng is None:
+                continue
+            diag = dict(diag)
+            diag["range"] = rng
             shifted.append(diag)
-        return {"action": "diagnostics", "diagnostics": pylsp_client._filter_diagnostics(shifted)}
+        filtered = pylsp_client._filter_diagnostics(
+            shifted, cf_editor=bool(exclude_custom_function)
+        )
+        return {"action": "diagnostics", "diagnostics": filtered}
 
     if normalized_action == "signature":
         sig = pylsp_client.signature_help(prepared_code, adj_line, safe_column)

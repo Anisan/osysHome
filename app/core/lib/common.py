@@ -2,7 +2,7 @@
 import threading
 from contextlib import contextmanager
 import datetime
-from typing import Optional, Union
+from typing import Any, Literal, Optional, Union
 from zoneinfo import ZoneInfo
 from sqlalchemy import update, delete
 import xml.etree.ElementTree as ET
@@ -747,3 +747,88 @@ def is_datetime_in_range(
                 return False
 
     return True
+
+
+_MALE_GENDER_STRINGS = frozenset({
+    'male', 'man', 'm', '1', 'true',
+    'мужчина', 'мужской', 'мужское', 'мужского', 'муж', 'м',
+})
+_FEMALE_GENDER_STRINGS = frozenset({
+    'female', 'woman', 'f', '0', 'false',
+    'женщина', 'женский', 'женской', 'женское', 'женского', 'жен', 'ж',
+})
+_UNKNOWN_GENDER_STRINGS = frozenset({
+    'unknown', 'unk', 'none', 'null',
+    'неизвестно', 'не указан', 'не указано', 'any', 'neutral', 'нейтральный',
+})
+
+GenderKey = Literal['male', 'female', 'unknown']
+
+
+def normalize_gender(gender: Any) -> GenderKey:
+    """
+    Приводит значение пола к одному из: 'male', 'female', 'unknown'.
+
+    Строки нормализуются (strip + casefold). Число 1 и bool True — мужской пол.
+    Число 0 — женский пол. bool False, None и пустая строка — неизвестный пол.
+    """
+    if gender is None:
+        return 'unknown'
+    if isinstance(gender, bool):
+        return 'male' if gender else 'female'
+    if isinstance(gender, int):
+        if gender == 1:
+            return 'male'
+        if gender == 0:
+            return 'female'
+        return 'unknown'
+    if isinstance(gender, str):
+        key = gender.strip().casefold()
+        if not key or key in _UNKNOWN_GENDER_STRINGS:
+            return 'unknown'
+        if key in _MALE_GENDER_STRINGS:
+            return 'male'
+        if key in _FEMALE_GENDER_STRINGS:
+            return 'female'
+        return 'unknown'
+    return 'unknown'
+
+
+def inflect_by_gender(
+    gender: Any,
+    base: str,
+    male_end: str,
+    female_end: str,
+    default_end: str = '',
+) -> str:
+    """
+    Склоняет слово (или фразу) по полу, добавляя к основе нужное окончание.
+
+    Удобно для русских текстов в сценариях и уведомлениях: «он пришёл» / «она пришла»,
+    «готов» / «готова» и т.п. — передаёте основу и суффиксы, функция возвращает
+    base + male_end | base + female_end | base + default_end.
+
+    Args:
+        gender: Пол (см. normalize_gender). Неизвестное значение → default_end.
+        base: Основа слова без окончания (например, «готов»).
+        male_end: Окончание для мужского рода (например, «» или «ой»).
+        female_end: Окончание для женского рода (например, «а»).
+        default_end: Окончание при неопределённом поле; по умолчанию '' (нейтральная
+            форма совпадает с base).
+
+    Returns:
+        str: Склеенная строка base + суффикс.
+
+    Example:
+        inflect_by_gender('female', 'готов', '', 'а')  # 'готова'
+        inflect_by_gender(1, 'он ', 'пришёл', 'пришла')  # 'он пришёл'
+        inflect_by_gender(None, 'готов', '', 'а')  # 'готов'
+        inflect_by_gender(0, 'готов', '', 'а')  # 'готова'
+    """
+    match normalize_gender(gender):
+        case 'male':
+            return base + male_end
+        case 'female':
+            return base + female_end
+        case _:
+            return base + default_end

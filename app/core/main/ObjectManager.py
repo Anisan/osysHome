@@ -1317,10 +1317,25 @@ class ObjectManager:
             }
             methods = self.methods[name].methods
             output = ''
+            method_context = {
+                'object': self.name,
+                'method': name,
+                'owner': None,
+                'source': source,
+            }
             for method in methods:
-                res, error = execute_and_capture_output(method['code'],variables)
+                method_context['owner'] = method.get('owner')
+                res, error = execute_and_capture_output(
+                    method['code'],
+                    variables,
+                    code_filename=f"<Method:{self.name}.{name}>",
+                    method_context=method_context,
+                )
                 if error:
-                    self._logger.error("Error executing method %s.%s: %s", method['owner'], name, res)
+                    self._logger.error(
+                        "Error executing method %s.%s: %s",
+                        method['owner'], name, res,
+                    )
                     output += "Error method in " + method['owner'] + "\n" + res
                     break
                 if res:

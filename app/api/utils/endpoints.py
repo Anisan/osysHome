@@ -137,7 +137,12 @@ class IntelliPython(Resource):
     @handle_user_required
     @utils_ns.doc(security="apikey")
     def get(self):
-        cache = current_app.extensions.get('intelli_cache', [])
+        cache = list(current_app.extensions.get('intelli_cache', []))
+        try:
+            from app.core.main.CustomFunctionRegistry import custom_function_registry
+            cache.extend(custom_function_registry.get_intelli_cache())
+        except Exception:
+            pass
         return {"symbols": cache}
 
 
@@ -150,6 +155,10 @@ lsp_request_model = utils_ns.model(
         "column": fields.Integer(required=False, description="0-based column number for position-based actions"),
         "object_name": fields.String(required=False, description="Object name for self binding"),
         "module_name": fields.String(required=False, description="Module path for self type (e.g., 'plugins.TelegramBot')"),
+        "exclude_custom_function": fields.String(
+            required=False,
+            description="CustomFunction name to omit from LSP prelude (editor for that CF)",
+        ),
     },
 )
 
@@ -171,12 +180,21 @@ class LspPython(Resource):
         column = payload.get("column")
         object_name = payload.get("object_name")
         module_name = payload.get("module_name")
+        exclude_custom_function = payload.get("exclude_custom_function")
 
         if not action:
             return {"success": False, "error": "Action is required"}, 400
 
         try:
-            result = run_lsp_action(action, code, line=line, column=column, object_name=object_name, module_name=module_name)
+            result = run_lsp_action(
+                action,
+                code,
+                line=line,
+                column=column,
+                object_name=object_name,
+                module_name=module_name,
+                exclude_custom_function=exclude_custom_function,
+            )
             result["success"] = True
             return result, 200
         except Exception as ex:

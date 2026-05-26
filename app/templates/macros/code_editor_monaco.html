@@ -1,4 +1,4 @@
-{% macro render_editor(field_edit, syntax, object_name=None, module_name=None) %}
+{% macro render_editor(field_edit, syntax, object_name=None, module_name=None, exclude_custom_function=None) %}
 <style>
     .monaco-editor-wrapper {
         border: 1px solid #ccc;
@@ -197,7 +197,7 @@
 </style>
 
 <textarea name="{{ field_edit.name }}" id="{{ field_edit.name }}" style="display:none;">{{ field_edit.data or '' }}</textarea>
-<div id="monaco-wrapper-{{ field_edit.name|replace('.', '_')|replace('[', '_')|replace(']', '_') }}" class="monaco-editor-wrapper" data-object-name="{{ object_name or '' }}" data-module-name="{{ module_name or '' }}">
+<div id="monaco-wrapper-{{ field_edit.name|replace('.', '_')|replace('[', '_')|replace(']', '_') }}" class="monaco-editor-wrapper" data-object-name="{{ object_name or '' }}" data-module-name="{{ module_name or '' }}" data-exclude-custom-function="{{ exclude_custom_function or '' }}">
     <div class="monaco-editor-toolbar">
         <div class="toolbar-left">
             <div class="btn-group btn-group-sm" role="group" aria-label="{{ gettext('Editing actions') }}">
@@ -289,6 +289,26 @@
     var wrapper = document.getElementById(wrapperId);
     var objectName = wrapper ? (wrapper.dataset.objectName || null) : null;
     var moduleName = wrapper ? (wrapper.dataset.moduleName || null) : null;
+    var excludeCustomFunction = wrapper ? (wrapper.dataset.excludeCustomFunction || null) : null;
+    if (excludeCustomFunction === '') {
+        excludeCustomFunction = null;
+    }
+    if (!excludeCustomFunction) {
+        var cfHidden = document.getElementById('cf-lsp-exclude-name');
+        if (cfHidden && cfHidden.value) {
+            excludeCustomFunction = cfHidden.value;
+        }
+    }
+    if (!excludeCustomFunction && /CustomFunctions/i.test(window.location.pathname || '')) {
+        var cfNameMatch = window.location.search.match(/[?&]name=([^&]+)/);
+        if (cfNameMatch) {
+            try {
+                excludeCustomFunction = decodeURIComponent(cfNameMatch[1].replace(/\+/g, ' '));
+            } catch (e) {
+                excludeCustomFunction = cfNameMatch[1];
+            }
+        }
+    }
     var resizer = document.getElementById("monaco-resize-" + editorKey);
     var formElement = container ? container.closest('form') : null;
     var isPython = syntax === "python";
@@ -346,6 +366,136 @@
     // === LSP helpers (HTTP + optional websocket fallback) ===
     var lspPending = window.__monacoLspPending || {};
     window.__monacoLspPending = lspPending;
+    var monacoLspModels = window.__monacoLspModels || new WeakMap();
+    window.__monacoLspModels = monacoLspModels;
+
+    function bindMonacoLspModel(model, api) {
+        if (model && api) {
+            monacoLspModels.set(model, api);
+        }
+    }
+
+    function getMonacoLspApi(model) {
+        return model ? monacoLspModels.get(model) : null;
+    }
+
+    function ensureMonacoPythonLspProviders() {
+        if (window.__monacoPythonLspProvidersReady || typeof monaco === 'undefined') {
+            return;
+        }
+        window.__monacoPythonLspProvidersReady = true;
+
+        monaco.languages.registerCompletionItemProvider('python', {
+            triggerCharacters: ['.', '(', '"', "'"],
+            provideCompletionItems: function(model, position) {
+                var api = getMonacoLspApi(model);
+                if (!api) {
+                    return { suggestions: [] };
+                }
+                var payload = {
+                    code: model.getValue(),
+                    line: position.lineNumber,
+                    column: Math.max(0, position.column - 1)
+                };
+                return api.lspRequest('completion', payload)
+                    .then(function(resp) {
+                        var items = resp.items || [];
+                        return { suggestions: items.map(api.toCompletion) };
+                    })
+                    .catch(function(err) {
+                        console.warn('LSP completion failed', err);
+                        return { suggestions: [] };
+                    });
+            }
+        });
+
+        monaco.languages.registerHoverProvider('python', {
+            provideHover: function(model, position) {
+                var api = getMonacoLspApi(model);
+                if (!api) {
+                    return null;
+                }
+                var payload = {
+                    code: model.getValue(),
+                    line: position.lineNumber,
+                    column: Math.max(0, position.column - 1)
+                };
+                return api.lspRequest('hover', payload)
+                    .then(function(resp) {
+                        var hover = resp.hover;
+                        if (!hover || !hover.contents) {
+                            return null;
+                        }
+                        var contentValue = typeof hover.contents === 'string'
+                            ? hover.contents
+                            : (hover.contents.value || "");
+                        var range = hover.range || {};
+                        var start = range.start || {};
+                        var end = range.end || start;
+                        return {
+                            contents: [{ value: contentValue }],
+                            range: range.start ? {
+                                startLineNumber: (start.line || 0) + 1,
+                                startColumn: (start.character || 0) + 1,
+                                endLineNumber: (end.line || start.line || 0) + 1,
+                                endColumn: (end.character || start.character || 0) + 1
+                            } : undefined
+                        };
+                    })
+                    .catch(function(err) {
+                        console.warn('LSP hover failed', err);
+                        return null;
+                    });
+            }
+        });
+
+        monaco.languages.registerSignatureHelpProvider('python', {
+            signatureHelpTriggerCharacters: ['(', ','],
+            provideSignatureHelp: function(model, position) {
+                var api = getMonacoLspApi(model);
+                if (!api) {
+                    return {
+                        value: { signatures: [], activeSignature: 0, activeParameter: 0 },
+                        dispose: function() {}
+                    };
+                }
+                var payload = {
+                    code: model.getValue(),
+                    line: position.lineNumber,
+                    column: Math.max(0, position.column - 1)
+                };
+                return api.lspRequest('signature', payload)
+                    .then(function(resp) {
+                        var sig = resp.signature;
+                        if (!sig) {
+                            return {
+                                value: { signatures: [], activeSignature: 0, activeParameter: 0 },
+                                dispose: function() {}
+                            };
+                        }
+                        return {
+                            value: {
+                                signatures: [{
+                                    label: sig.label || '',
+                                    documentation: sig.doc || '',
+                                    parameters: (sig.parameters || []).map(function(p) { return { label: p }; })
+                                }],
+                                activeSignature: 0,
+                                activeParameter: sig.activeParameter || 0
+                            },
+                            dispose: function() {}
+                        };
+                    })
+                    .catch(function(err) {
+                        console.warn('LSP signature failed', err);
+                        return {
+                            value: { signatures: [], activeSignature: 0, activeParameter: 0 },
+                            dispose: function() {}
+                        };
+                    });
+            }
+        });
+    }
 
     function ensureSocketLspListener() {
         if (!window.socket || window.__monacoLspBound) return;
@@ -372,6 +522,9 @@
         }
         if (moduleName) {
             payload.module_name = moduleName;
+        }
+        if (excludeCustomFunction) {
+            payload.exclude_custom_function = String(excludeCustomFunction);
         }
 
         var useSocket = window.socket && window.socket.connected;
@@ -811,6 +964,9 @@
         editor.getModel().onDidChangeContent(syncValue);
         syncValue();
 
+        window.__monacoEditors = window.__monacoEditors || {};
+        window.__monacoEditors[editorKey] = editor;
+
         function performSave() {
             syncValue();
             if (formElement) {
@@ -899,20 +1055,38 @@
                 return map[kind] || monaco.languages.CompletionItemKind.Text;
             }
 
+            function formatDocMarkdown(doc) {
+                doc = (doc || '').trim();
+                if (!doc) return '';
+                if (doc.indexOf('```') === 0) return doc;
+                return '```\n' + doc.replace(/```/g, '\\`\\`\\`') + '\n```';
+            }
+
             function toCompletion(item) {
                 var label = item.name || '';
-                var detail = item.signature || item.meta || '';
+                var sig = item.signature || '()';
+                var meta = item.meta || '';
+                var isCustomFn = meta.indexOf('CustomFunction:') === 0;
+                var detail = isCustomFn ? (meta + ' ' + sig) : (sig || meta);
                 var doc = item.doc || '';
-                var documentation = doc ? { value: "**" + label + "** " + detail + "\n\n" + doc } : detail;
-                // Не вставляем параметры: используем чистое имя без хвоста после "("
+                var docBody = doc ? formatDocMarkdown(doc) : '';
+                var docBlock = doc
+                    ? { value: "**" + label + "**`" + sig + "`\n\n" + (isCustomFn ? ("*" + meta + "*\n\n") : "") + docBody }
+                    : (isCustomFn ? { value: "**" + label + "**`" + sig + "`\n\n*" + meta + "*" } : detail);
                 var insertText = label.replace(/\(.*$/, '');
-                return {
+                var suggestion = {
                     label: label,
                     insertText: insertText,
                     kind: completionKind(item.type),
                     detail: detail,
-                    documentation: documentation
+                    documentation: docBlock
                 };
+                if (item.sortText) {
+                    suggestion.sortText = item.sortText;
+                } else if (isCustomFn) {
+                    suggestion.sortText = '0_' + label;
+                }
+                return suggestion;
             }
 
             function mapSeverity(code) {
@@ -961,96 +1135,11 @@
                     });
             }
 
-            monaco.languages.registerCompletionItemProvider('python', {
-                triggerCharacters: ['.', '(', '"', "'"],
-                provideCompletionItems: function(model, position) {
-                    var payload = {
-                        code: model.getValue(),
-                        line: position.lineNumber,
-                        column: Math.max(0, position.column - 1)
-                    };
-                    return lspRequest('completion', payload)
-                        .then(function(resp) {
-                            var items = resp.items || [];
-                            return { suggestions: items.map(toCompletion) };
-                        })
-                        .catch(function(err) {
-                            console.warn('LSP completion failed', err);
-                            return { suggestions: [] };
-                        });
-                }
+            bindMonacoLspModel(editor.getModel(), {
+                lspRequest: lspRequest,
+                toCompletion: toCompletion
             });
-
-            monaco.languages.registerHoverProvider('python', {
-                provideHover: function(model, position) {
-                    var payload = {
-                        code: model.getValue(),
-                        line: position.lineNumber,
-                        column: Math.max(0, position.column - 1)
-                    };
-                    return lspRequest('hover', payload)
-                        .then(function(resp) {
-                            var hover = resp.hover;
-                            if (!hover || !hover.contents) return null;
-                            var contentValue = typeof hover.contents === 'string'
-                                ? hover.contents
-                                : (hover.contents.value || "");
-                            var range = hover.range || {};
-                            var start = range.start || {};
-                            var end = range.end || start;
-                            return {
-                                contents: [{ value: contentValue }],
-                                range: range.start ? {
-                                    startLineNumber: (start.line || 0) + 1,
-                                    startColumn: (start.character || 0) + 1,
-                                    endLineNumber: (end.line || start.line || 0) + 1,
-                                    endColumn: (end.character || start.character || 0) + 1
-                                } : undefined
-                            };
-                        })
-                        .catch(function(err) {
-                            console.warn('LSP hover failed', err);
-                            return null;
-                        });
-                }
-            });
-
-            monaco.languages.registerSignatureHelpProvider('python', {
-                signatureHelpTriggerCharacters: ['(', ','],
-                provideSignatureHelp: function(model, position) {
-                    var payload = {
-                        code: model.getValue(),
-                        line: position.lineNumber,
-                        column: Math.max(0, position.column - 1)
-                    };
-                    return lspRequest('signature', payload)
-                        .then(function(resp) {
-                            var sig = resp.signature;
-                            if (!sig) {
-                                return {
-                                    value: { signatures: [], activeSignature: 0, activeParameter: 0 },
-                                    dispose: function() {}
-                                };
-                            }
-                            return {
-                                value: {
-                                    signatures: [{
-                                        label: sig.label || '',
-                                        documentation: sig.doc || '',
-                                        parameters: (sig.parameters || []).map(function(p) { return { label: p }; })
-                                    }],
-                                    activeSignature: 0,
-                                    activeParameter: sig.activeParameter || 0
-                                },
-                                dispose: function() {}
-                            };
-                        })
-                        .catch(function(err) {
-                            console.warn('LSP signature failed', err);
-                            return { value: { signatures: [], activeSignature: 0, activeParameter: 0 }, dispose: function() {} };
-                        });
-                }
-            });
+            ensureMonacoPythonLspProviders();
 
             editor.onDidChangeModelContent(function() {
                 clearTimeout(diagTimer);

@@ -127,6 +127,12 @@ if value > 25:
 
 ---
 
+## CustomFunction
+
+Shared Python helpers for object methods, Scheduler, and `runCode` (hot reload after save). Full documentation is in the **Custom Functions** module: open [/admin/CustomFunctions](/admin/CustomFunctions) and click **Information** in the page header.
+
+---
+
 ## Public API
 
 Use the API from `app.core.lib.object` to work with objects from method code, plugins, and automations:

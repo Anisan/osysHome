@@ -100,6 +100,9 @@ def createApp(config_object):
     registerErrorHandlers(app)
     registerShellcontext(app)
     registerCommands(app)
+    # importlib: "import app.core..." would shadow local Flask variable "app"
+    import importlib
+    importlib.import_module('app.core.models.CustomFunctions')
     from app.database import sync_db
     sync_db(app)  # sync system tables
     registerPlugins(app)
@@ -166,6 +169,10 @@ def createApp(config_object):
 
         cache = build_intelli_cache(all_modules)
         app.extensions['intelli_cache'] = cache
+
+        from app.core.main.CustomFunctionRegistry import custom_function_registry
+        custom_function_registry.load_all()
+        app.extensions['custom_function_intelli_cache'] = custom_function_registry.get_intelli_cache()
 
     return app
 
