@@ -17,7 +17,7 @@ from app.utils import get_current_version
 
 from .logging_config import getLogger, security_audit_log
 _logger = getLogger('flask')
-_logger_error_http = getLogger('404')
+_logger_error_http = getLogger('http_errors')
 
 
 def _get_client_ip():
@@ -25,6 +25,36 @@ def _get_client_ip():
     if request.headers.getlist("X-Forwarded-For"):
         return request.headers.getlist("X-Forwarded-For")[0]
     return request.remote_addr or '?'
+
+
+def _get_request_source():
+    """Краткое описание источника запроса для логов безопасности."""
+    return {
+        "ip": _get_client_ip(),
+        "referrer": request.referrer or request.headers.get("Referer") or "",
+        "origin": request.headers.get("Origin", ""),
+        "host": request.host or "",
+    }
+
+
+def _log_http_error(level, message, details=None):
+    """Единый расширенный формат для _logger_error_http."""
+    source = _get_request_source()
+    resource = request.full_path.rstrip('?') or request.path or request.url
+    log_method = getattr(_logger_error_http, level, _logger_error_http.warning)
+    log_method(
+        "%s: resource=%s endpoint=%s source_ip=%s referrer=%s origin=%s host=%s method=%s user=%s details=%s",
+        message,
+        resource,
+        request.endpoint or '?',
+        source["ip"],
+        source["referrer"],
+        source["origin"],
+        source["host"],
+        request.method,
+        getattr(current_user, 'username', '') or 'anonymous',
+        details or '',
+    )
 
 def createApp(config_object):
     """An application factory, as explained here:
@@ -70,6 +100,9 @@ def createApp(config_object):
     registerErrorHandlers(app)
     registerShellcontext(app)
     registerCommands(app)
+    # importlib: "import app.core..." would shadow local Flask variable "app"
+    import importlib
+    importlib.import_module('app.core.models.CustomFunctions')
     from app.database import sync_db
     sync_db(app)  # sync system tables
     registerPlugins(app)
@@ -136,6 +169,10 @@ def createApp(config_object):
 
         cache = build_intelli_cache(all_modules)
         app.extensions['intelli_cache'] = cache
+
+        from app.core.main.CustomFunctionRegistry import custom_function_registry
+        custom_function_registry.load_all()
+        app.extensions['custom_function_intelli_cache'] = custom_function_registry.get_intelli_cache()
 
     return app
 
@@ -368,6 +405,7 @@ def registerErrorHandlers(app):
 
         # Доступ запрещён (недостаточно прав)
         if access is False:
+            _log_http_error('warning', "403 Forbidden (pre-check)")
             if request.blueprint == 'api':
                 return jsonify({
                     'success': False,
@@ -386,7 +424,7 @@ def registerErrorHandlers(app):
     # Обработчик ошибки 404
     @app.errorhandler(404)
     def page_not_found(error):
-        _logger_error_http.info(f"404 error from {request.remote_addr}: {request.url}")
+        _log_http_error('info', "404 Not Found", error)
         return render_template('errors/page-404.html'), 404
 
     @app.errorhandler(403)
@@ -400,7 +438,7 @@ def registerErrorHandlers(app):
             )
         except Exception:
             pass
-        _logger_error_http.warning(error)
+        _log_http_error('warning', "403 Forbidden", error)
         return render_template('errors/page-403.html'), 403
 
     @app.route('/forbidden')

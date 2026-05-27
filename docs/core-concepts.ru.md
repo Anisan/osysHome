@@ -159,6 +159,12 @@ if params and params.get("NEW_VALUE") is not None and params["NEW_VALUE"] > 25:
 
 ---
 
+## CustomFunction (пользовательские функции)
+
+Общие Python-функции для методов, Scheduler и `runCode` (после сохранения — без перезапуска). Полная документация в модуле **Пользовательские функции**: [/admin/CustomFunctions](/admin/CustomFunctions) → **Информация** в шапке страницы.
+
+---
+
 ## Публичный API
 
 Для работы с объектами из кода методов, плагинов и автоматизаций используется API из модуля `app.core.lib.object`:

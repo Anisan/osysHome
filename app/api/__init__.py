@@ -13,6 +13,7 @@ from app.api.export.endpoints import export_ns
 from app.api.import_.endpoints import import_ns
 from app.api.sql.endpoints import sql_ns
 from app.api.plugins.endpoints import plugins_ns
+from app.api.custom_functions.endpoints import custom_functions_ns
 
 _logger = getLogger("api")
 
@@ -89,3 +90,4 @@ api.add_namespace(export_ns, path="/export")
 api.add_namespace(import_ns, path="/import")
 api.add_namespace(sql_ns, path="/sql")
 api.add_namespace(plugins_ns, path="/plugins")
+api.add_namespace(custom_functions_ns, path="/custom-functions")

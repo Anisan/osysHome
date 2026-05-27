@@ -12,7 +12,7 @@ from app.core.models.Clasess import Object, Property, Value, History
 from app.core.lib.common import setTimeout
 from app.core.lib.execute import execute_and_capture_output
 from app.logging_config import getLogger
-from app.core.MonitoredThreadPool import MonitoredThreadPool
+from app.core.MonitoredThreadPool import AdaptiveThreadPoolRouter
 from app.configuration import Config
 import threading
 from dataclasses import dataclass
@@ -28,8 +28,19 @@ class ObjectLoggerAdapter(logging.LoggerAdapter):
         object_name = self.extra.get('object_name', 'Unknown')
         return f'[{object_name}] {msg}', kwargs
 
-# Глобальный пул потоков
-_poolLinkedProperty = MonitoredThreadPool(thread_name_prefix="linkedProperty")
+# Глобальный роутер потоков для linkedProperty/proxy задач.
+# Safe-by-default: неизвестные/проблемные плагины попадают в quarantine pool.
+_poolLinkedProperty = AdaptiveThreadPoolRouter(
+    pool_name="linkedProperty",
+    trusted_queue_size=Config.POOL_MAX_SIZE if Config.POOL_MAX_SIZE is not None else ((Config.POOL_SIZE if Config.POOL_SIZE is not None else 10) * 5),
+    medium_queue_size=max(10, (Config.POOL_MAX_SIZE if Config.POOL_MAX_SIZE is not None else (Config.POOL_SIZE if Config.POOL_SIZE is not None else 10) * 5)),
+    safe_queue_size=max(5, (Config.POOL_MAX_SIZE if Config.POOL_MAX_SIZE is not None else (Config.POOL_SIZE if Config.POOL_SIZE is not None else 10) * 5)),
+    promotion_success_threshold_medium=1,
+    promotion_success_threshold=20,
+    max_failure_ratio_for_promotion=0.05,
+    timeout_like_degrade_threshold=3,
+    quarantine_duration_seconds=300,
+)
 
 
 @dataclass
@@ -1118,7 +1129,14 @@ class ObjectManager:
 
                             # _poolLinkedProperty.submit(task_wrapper(plugin, self.name, name, value), task_id=f"{self.name, name}")
 
-                            _poolLinkedProperty.submit(plugin.changeLinkedProperty, f"{link}_{self.name}.{name}", self.name, name, value)
+                            _poolLinkedProperty.submit(
+                                plugin.changeLinkedProperty,
+                                f"{link}_{self.name}.{name}",
+                                link,
+                                self.name,
+                                name,
+                                value
+                            )
                         except Exception as e:
                             _logger.exception(e)
 
@@ -1131,7 +1149,15 @@ class ObjectManager:
                     #         plugin.changeProperty(object_name, property_name, property_value)
                     #     return wrapper
                     # _poolLinkedProperty.submit(task_wrapper(plugin, self.name, name, value), task_id=f"proxy_{self.name, name}")
-                    _poolLinkedProperty.submit(plugin.changeProperty, f"proxy_{plugin.name}_{self.name}.{name}", self.name, name, value)
+                    _poolLinkedProperty.submit(
+                        plugin.changeProperty,
+                        f"proxy_{plugin.name}_{self.name}.{name}",
+                        f"proxy:{plugin.name}",
+                        self.name,
+                        name,
+                        value,
+                        ignore_owner_limit=True,
+                    )
 
                 except Exception as e:
                     _logger.exception(e)
@@ -1291,10 +1317,25 @@ class ObjectManager:
             }
             methods = self.methods[name].methods
             output = ''
+            method_context = {
+                'object': self.name,
+                'method': name,
+                'owner': None,
+                'source': source,
+            }
             for method in methods:
-                res, error = execute_and_capture_output(method['code'],variables)
+                method_context['owner'] = method.get('owner')
+                res, error = execute_and_capture_output(
+                    method['code'],
+                    variables,
+                    code_filename=f"<Method:{self.name}.{name}>",
+                    method_context=method_context,
+                )
                 if error:
-                    self._logger.error("Error executing method %s.%s: %s", method['owner'], name, res)
+                    self._logger.error(
+                        "Error executing method %s.%s: %s",
+                        method['owner'], name, res,
+                    )
                     output += "Error method in " + method['owner'] + "\n" + res
                     break
                 if res:

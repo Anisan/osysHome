@@ -966,3 +966,105 @@ def getHistoryAggregate(name:str, dt_begin:datetime = None, dt_end:datetime = No
     except Exception as e:
         logger.exception('getHistoryAggregate %s: %s',name,e)
     return None
+
+
+def addCustomFunction(
+    name: str,
+    code: str = _UNSET,
+    test_code: str = _UNSET,
+    description: str = _UNSET,
+    order: int = _UNSET,
+    active: bool = _UNSET,
+    update: bool = False,
+) -> bool:
+    """Add or update a CustomFunction in the database."""
+    from app.core.models.CustomFunctions import CustomFunction
+    from app.core.main.CustomFunctionRegistry import custom_function_registry
+
+    with session_scope() as session:
+        row = session.query(CustomFunction).filter(CustomFunction.name == name).one_or_none()
+        if not row:
+            row = CustomFunction()
+            row.name = name
+            row.code = '' if code is _UNSET else code
+            row.test_code = '' if test_code is _UNSET else test_code
+            row.description = '' if description is _UNSET else description
+            row.order = 0 if order is _UNSET else order
+            row.active = True if active is _UNSET else active
+            session.add(row)
+            session.commit()
+        elif not update:
+            return False
+        else:
+            if code is not _UNSET:
+                row.code = code
+            if test_code is not _UNSET:
+                row.test_code = test_code
+            if description is not _UNSET:
+                row.description = description
+            if order is not _UNSET:
+                row.order = order
+            if active is not _UNSET:
+                row.active = active
+            session.commit()
+
+    custom_function_registry.reload(name)
+    return True
+
+
+def deleteCustomFunction(name: str) -> bool:
+    from app.core.models.CustomFunctions import CustomFunction
+    from app.core.main.CustomFunctionRegistry import custom_function_registry
+
+    with session_scope() as session:
+        row = session.query(CustomFunction).filter(CustomFunction.name == name).one_or_none()
+        if not row:
+            return False
+        session.delete(row)
+        session.commit()
+    custom_function_registry.reload(name)
+    return True
+
+
+def listCustomFunctions() -> list:
+    from app.core.models.CustomFunctions import CustomFunction
+    from app.core.main.CustomFunctionRegistry import custom_function_registry
+
+    errors = custom_function_registry.get_compile_errors()
+    with session_scope() as session:
+        rows = session.query(CustomFunction).order_by(CustomFunction.order, CustomFunction.name).all()
+        return [
+            {
+                'name': r.name,
+                'description': r.description,
+                'active': r.active,
+                'order': r.order,
+                'has_error': r.name in errors,
+                'error': errors.get(r.name),
+            }
+            for r in rows
+        ]
+
+
+def runCustomFunctionTest(name: str, test_code: str = None, params=None) -> tuple:
+    """Run test_code for CustomFunction. Returns (output, success)."""
+    from app.core.models.CustomFunctions import CustomFunction
+    from app.core.lib.execute import execute_and_capture_output
+
+    with session_scope() as session:
+        row = session.query(CustomFunction).filter(CustomFunction.name == name).one_or_none()
+        if not row:
+            return 'CustomFunction not found.', False
+        code = test_code if test_code is not None else (row.test_code or '')
+
+    if not code.strip():
+        return 'test_code is empty.', False
+
+    variables = {'params': params, 'logger': _logger}
+    output, error = execute_and_capture_output(
+        code,
+        variables,
+        code_filename=f'<Test:{name}>',
+        method_context={'source': f'CustomFunction.test:{name}'},
+    )
+    return output, not error

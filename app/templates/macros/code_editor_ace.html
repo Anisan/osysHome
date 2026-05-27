@@ -810,11 +810,47 @@
         })
         .catch(err => console.warn("Objects details load failed:", err));
 
+    var customFunctionSymbols = [];
+    var cfIntelliLoadedAt = 0;
+
+    function isCustomFunctionSymbol(sym) {
+        return sym && sym.module && String(sym.module).indexOf('CustomFunction:') === 0;
+    }
+
+    function mergeCustomFunctionSymbols(cfList) {
+        librarySymbols = librarySymbols.filter(function(s) { return !isCustomFunctionSymbol(s); });
+        customFunctionSymbols = cfList || [];
+        customFunctionSymbols.forEach(function(item) {
+            librarySymbols.push(item);
+            librarySymbolsMap[item.qualified_name || item.name] = item;
+        });
+    }
+
+    function refreshCustomFunctionSymbols(force) {
+        var now = Date.now();
+        if (!force && now - cfIntelliLoadedAt < 2000) {
+            return Promise.resolve(customFunctionSymbols);
+        }
+        return fetch('/api/utils/intelli-python')
+            .then(function(response) { return response.json(); })
+            .then(function(data) {
+                var cfList = (data.symbols || []).filter(isCustomFunctionSymbol);
+                mergeCustomFunctionSymbols(cfList);
+                cfIntelliLoadedAt = now;
+                return cfList;
+            })
+            .catch(function(err) {
+                console.warn('CustomFunction IntelliSense refresh failed:', err);
+                return customFunctionSymbols;
+            });
+    }
+
     fetch('/api/utils/intelli-python')
         .then(response => response.json())
         .then(data => {
-            librarySymbols = data.symbols || [];
-            librarySymbols.forEach(item => librarySymbolsMap[item.qualified_name] = item);
+            librarySymbols = (data.symbols || []).filter(function(s) { return !isCustomFunctionSymbol(s); });
+            librarySymbols.forEach(item => librarySymbolsMap[item.qualified_name || item.name] = item);
+            mergeCustomFunctionSymbols((data.symbols || []).filter(isCustomFunctionSymbol));
             updateCompleter();
         })
         .catch(err => console.warn("IntelliSense load failed:", err));
@@ -1050,58 +1086,74 @@
 
                 if (prefix.length === 0) return callback(null, []);
 
-                var completions = [];
+                var prefixLower = prefix.toLowerCase();
 
-                // Статические функции
-                staticApi.forEach(function(item) {
-                    var docEsc = escapeHtml(item.doc);
-                    completions.push({
-                        caption: item.word + item.args,
-                        value: item.word,
-                        meta: "osysHome",
-                        docHTML: `
-<b>${item.word}</b>${item.args}
-<pre style="margin-top:4px; white-space:pre-wrap; font-family:system-ui, sans-serif; font-size:12px;">${docEsc}</pre>
-                        `
+                function matchesPrefix(value) {
+                    return value && String(value).toLowerCase().indexOf(prefixLower) === 0;
+                }
+
+                function buildCompletions() {
+                    var completions = [];
+
+                    customFunctionSymbols.forEach(function(sym) {
+                        var name = sym.name || '';
+                        if (!matchesPrefix(name)) return;
+                        var sig = sym.signature || '()';
+                        var docEsc = escapeHtml(sym.doc || 'Без описания.');
+                        var cfLabel = sym.module || 'CustomFunction';
+                        completions.push({
+                            caption: name + sig,
+                            value: name,
+                            meta: cfLabel,
+                            score: 2000,
+                            docHTML: `<b>${name}</b>${sig}<br><small style="color:#888">${cfLabel}</small><pre style="margin-top:4px; white-space:pre-wrap; font-family:system-ui, sans-serif; font-size:12px;">${docEsc}</pre>`
+                        });
                     });
-                });
 
-                // Символы из библиотек
-                librarySymbols.forEach(function(sym) {
-                    var displayName = sym.type === "method"
-                        ? sym.qualified_name
-                        : sym.name;
-                    var meta = "lib:" + (sym.module ? sym.module.split('.').pop() : "user");
-                    if (sym.type === "class") meta += " (class)";
-                    if (sym.type === "method") meta += " (method)";
-                    var docEsc = escapeHtml(sym.doc || "Без описания.");
-                    var moduleInfo = sym.module ? `<small style="color:#888">${sym.module}</small>` : "";
-                    completions.push({
-                        caption: displayName,
-                        value: sym.type === "method" ? sym.qualified_name : sym.name,
-                        meta: meta,
-                        docHTML: `
-<b>${displayName}</b>${sym.signature}
-<small>${moduleInfo}</small>
-<pre style="margin-top:4px; white-space:pre-wrap; font-family:system-ui, sans-serif; font-size:12px;">${docEsc}</pre>
-`
+                    staticApi.forEach(function(item) {
+                        if (!matchesPrefix(item.word)) return;
+                        var docEsc = escapeHtml(item.doc);
+                        completions.push({
+                            caption: item.word + item.args,
+                            value: item.word,
+                            meta: "osysHome",
+                            score: 1500,
+                            docHTML: `<b>${item.word}</b>${item.args}<pre style="margin-top:4px; white-space:pre-wrap; font-family:system-ui, sans-serif; font-size:12px;">${docEsc}</pre>`
+                        });
                     });
-                });
 
-                // Встроенные функции
-                builtinFunctions.forEach(function(word) {
-                    completions.push({
-                        caption: word + "()",
-                        value: word,
-                        meta: "builtin",
-                        docHTML: `
-<b>${word}()</b>
-<pre style="margin-top:4px; white-space:pre-wrap; font-family:system-ui, sans-serif; font-size:12px;">Встроенная функция Python.</pre>
-                        `
+                    librarySymbols.forEach(function(sym) {
+                        if (isCustomFunctionSymbol(sym)) return;
+                        var displayName = sym.type === "method" ? sym.qualified_name : sym.name;
+                        var value = sym.type === "method" ? sym.qualified_name : sym.name;
+                        if (!matchesPrefix(value) && !matchesPrefix(displayName)) return;
+                        var meta = "lib:" + (sym.module ? sym.module.split('.').pop() : "user");
+                        if (sym.type === "class") meta += " (class)";
+                        if (sym.type === "method") meta += " (method)";
+                        var docEsc = escapeHtml(sym.doc || "Без описания.");
+                        var moduleInfo = sym.module ? `<small style="color:#888">${sym.module}</small>` : "";
+                        completions.push({
+                            caption: displayName,
+                            value: value,
+                            meta: meta,
+                            docHTML: `<b>${displayName}</b>${sym.signature || ''}<small>${moduleInfo}</small><pre style="margin-top:4px; white-space:pre-wrap; font-family:system-ui, sans-serif; font-size:12px;">${docEsc}</pre>`
+                        });
                     });
-                });
 
-                callback(null, completions);
+                    builtinFunctions.forEach(function(word) {
+                        if (!matchesPrefix(word)) return;
+                        completions.push({
+                            caption: word + "()",
+                            value: word,
+                            meta: "builtin",
+                            docHTML: `<b>${word}()</b><pre style="margin-top:4px; white-space:pre-wrap; font-family:system-ui, sans-serif; font-size:12px;">Встроенная функция Python.</pre>`
+                        });
+                    });
+
+                    callback(null, completions);
+                }
+
+                refreshCustomFunctionSymbols(false).then(buildCompletions).catch(buildCompletions);
             }
         };
         editor.completers = [completer];
