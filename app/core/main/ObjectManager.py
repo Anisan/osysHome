@@ -15,6 +15,7 @@ from app.logging_config import getLogger
 from app.core.MonitoredThreadPool import AdaptiveThreadPoolRouter
 from app.configuration import Config
 import threading
+from collections import deque
 from dataclasses import dataclass
 from typing import Optional
 import logging
@@ -75,7 +76,7 @@ class BatchWriter:
         self._total_values_updated = 0  # Всего обновлено значений
         self._total_history_inserted = 0  # Всего вставлено записей истории
         self._total_errors = 0  # Всего ошибок
-        self._flush_times = []  # Времена выполнения записей (последние 100)
+        self._flush_history: deque = deque(maxlen=100)  # История последних flush
         self._last_flush_time: Optional[datetime.datetime] = None
         self._last_error: Optional[str] = None
         self._last_error_time: Optional[datetime.datetime] = None
@@ -109,6 +110,26 @@ class BatchWriter:
         """Принудительно и синхронно записывает текущий батч (для init-сценариев)"""
         self._flush_internal()
 
+    def _append_flush_history(
+        self,
+        *,
+        duration_seconds: float,
+        batch_size: int,
+        values_count: int,
+        history_count: int,
+        success: bool,
+        error: Optional[str] = None,
+    ):
+        self._flush_history.append({
+            "duration_seconds": round(duration_seconds, 4),
+            "batch_size": batch_size,
+            "values_count": values_count,
+            "history_count": history_count,
+            "success": success,
+            "error": error,
+            "timestamp": convert_utc_to_local(get_now_to_utc()).isoformat(),
+        })
+
     def _flush_internal(self):
         """Внутренний метод для записи батча (вызывается в отдельном потоке)"""
         start_time = time.time()
@@ -117,11 +138,29 @@ class BatchWriter:
 
         with self._lock:
             if not self._batch:
+                execution_time = time.time() - start_time
+                self._append_flush_history(
+                    duration_seconds=execution_time,
+                    batch_size=0,
+                    values_count=0,
+                    history_count=0,
+                    success=True,
+                )
                 return
             batch = self._batch[:]
             self._batch.clear()
 
+        batch_size = len(batch)
         if not batch:
+            execution_time = time.time() - start_time
+            with self._lock:
+                self._append_flush_history(
+                    duration_seconds=execution_time,
+                    batch_size=0,
+                    values_count=0,
+                    history_count=0,
+                    success=True,
+                )
             return
 
         try:
@@ -240,19 +279,31 @@ class BatchWriter:
                     self._total_values_updated += values_count
                     self._total_history_inserted += history_count
                     self._last_flush_time = get_now_to_utc()
-                    # Сохраняем последние 100 времен выполнения
-                    self._flush_times.append(execution_time)
-                    if len(self._flush_times) > 100:
-                        self._flush_times.pop(0)
+                    self._append_flush_history(
+                        duration_seconds=execution_time,
+                        batch_size=batch_size,
+                        values_count=values_count,
+                        history_count=history_count,
+                        success=True,
+                    )
 
         except Exception as ex:
             error_msg = str(ex)
             _logger.exception("Error in batch write: %s", ex, exc_info=True)
+            execution_time = time.time() - start_time
             # Обновляем статистику ошибок
             with self._lock:
                 self._total_errors += 1
                 self._last_error = error_msg
                 self._last_error_time = get_now_to_utc()
+                self._append_flush_history(
+                    duration_seconds=execution_time,
+                    batch_size=batch_size,
+                    values_count=0,
+                    history_count=0,
+                    success=False,
+                    error=error_msg,
+                )
 
     def shutdown(self, wait: bool = True):
         """Корректное завершение работы батчера"""
@@ -280,9 +331,15 @@ class BatchWriter:
         """Возвращает статистику работы батчера"""
         with self._lock:
             current_batch_size = len(self._batch)
-            avg_flush_time = sum(self._flush_times) / len(self._flush_times) if self._flush_times else 0
-            min_flush_time = min(self._flush_times) if self._flush_times else 0
-            max_flush_time = max(self._flush_times) if self._flush_times else 0
+            flush_history = list(self._flush_history)
+            successful_durations = [
+                entry["duration_seconds"]
+                for entry in flush_history
+                if entry.get("success") and entry.get("batch_size", 0) > 0
+            ]
+            avg_flush_time = sum(successful_durations) / len(successful_durations) if successful_durations else 0
+            min_flush_time = min(successful_durations) if successful_durations else 0
+            max_flush_time = max(successful_durations) if successful_durations else 0
 
             return {
                 "flush_interval": self.flush_interval,
@@ -300,8 +357,9 @@ class BatchWriter:
                     "avg_seconds": round(avg_flush_time, 4),
                     "min_seconds": round(min_flush_time, 4),
                     "max_seconds": round(max_flush_time, 4),
-                    "count": len(self._flush_times)
+                    "count": len(flush_history)
                 },
+                "flush_history": flush_history,
                 "efficiency": {
                     "avg_batch_size": round(self._total_added / self._total_flushed, 2) if self._total_flushed > 0 else 0,
                     "error_rate": round((self._total_errors / self._total_flushed * 100), 2) if self._total_flushed > 0 else 0

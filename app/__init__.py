@@ -1,6 +1,7 @@
 """ Main module """
 import os
 import json
+from collections import OrderedDict
 from importlib import import_module
 from flask import Flask, request, render_template, current_app, session, has_app_context, jsonify
 # import flask_monitoringdashboard as dashboard
@@ -179,6 +180,9 @@ def createApp(config_object):
 def load_translations(app):
     """Загружает переводы из JSON файлов"""
     app.translations = {}
+    app.translation_files = {}
+    app.translation_lru = OrderedDict()
+    app.config['TRANSLATION_CACHE_SIZE'] = app.config.get('TRANSLATION_CACHE_SIZE', 3)
     app.config['LANGUAGES'] = []
     base_dir = os.path.dirname(os.path.dirname(__file__))
 
@@ -197,23 +201,53 @@ def load_translations(app):
                 if os.path.exists(plugin_trans_dir):
                     load_translation_files(app, plugin_trans_dir)
 
+    # Стабильный порядок языков во всех шаблонах/формах
+    app.config['LANGUAGES'].sort()
+
 def load_translation_files(app, trans_dir):
-    for filename in os.listdir(trans_dir):
+    for filename in sorted(os.listdir(trans_dir)):
         if filename.endswith('.json'):
             lang = filename[:-5]
             if lang not in app.translations:
                 app.translations[lang] = {}
+            if lang not in app.translation_files:
+                app.translation_files[lang] = []
             filepath = os.path.join(trans_dir, filename)
+            app.translation_files[lang].append(filepath)
 
+            # Обновляем список языков
+            if lang not in app.config['LANGUAGES']:
+                app.config['LANGUAGES'].append(lang)
+
+
+def ensure_language_loaded(app, lang):
+    """Ленивая загрузка переводов для языка + LRU-кэш языков."""
+    if lang not in app.translation_files:
+        return False
+
+    already_loaded = bool(app.translations.get(lang))
+    if not already_loaded:
+        for filepath in app.translation_files.get(lang, []):
             with open(filepath, 'r', encoding='utf-8') as f:
                 dict_translate = json.load(f)
                 for key, value in dict_translate.items():
                     if key not in app.translations[lang]:
                         app.translations[lang][key] = value
 
-            # Обновляем список языков
-            if lang not in app.config['LANGUAGES']:
-                app.config['LANGUAGES'].append(lang)
+    # Обновляем позицию языка в LRU
+    if lang in app.translation_lru:
+        app.translation_lru.move_to_end(lang)
+    else:
+        app.translation_lru[lang] = True
+
+    max_cached = app.config.get('TRANSLATION_CACHE_SIZE', 3)
+    while len(app.translation_lru) > max_cached:
+        old_lang, _ = app.translation_lru.popitem(last=False)
+        if old_lang != lang and old_lang in app.translations:
+            # Освобождаем память: язык останется известным, но будет перезагружен при обращении.
+            app.translations[old_lang] = {}
+
+    return True
 
 def get_current_language():
     """Определяет текущий язык"""
@@ -249,8 +283,9 @@ def translate(key, lang=None):
     app = current_app._get_current_object()
     lang = lang or get_current_language()
 
-    if lang not in app.translations:
+    if lang not in current_app.config['LANGUAGES']:
         lang = current_app.config.get('DEFAULT_LANGUAGE','en')
+    ensure_language_loaded(app, lang)
 
     # Поиск перевода
     if key in app.translations[lang] and app.translations[lang][key] != '':

@@ -12,6 +12,11 @@
         return;
     }
 
+    const i18n = window.NotificationSystemI18n || {};
+    const t = function(key, fallback) {
+        return i18n[key] || fallback;
+    };
+
     const NotificationSystem = {
         // Флаги состояния
         isInitialized: false,
@@ -133,7 +138,7 @@
             if (notifyBlock.length === 0) return;
             
             const countElement = notifyBlock.find('.px-3.me-auto');
-            const notifyText = notifyBlock.find('.px-3.me-auto').text().split(' - ')[0] || 'Уведомления';
+            const notifyText = notifyBlock.find('.px-3.me-auto').text().split(' - ')[0] || t('notifications', 'Notifications');
             
             if (countElement.length) {
                 countElement.html(notifyText + ' - ' + count);
@@ -202,12 +207,12 @@
             const color = categoryColors[notif.category] || 'danger';
             const icon = categoryIcons[notif.category] || 'fas fa-info-circle';
             const countBadge = notif.count > 1 ? 
-                `<span class="badge bg-danger rounded-pill me-2" title="${notif.count} counts">${notif.count}</span>` : '';
+                `<span class="badge bg-danger rounded-pill me-2" title="${notif.count} ${this.escapeHtml(t('counts', 'counts'))}">${notif.count}</span>` : '';
             const createdDate = notif.created ? new Date(notif.created).toLocaleString() : '';
             const lastUpdatedDate = notif.last_updated ? new Date(notif.last_updated).toLocaleString() : '';
-            let dateInfo = `<i class="fas fa-calendar-plus me-1" title="Created"></i>${createdDate}`;
+            let dateInfo = `<i class="fas fa-calendar-plus me-1" title="${this.escapeHtml(t('created', 'Created'))}"></i>${createdDate}`;
             if (lastUpdatedDate && notif.count && notif.count > 1) {
-                dateInfo += ` <i class="fas fa-clock me-1" title="Last updated"></i>${lastUpdatedDate}`;
+                dateInfo += ` <i class="fas fa-clock me-1" title="${this.escapeHtml(t('last_updated', 'Last updated'))}"></i>${lastUpdatedDate}`;
             }
             
             const descriptionHtml = notif.description ? 
@@ -220,7 +225,7 @@
                     <b>${this.escapeHtml(notif.name)}</b>
                     ${descriptionHtml}
                     <span class="ms-2">${dateInfo}</span>
-                    <button type="button" class="btn-close p-2 my-1" onclick="if(typeof NotificationSystem !== 'undefined') NotificationSystem.readNotify(${notif.id})" data-bs-dismiss="alert" aria-label="Close"></button>
+                    <button type="button" class="btn-close p-2 my-1" onclick="if(typeof NotificationSystem !== 'undefined') NotificationSystem.readNotify(${notif.id})" data-bs-dismiss="alert" aria-label="${this.escapeHtml(t('close', 'Close'))}"></button>
                 </div>
             `;
         },
@@ -339,10 +344,10 @@
                                 <h5 class="mb-0 d-flex justify-content-between align-items-center w-100" data-bs-toggle="collapse" data-bs-target="#collapse_notify" aria-expanded="true" aria-controls="collapse_notify">
                                     <i class="fas fa-info"></i>
                                     <div class="px-3 me-auto">
-                                        Уведомления - ${notifications.length}
+                                        ${t('notifications', 'Notifications')} - ${notifications.length}
                                     </div>
                                 </h5>
-                                <button class="btn btn-outline-secondary text-nowrap" onclick="if(typeof NotificationSystem !== 'undefined') NotificationSystem.readNotifyAll('${source}')">Прочитать все</button>
+                                <button class="btn btn-outline-secondary text-nowrap" onclick="if(typeof NotificationSystem !== 'undefined') NotificationSystem.readNotifyAll('${source}')">${t('read_all', 'Read all')}</button>
                             </div>
                             <div class="collapse show" id="collapse_notify">
                                 <div class="card-body px-2 py-0">
@@ -417,7 +422,7 @@
                         
                         // Показываем уведомление об успехе
                         if (typeof notificationManager !== 'undefined') {
-                            notificationManager.success('Уведомление отмечено как прочитанное');
+                            notificationManager.success(t('notification_marked_read', 'Notification marked as read'));
                         }
                         
                         // Обновляем индикаторы
@@ -433,7 +438,7 @@
                 error: (xhr, status, error) => {
                     console.error('NotificationSystem: Error reading notify:', error, xhr);
                     if (typeof notificationManager !== 'undefined') {
-                        notificationManager.error('Ошибка при отметке уведомления');
+                        notificationManager.error(t('error_marking_notification', 'Error marking notification'));
                     }
                 }
             });
@@ -475,7 +480,7 @@
                         
                         // Показываем уведомление об успехе
                         if (typeof notificationManager !== 'undefined') {
-                            notificationManager.success('Все уведомления отмечены как прочитанные');
+                            notificationManager.success(t('all_notifications_marked_read', 'All notifications marked as read'));
                         }
                         
                         // Обновляем индикаторы
@@ -485,7 +490,7 @@
                 error: (xhr, status, error) => {
                     console.error('NotificationSystem: Error reading all notifies:', error, xhr);
                     if (typeof notificationManager !== 'undefined') {
-                        notificationManager.error('Ошибка при отметке всех уведомлений');
+                        notificationManager.error(t('error_marking_all_notifications', 'Error marking all notifications'));
                     }
                 }
             });
