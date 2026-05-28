@@ -1,4 +1,4 @@
-<nav class="navbar navbar-expand-lg">
+<nav class="navbar navbar-expand-lg flex-nowrap">
     <a class="navbar-brand ms-2 " href="/" style="margin-top: -2.5rem;margin-bottom: -2.5rem;">
       <img src="{{ config.ASSETS_ROOT }}/images/logo-dark.png" height="70px">
     </a>
@@ -34,11 +34,11 @@
         </li>
         {% endif %}
       </ul>
-      <h4 class="mt-1 me-3" id="unreadNotifyIndicator" style="display: none;"><span class=" blink badge bg-warning text-black"><i class="fas fa-bell me-2"></i>{{ _('Unreaded notify')}}</span></h4>
-      <h4 class="mt-1 me-3" id="needRestartIndicator" style="display:none;" data-prop-display="SystemVar.NeedRestart"><span class="blink badge bg-warning text-black"><i class="fas fa-power-off me-2"></i>{{ _('Need restart osysHome')}}</span></h4>
+      <h4 class="mt-1 me-3 text-nowrap" id="unreadNotifyIndicator" style="display: none;"><span class=" blink badge bg-warning text-black"><i class="fas fa-bell me-2"></i>{{ _('Unreaded notify')}}</span></h4>
+      <h4 class="mt-1 me-3 text-nowrap" id="needRestartIndicator" style="display:none;" data-prop-display="SystemVar.NeedRestart"><span class="blink badge bg-warning text-black"><i class="fas fa-power-off me-2"></i>{{ _('Need restart osysHome')}}</span></h4>
       {% if 'admin' in request.path %}
-      <button class="btn btn-outline-secondary me-2" data-bs-toggle="modal" data-bs-target="#consoleModal"><i class="fa-solid fa-terminal me-2"></i>{{ _('Console')}}</button>
-      <button class="btn btn-outline-success me-2" data-bs-toggle="modal" data-bs-target="#searchModal"><i class="fa-solid fa-magnifying-glass me-2"></i>{{ _('Search')}}</button>
+      <button class="btn btn-outline-secondary me-2 text-nowrap" data-bs-toggle="modal" data-bs-target="#consoleModal"><i class="fa-solid fa-terminal me-2"></i>{{ _('Console')}}</button>
+      <button class="btn btn-outline-success me-2 text-nowrap" data-bs-toggle="modal" data-bs-target="#searchModal"><i class="fa-solid fa-magnifying-glass me-2"></i>{{ _('Search')}}</button>
       {%endif%}
 
       <ul class="nav navbar-nav navbar-right">
@@ -52,7 +52,7 @@
           </button>
         </li>
         <li class="nav-item dropdown mx-3">
-          <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+          <a class="nav-link dropdown-toggle text-nowrap" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
             {% if current_user.image %}
             <img src="{{ current_user.image }}" class="rounded-circle" width="30" height="30" />
             {%else%}

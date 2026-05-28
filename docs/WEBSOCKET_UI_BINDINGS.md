@@ -9,7 +9,7 @@ This document describes lightweight HTML bindings that connect WebSocket updates
 
 Implementation lives in `app/templates/includes/websockets.html`:
 
-- `subscribe()` automatically subscribes to properties used in bindings.
+- `subscribe()` automatically subscribes to properties and methods used in bindings.
 - `socket.on('changeProperty', ...)` applies property bindings on updates.
 - `socket.on('executedMethod', ...)` applies method bindings on updates.
 - `socket.on('changeObject', ...)` morphs HTML inside `id="obj:..."`.
@@ -26,9 +26,11 @@ Implementation lives in `app/templates/includes/websockets.html`:
      - `data-prop-display`, `data-prop-text`, `data-prop-value`, `data-prop-checked`, `data-prop-attr-*`
 4. `subscribe()` gathers object names from:
    - object containers: `id="obj:<ObjectName>"`
-4. When the backend emits `changeProperty` for a subscribed property, the UI updates.
-5. When the backend emits `executedMethod` for a method, the method UI updates (if such elements exist).
-6. When the backend emits `changeObject`, the HTML inside `id="obj:<ObjectName>"` is updated.
+5. `subscribe()` gathers method names from:
+   - method markers: `id="method_source:<Object.method>"`, `method_executed:...`, `method_exec_params:...`, `method_exec_result:...`, `method_exec_time:...`
+6. When the backend emits `changeProperty` for a subscribed property, the UI updates.
+7. When the backend emits `executedMethod` for a subscribed method, the method UI updates (if such elements exist).
+8. When the backend emits `changeObject`, the HTML inside `id="obj:<ObjectName>"` is updated.
 
 Notes:
 
@@ -214,7 +216,7 @@ It is still used to:
 
 Реализация находится в `app/templates/includes/websockets.html`:
 
-- `subscribe()` автоматически подписывается на свойства, которые используются в биндингах.
+- `subscribe()` автоматически подписывается на свойства и методы, которые используются в биндингах.
 - `socket.on('changeProperty', ...)` применяет биндинги при обновлениях.
 
 ---
@@ -229,9 +231,11 @@ It is still used to:
      - `data-prop-display`, `data-prop-text`, `data-prop-value`, `data-prop-checked`, `data-prop-attr-*`
 4. `subscribe()` собирает список объектов из:
    - контейнеров: `id="obj:<ИмяОбъекта>"`
-4. Когда бэкенд отправляет `changeProperty` по подписанному свойству, UI автоматически обновляется.
-5. Когда бэкенд отправляет `executedMethod`, UI методов обновляется (если на странице есть соответствующие элементы).
-6. Когда бэкенд отправляет `changeObject`, обновляется HTML внутри `id="obj:<ИмяОбъекта>"`.
+5. `subscribe()` собирает список методов из:
+   - маркеров методов: `id="method_source:<Object.method>"`, `method_executed:...`, `method_exec_params:...`, `method_exec_result:...`, `method_exec_time:...`
+6. Когда бэкенд отправляет `changeProperty` по подписанному свойству, UI автоматически обновляется.
+7. Когда бэкенд отправляет `executedMethod` для подписанного метода, UI методов обновляется (если на странице есть соответствующие элементы).
+8. Когда бэкенд отправляет `changeObject`, обновляется HTML внутри `id="obj:<ИмяОбъекта>"`.
 
 Примечание:
 

@@ -65,10 +65,18 @@
             <div class="mb-4">  
               <h5 class="fw-bold mb-3">{{ _('Supported Languages') }}</h5>  
               <div class="row">  
+                {% set lang_flag_map = {
+                  'en': 'us',
+                  'uk': 'ua',
+                  'zh': 'cn',
+                  'ja': 'jp',
+                  'ko': 'kr',
+                  'ar': 'sa'
+                } %}
                 {% for lang_code in LANGUAGES %}  
                     <div class="col-md-2 mb-2">  
                       <div class="d-flex align-items-center">  
-                        <a href="?lang={{lang_code}}"><i class="flag-icon flag-icon-{{ 'us' if lang_code == 'en' else lang_code }} me-2"></i></a>
+                        <a href="?lang={{lang_code}}"><i class="flag-icon flag-icon-{{ lang_flag_map.get(lang_code, lang_code) }} me-2"></i></a>
                         <span>{{ lang_code }}</span>  
                       </div>  
                     </div>  

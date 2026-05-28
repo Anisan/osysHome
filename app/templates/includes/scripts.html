@@ -7,4 +7,18 @@
 <script src="{{ config.ASSETS_ROOT }}/js/playsound.js"></script>
 <link rel="stylesheet" href="{{ config.ASSETS_ROOT }}/css/notifications.css">  
 <script src="{{ config.ASSETS_ROOT }}/js/notification-manager.js"></script>
+<script>
+  window.NotificationSystemI18n = {
+    notifications: "{{ _('Notifications')|e }}",
+    read_all: "{{ _('Read all')|e }}",
+    notification_marked_read: "{{ _('Notification marked as read')|e }}",
+    error_marking_notification: "{{ _('Error marking notification')|e }}",
+    all_notifications_marked_read: "{{ _('All notifications marked as read')|e }}",
+    error_marking_all_notifications: "{{ _('Error marking all notifications')|e }}",
+    counts: "{{ _('counts')|e }}",
+    created: "{{ _('Created')|e }}",
+    last_updated: "{{ _('Last updated')|e }}",
+    close: "{{ _('Close')|e }}"
+  };
+</script>
 <script src="{{ config.ASSETS_ROOT }}/js/notification-system.js"></script>

@@ -116,6 +116,7 @@
   // Track subscriptions owned by this script only.
   var __subscribedProperties = new Set();
   var __subscribedObjects = new Set();
+  var __subscribedMethods = new Set();
   var __subscriptionRefreshTimer = null;
   var __lastSubscriptionSignature = null;
   var __actionsSubscribed = false;
@@ -823,11 +824,29 @@
     });
     var objectList = Array.from(objectSet);
 
+    var methodSet = new Set();
+    var methodPrefixes = [
+      'method_source:',
+      'method_executed:',
+      'method_exec_params:',
+      'method_exec_result:',
+      'method_exec_time:'
+    ];
+    methodPrefixes.forEach(function(prefix) {
+      document.querySelectorAll('[id^="' + prefix + '"]').forEach(function(element) {
+        if (!element || !element.id) return;
+        var methodName = element.id.slice(prefix.length);
+        if (methodName) methodSet.add(methodName);
+      });
+    });
+    var methodList = Array.from(methodSet);
+
     // Skip expensive re-subscription when effective sets did not change.
     // This is important on pages with frequent DOM morphing (e.g. Dashboard).
     var propSignature = propList.slice().sort().join('|');
     var objectSignature = objectList.slice().sort().join('|');
-    var signature = 'p:' + propSignature + '::o:' + objectSignature;
+    var methodSignature = methodList.slice().sort().join('|');
+    var signature = 'p:' + propSignature + '::o:' + objectSignature + '::m:' + methodSignature;
     var subscriptionsChanged = (__lastSubscriptionSignature !== signature);
     __lastSubscriptionSignature = signature;
 
@@ -880,6 +899,27 @@
     if (objectsToSubscribe.length > 0) {
       socket.emit('subscribeObjects', objectsToSubscribe);
       objectsToSubscribe.forEach(function(objectName) { __subscribedObjects.add(objectName); });
+    }
+
+    var methodsToSubscribe = [];
+    var methodsToUnsubscribe = [];
+    methodList.forEach(function(methodName) {
+      if (!__subscribedMethods.has(methodName)) {
+        methodsToSubscribe.push(methodName);
+      }
+    });
+    __subscribedMethods.forEach(function(methodName) {
+      if (!methodSet.has(methodName)) {
+        methodsToUnsubscribe.push(methodName);
+      }
+    });
+    if (methodsToUnsubscribe.length > 0) {
+      socket.emit('unsubscribeMethods', methodsToUnsubscribe);
+      methodsToUnsubscribe.forEach(function(methodName) { __subscribedMethods.delete(methodName); });
+    }
+    if (methodsToSubscribe.length > 0) {
+      socket.emit('subscribeMethods', methodsToSubscribe);
+      methodsToSubscribe.forEach(function(methodName) { __subscribedMethods.add(methodName); });
     }
 
     // Отправляем текущую страницу после подписки

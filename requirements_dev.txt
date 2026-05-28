@@ -1,3 +1,4 @@
 # profiling
 flask-debugtoolbar
 Flask-MonitoringDashboard
+deep-translator
