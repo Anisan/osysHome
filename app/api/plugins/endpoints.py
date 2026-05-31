@@ -77,15 +77,17 @@ class GetPlugins(Resource):
                 "description":"Object System smartHome",
                 "topic":["core","smarthome"],
                 "need_restart": getProperty("SystemVar.NeedRestart"),
-                "branch": getProperty("SystemVar.core_branch"),
+                "branch": getProperty("SystemVar.core_branch") or "master",
                 "update": getProperty("SystemVar.update"),
                 "author":"Eraser",
+                "owner": "Anisan",
+                "repo": "osysHome",
                 "updated": updated,
                 "url":"https://github.com/Anisan/osysHome",
             }
             return {"success": True, "result": result, "osysHome":osysHome}, 200
 
-@plugins_ns.route("/<path:plugin_name>")
+@plugins_ns.route("/<string:plugin_name>")
 class GetPluginInfo(Resource):
     @api_key_required
     @handle_user_required
@@ -121,7 +123,7 @@ class GetPluginInfo(Resource):
             else:
                 return {"message": f"Plugin '{plugin_name}' not found", "status": "error"}, 404
 
-@plugins_ns.route("/<path:plugin_name>/start")
+@plugins_ns.route("/<string:plugin_name>/start")
 class StartCycle(Resource):
     @api_key_required
     @handle_admin_required
@@ -140,7 +142,7 @@ class StartCycle(Resource):
             return {"message": f"Plugin '{plugin_name}' not found", "status": "error"}, 404
 
 
-@plugins_ns.route("/<path:plugin_name>/stop")
+@plugins_ns.route("/<string:plugin_name>/stop")
 class StopCycle(Resource):
     @api_key_required
     @handle_admin_required
@@ -158,7 +160,7 @@ class StopCycle(Resource):
         else:
             return {"message": f"Plugin '{plugin_name}' not found", "status": "error"}, 404
 
-@plugins_ns.route("/<path:plugin_name>/restart")
+@plugins_ns.route("/<string:plugin_name>/restart")
 class RestartCycle(Resource):
     @api_key_required
     @handle_admin_required
@@ -175,7 +177,7 @@ class RestartCycle(Resource):
         else:
             return {"message": f"Plugin '{plugin_name}' not found", "status": "error"}, 404
 
-@plugins_ns.route("/<path:plugin_name>/settings")
+@plugins_ns.route("/<string:plugin_name>/settings")
 class PluginSettings(Resource):
     @api_key_required
     @handle_admin_required
@@ -241,7 +243,7 @@ class PluginSettings(Resource):
             else:
                 return {"message": f"Plugin '{plugin_name}' not found", "status": "error"}, 404
 
-@plugins_ns.route("/<path:plugin_name>/readme")
+@plugins_ns.route("/<string:plugin_name>/readme")
 class GetPluginReadme(Resource):
     @api_key_required
     @handle_user_required
@@ -332,7 +334,7 @@ class GetPluginReadme(Resource):
         
         return {"success": True, "content": html_content, "lang": lang, "raw": False}, 200
 
-@plugins_ns.route("/<path:plugin_name>/readme/check")
+@plugins_ns.route("/<string:plugin_name>/readme/check")
 class CheckPluginReadme(Resource):
     @api_key_required
     @handle_user_required

@@ -1,17 +1,31 @@
-<nav class="navbar navbar-expand-lg flex-nowrap">
-    <a class="navbar-brand ms-2 " href="/" style="margin-top: -2.5rem;margin-bottom: -2.5rem;">
-      <img src="{{ config.ASSETS_ROOT }}/images/logo-dark.png" height="70px">
+<nav class="navbar navbar-expand-xl admin-navbar">
+    <div class="container-fluid px-2 px-lg-3 d-flex flex-wrap align-items-center">
+    {% if 'admin' in request.path %}
+    <button class="btn btn-outline-secondary me-1 me-sm-2 d-lg-none flex-shrink-0 order-0 admin-sidebar-toggle" type="button" data-bs-toggle="offcanvas" data-bs-target="#appSidebar" aria-controls="appSidebar" aria-label="{{ _('Menu') }}">
+      <i class="fas fa-bars"></i>
+    </button>
+    {% endif %}
+    <a class="navbar-brand admin-logo flex-shrink-0 order-1 me-auto me-xl-2" href="/">
+      <img src="{{ config.ASSETS_ROOT }}/images/logo-dark.png" alt="osysHome">
     </a>
-    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+    <div class="navbar-alerts-compact d-xl-none d-flex align-items-center gap-1 flex-shrink-0 order-2 me-1" aria-live="polite">
+      <span class="navbar-alert-pill blink badge bg-warning text-black d-none align-items-center justify-content-center" id="unreadNotifyIndicatorCompact" title="{{ _('Unreaded notify')}}" aria-label="{{ _('Unreaded notify')}}">
+        <i class="fas fa-bell" aria-hidden="true"></i>
+      </span>
+      <span class="navbar-alert-pill blink badge bg-warning text-black align-items-center justify-content-center" id="needRestartIndicatorCompact" style="display: none;" data-prop-display="SystemVar.NeedRestart" data-prop-display-true="inline-flex" data-prop-display-false="none" title="{{ _('Need restart osysHome')}}" aria-label="{{ _('Need restart osysHome')}}">
+        <i class="fas fa-power-off" aria-hidden="true"></i>
+      </span>
+    </div>
+    <button class="navbar-toggler flex-shrink-0 order-3" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
       <span class="navbar-toggler-icon"></span>
     </button>
-    <div class="collapse navbar-collapse" id="navbarSupportedContent">
-      <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+    <div class="collapse navbar-collapse order-3 flex-grow-1" id="navbarSupportedContent">
+      <ul class="navbar-nav me-xl-auto mb-0">
         <li class="nav-item">
-          <a class="nav-link active" aria-current="page" href="/"><i class="fas fa-home me-2"></i>{{ _('Home')}}</a>
+          <a class="nav-link active px-2 px-xl-3" aria-current="page" href="/" title="{{ _('Home') }}"><i class="fas fa-home nav-link-icon"></i><span class="nav-link-text ms-xl-2">{{ _('Home')}}</span></a>
         </li>
         <li class="nav-item">
-          <a class="nav-link" href="/admin"><i class="fas fa-wrench me-2"></i>{{ _('Control panel')}}</a>
+          <a class="nav-link px-2 px-xl-3" href="/admin" title="{{ _('Control panel') }}"><i class="fas fa-wrench nav-link-icon"></i><span class="nav-link-text ms-xl-2">{{ _('Control panel')}}</span></a>
         </li>
         {# Show Docs link only if Docs plugin is installed/enabled #}
         {% set _sidebar_groups = sidebar() if sidebar is defined else {} %}
@@ -25,42 +39,47 @@
         {% endfor %}
         {% if _ns.has_docs %}
         <li class="nav-item">
-          <a class="nav-link" href="/docs"><i class="fas fa-info me-2"></i>{{ _('Docs')}}</a>
+          <a class="nav-link px-2 px-xl-3" href="/docs" title="{{ _('Docs') }}"><i class="fas fa-info nav-link-icon"></i><span class="nav-link-text ms-xl-2">{{ _('Docs')}}</span></a>
         </li>
         {% endif %}
         {% if 'admin' in request.path %}
         <li class="nav-item">
-          <a class="nav-link" href="/api"><i class="fas fa-info me-2"></i>API</a>
+          <a class="nav-link px-2 px-xl-3" href="/api" title="API"><i class="fas fa-code nav-link-icon"></i><span class="nav-link-text ms-xl-2">API</span></a>
         </li>
         {% endif %}
       </ul>
-      <h4 class="mt-1 me-3 text-nowrap" id="unreadNotifyIndicator" style="display: none;"><span class=" blink badge bg-warning text-black"><i class="fas fa-bell me-2"></i>{{ _('Unreaded notify')}}</span></h4>
-      <h4 class="mt-1 me-3 text-nowrap" id="needRestartIndicator" style="display:none;" data-prop-display="SystemVar.NeedRestart"><span class="blink badge bg-warning text-black"><i class="fas fa-power-off me-2"></i>{{ _('Need restart osysHome')}}</span></h4>
+      <div class="navbar-admin-tools d-flex flex-wrap align-items-center gap-2 ms-xl-auto">
+      <div class="navbar-mobile-badges">
+      <div class="navbar-status-badges d-none" id="unreadNotifyIndicator">
+        <span class="blink badge bg-warning text-black w-100 align-items-center justify-content-center gap-1"><i class="fas fa-bell"></i><span class="navbar-badge-text">{{ _('Unreaded notify')}}</span></span>
+      </div>
+      <div class="navbar-status-badges" id="needRestartIndicator" style="display: none;" data-prop-display="SystemVar.NeedRestart" data-prop-display-true="flex" data-prop-display-false="none">
+        <span class="blink badge bg-warning text-black w-100 align-items-center justify-content-center gap-1"><i class="fas fa-power-off"></i><span class="navbar-badge-text">{{ _('Need restart osysHome')}}</span></span>
+      </div>
+      </div>
+      <div class="navbar-mobile-actions">
       {% if 'admin' in request.path %}
-      <button class="btn btn-outline-secondary me-2 text-nowrap" data-bs-toggle="modal" data-bs-target="#consoleModal"><i class="fa-solid fa-terminal me-2"></i>{{ _('Console')}}</button>
-      <button class="btn btn-outline-success me-2 text-nowrap" data-bs-toggle="modal" data-bs-target="#searchModal"><i class="fa-solid fa-magnifying-glass me-2"></i>{{ _('Search')}}</button>
+      <button class="btn btn-outline-secondary navbar-toolbar-btn navbar-toolbar-btn--icon flex-shrink-0" data-bs-toggle="modal" data-bs-target="#consoleModal" title="{{ _('Console') }}" aria-label="{{ _('Console') }}"><i class="fa-solid fa-terminal"></i><span class="navbar-btn-text ms-xl-1">{{ _('Console')}}</span></button>
+      <button class="btn btn-outline-success navbar-toolbar-btn navbar-toolbar-btn--icon flex-shrink-0" data-bs-toggle="modal" data-bs-target="#searchModal" title="{{ _('Search') }}" aria-label="{{ _('Search') }}"><i class="fa-solid fa-magnifying-glass"></i><span class="navbar-btn-text ms-xl-1">{{ _('Search')}}</span></button>
       {%endif%}
-
-      <ul class="nav navbar-nav navbar-right">
-        <li class="nav-item">
-          <button class="btn btn-outline-secondary my-1 theme-toggle"  id="darkModeSwitch" type="button" aria-label="Toggle theme" title="{{ _('Toggle theme')}}">
-            <i class="fas fa-sun d-block d-md-none"></i>
-            <span class="d-none d-md-block">
-              <i class="fas fa-sun theme-icon-light"></i>
-              <i class="fas fa-moon theme-icon-dark"></i>
-            </span>
-          </button>
-        </li>
-        <li class="nav-item dropdown mx-3">
-          <a class="nav-link dropdown-toggle text-nowrap" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+      <button class="btn btn-outline-secondary navbar-toolbar-btn theme-toggle flex-shrink-0" id="darkModeSwitch" type="button" aria-label="{{ _('Toggle theme')}}" title="{{ _('Toggle theme')}}">
+        <i class="fas fa-sun d-inline d-xxl-none"></i>
+        <span class="d-none d-xxl-inline">
+          <i class="fas fa-sun theme-icon-light"></i>
+          <i class="fas fa-moon theme-icon-dark"></i>
+        </span>
+      </button>
+      </div>
+      <div class="dropdown navbar-user-dropdown">
+          <button type="button" class="btn btn-outline-secondary navbar-toolbar-btn dropdown-toggle d-inline-flex align-items-center justify-content-center" id="navbarDropdown" data-bs-toggle="dropdown" data-bs-auto-close="true" aria-expanded="false">
             {% if current_user.image %}
-            <img src="{{ current_user.image }}" class="rounded-circle" width="30" height="30" />
+            <img src="{{ current_user.image }}" class="rounded-circle flex-shrink-0 navbar-user-avatar" width="20" height="20" alt="" />
             {%else%}
-            <i class="fas fa-user me-2"></i>
+            <i class="fas fa-user"></i>
             {%endif%}
-            {{current_user.username}}
-          </a>
-          <ul class="dropdown-menu  dropdown-menu-lg-end" aria-labelledby="navbarDropdown">
+            <span class="navbar-user-text ms-1">{{current_user.username}}</span>
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="navbarDropdown">
             <li><a class="dropdown-item" href="/admin"><i class="fas fa-cogs me-2"></i>{{ _('Control panel')}}</a></li>
             <li><a class="dropdown-item" href="/admin/Modules"><i class="fas fa-wrench me-2"></i>{{ _('Modules')}}</a></li>
             <li><a class="dropdown-item" href="/pages"><i class="fas fa-link me-2"></i>{{ _('Pages')}}</a></li>
@@ -72,15 +91,60 @@
             <li><hr class="dropdown-divider"></li>
             <li><a class="dropdown-item" href="/logout"><i class="fas fa-sign-out-alt me-2"></i>{{ _('Logout')}}</a></li>
           </ul>
-        </li>
-      </ul>
+      </div>
+      </div>
+    </div>
     </div>
 </nav>
+<script>
+  (function () {
+    var NAVBAR_XL = 1200;
+
+    function initNavbarUserDropdown() {
+      var toggle = document.getElementById('navbarDropdown');
+      if (!toggle || typeof bootstrap === 'undefined' || !bootstrap.Dropdown) {
+        return;
+      }
+
+      var wantStatic = window.innerWidth < NAVBAR_XL;
+      var existing = bootstrap.Dropdown.getInstance(toggle);
+      if (existing) {
+        var isStatic = existing._config && existing._config.display === 'static';
+        if (isStatic === wantStatic) {
+          return;
+        }
+        existing.dispose();
+      }
+
+      new bootstrap.Dropdown(toggle, {
+        display: wantStatic ? 'static' : 'dynamic'
+      });
+    }
+
+    document.addEventListener('DOMContentLoaded', initNavbarUserDropdown);
+    window.addEventListener('resize', initNavbarUserDropdown);
+    window.initNavbarUserDropdown = initNavbarUserDropdown;
+  })();
+
+  document.addEventListener('click', function (event) {
+    var pill = event.target.closest('.navbar-alerts-compact .navbar-alert-pill');
+    if (!pill || window.getComputedStyle(pill).display === 'none') {
+      return;
+    }
+    var collapseEl = document.getElementById('navbarSupportedContent');
+    if (!collapseEl || collapseEl.classList.contains('show')) {
+      return;
+    }
+    if (typeof bootstrap !== 'undefined' && bootstrap.Collapse) {
+      bootstrap.Collapse.getOrCreateInstance(collapseEl).show();
+    }
+  });
+</script>
 {% if 'admin' in request.path %}
       
 <!-- Vertically centered scrollable modal -->
 <div class="modal fade" id="searchModal" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
-  <div class="modal-dialog modal-lg modal-dialog-centered">
+  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable modal-fullscreen-sm-down">
       <div class="modal-content">
           <form  method="POST">
           <div class="modal-header">
@@ -410,7 +474,7 @@ $('#searchModal').on('hidden.bs.modal', function() {
 }
 </style>
 <div class="modal fade" id="consoleModal" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
-  <div class="modal-dialog modal-lg modal-dialog-centered">
+  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable modal-fullscreen-sm-down">
       <div class="modal-content">
           <form  method="POST">
           <div class="modal-header">
@@ -473,7 +537,8 @@ function updateNotificationIndicators() {
 $(document).ready(function() {
     // Инициализация индикатора на основе серверного значения
     {%if getProperty("SystemVar.UnreadNotify") == True %}
-    $('#unreadNotifyIndicator').show();
+    $('#unreadNotifyIndicator').removeClass('d-none').addClass('d-flex');
+    $('#unreadNotifyIndicatorCompact').removeClass('d-none');
     {%endif%}
     
     // Обновляем индикаторы через централизованный менеджер
