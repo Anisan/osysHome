@@ -1,41 +1,39 @@
-# Используйте официальный образ Python
-FROM python:3.13
+# Immutable core image: runtime state lives in mounted volumes.
+FROM python:3.13-slim
 
-# Установите переменную окружения для улучшения вывода
-ENV PYTHONUNBUFFERED 1
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1
 
-# Установите зависимости ОС
-RUN apt-get update && apt-get install -y \
-    #vlc \
-    #libvlc-dev \
-    #ffmpeg \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# Установите рабочую директорию в контейнере
 WORKDIR /app
 
-# Создайте папку plugins
-RUN mkdir -p /app/plugins
-
-# Клонируйте репозитории в папку plugins
-RUN git clone https://github.com/Anisan/osysHome-Modules.git /app/plugins/Modules && \
-    git clone https://github.com/Anisan/osysHome-Objects.git /app/plugins/Objects && \
-    git clone https://github.com/Anisan/osysHome-Users.git /app/plugins/Users && \
-    git clone https://github.com/Anisan/osysHome-Scheduler.git /app/plugins/Scheduler && \
-    git clone https://github.com/Anisan/osysHome-wsServer.git /app/plugins/wsServer && \
-    git clone https://github.com/Anisan/osysHome-Dashboard.git /app/plugins/Dashboard
-
-# Копирование файла настройки
-COPY sample_config.yaml /app/config.yaml
-
-# Скопируйте зависимости и установите их
 COPY requirements.txt /app/
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Скопируйте остальные файлы приложения
+# Install pip dependencies of bootstrap plugins at build time (code stays in volume at runtime).
+RUN mkdir -p /tmp/bootstrap-plugins && \
+    git clone --depth 1 https://github.com/Anisan/osysHome-Modules.git /tmp/bootstrap-plugins/Modules && \
+    git clone --depth 1 https://github.com/Anisan/osysHome-Objects.git /tmp/bootstrap-plugins/Objects && \
+    git clone --depth 1 https://github.com/Anisan/osysHome-Users.git /tmp/bootstrap-plugins/Users && \
+    git clone --depth 1 https://github.com/Anisan/osysHome-Scheduler.git /tmp/bootstrap-plugins/Scheduler && \
+    git clone --depth 1 https://github.com/Anisan/osysHome-wsServer.git /tmp/bootstrap-plugins/wsServer && \
+    git clone --depth 1 https://github.com/Anisan/osysHome-Dashboard.git /tmp/bootstrap-plugins/Dashboard && \
+    for req in /tmp/bootstrap-plugins/*/requirements.txt; do \
+      if [ -f "$req" ]; then pip install --no-cache-dir -r "$req"; fi; \
+    done && \
+    rm -rf /tmp/bootstrap-plugins
+
 COPY . /app/
 
-# Запустите ваше приложение
+RUN chmod +x /app/docker/*.sh
+
+EXPOSE 5000
+
+VOLUME ["/app/logs", "/app/cache", "/app/files", "/app/plugins"]
+
+ENTRYPOINT ["/app/docker/docker-entrypoint.sh"]
 CMD ["python", "main.py"]
