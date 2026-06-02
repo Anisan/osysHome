@@ -191,3 +191,23 @@ service:
   autorestart: true
   name: 'osyshome'
 ```
+
+---
+
+## Docker
+
+Для продакшена рекомендуется запуск через Docker: образ ядра (`anisan1981/osyshome`) неизменяемый, все данные хранятся в volume на хосте.
+
+```bash
+# Без клонирования репозитория:
+mkdir -p osyshome && cd osyshome
+curl -fsSL https://raw.githubusercontent.com/Anisan/osysHome/master/docker/init-data.sh | bash
+# отредактируйте config.yaml
+docker compose up -d
+```
+
+Если репозиторий уже есть: `./docker/init-data.sh` и `docker compose up -d`.
+
+Подробнее: раздел **Docker** в [QUICKSTART_selfhost.md](QUICKSTART_selfhost.md).
+
+**GitHub Actions → Docker Hub:** secrets `DOCKERHUB_USERNAME` и `DOCKERHUB_TOKEN`. Сборка при push в **master** (тег `latest`), при push тега `v*` — semver (`v1.2.3`, `1.2`).
