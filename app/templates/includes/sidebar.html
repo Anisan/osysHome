@@ -1,73 +1,56 @@
 <!-- [ navigation menu ] start -->
-<style>
-    .sidebar-resizable {
-      position: relative;
-      flex: 0 0 auto;
-      width: 320px;
-      min-width: 220px;
-      max-width: min(640px, 80vw);
-      padding-right: 10px;
-    }
-
-    .sidebar-resizable .sidebar {
-      width: 100%;
-      min-width: 0;
-    }
-
-    .sidebar-resizer {
-      position: absolute;
-      top: 0;
-      right: 0;
-      bottom: 0;
-      width: 12px;
-      cursor: col-resize;
-      user-select: none;
-      touch-action: none;
-      z-index: 10;
-      background: transparent;
-    }
-
-    .sidebar-resizer::before {
-      content: none;
-    }
-</style>
-
-<div class="sidebar-resizable" id="appSidebarContainer">
-    <nav class="sidebar p-0">
-        {% for key,group in sidebar().items() %}
-        <div class="card mb-1 ml-2">
-            <div class="card-header d-flex justify-content-between align-items-center py-1" data-bs-toggle="collapse" data-bs-target="#collapse{{ key }}" aria-expanded="true" aria-controls="collapse{{ key }}">
-                <i class="fas fa-cogs"></i>
-                  <div class="ps-3" style="white-space: nowrap;">
-                      {{ key }}
-                  </div>
-                <i class="fas fa-chevron-down collapse-indicator ms-2" style="transition: transform 0.3s ease;"></i>
-            </div>
-            <div class="collapse" id="collapse{{ key }}">
-                <div class="card-body px-0 py-0">
-                    <div class="list-group list-group-flush">
-                        {% for item in group %}
-                        <a  href="{{ item.route }}" class="list-group-item list-group-item-action{% if item.route in request.path %} list-group-item-primary {% endif %} d-flex justify-content-between align-items-start" data-module-name="{{ item.name }}">
-                                <img src="/{{item.name}}/static/{{item.name}}.png" height="24px" onError="this.src='{{ config.ASSETS_ROOT }}/images/module.png'">
-                                <div class="ms-2 me-auto" style="white-space: nowrap;">
+<div class="offcanvas-lg offcanvas-start sidebar-resizable" tabindex="-1" id="appSidebar" aria-labelledby="appSidebarLabel">
+    <div class="offcanvas-header d-lg-none border-bottom py-2">
+        <h5 class="offcanvas-title" id="appSidebarLabel">{{ _('Control panel') }}</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="offcanvas" data-bs-target="#appSidebar" aria-label="{{ _('Close') }}"></button>
+    </div>
+    <div class="offcanvas-body p-0">
+        <nav class="sidebar p-0">
+            {% for key,group in sidebar().items() %}
+            <div class="card mb-1 ms-2 me-1">
+                <div class="card-header d-flex justify-content-between align-items-center py-1" data-bs-toggle="collapse" data-bs-target="#collapse{{ key }}" aria-expanded="true" aria-controls="collapse{{ key }}">
+                    <i class="fas fa-cogs flex-shrink-0"></i>
+                    <div class="ps-3 text-truncate flex-grow-1 min-w-0">
+                        {{ key }}
+                    </div>
+                    <i class="fas fa-chevron-down collapse-indicator ms-2 flex-shrink-0" style="transition: transform 0.3s ease;"></i>
+                </div>
+                <div class="collapse" id="collapse{{ key }}">
+                    <div class="card-body px-0 py-0">
+                        <div class="list-group list-group-flush">
+                            {% for item in group %}
+                            <a href="{{ item.route }}" class="list-group-item list-group-item-action{% if item.route in request.path %} list-group-item-primary {% endif %} d-flex justify-content-between align-items-start sidebar-module-link" data-module-name="{{ item.name }}">
+                                <img class="flex-shrink-0" src="/{{item.name}}/static/{{item.name}}.png" height="24" alt="" onError="this.src='{{ config.ASSETS_ROOT }}/images/module.png'">
+                                <div class="ms-2 me-auto sidebar-item-title text-truncate">
                                     {{ item.title }}
                                 </div>
                                 {%if item.notify%}
-                                <span class="badge bg-warning text-black rounded-pill mt-1" data-notify-count="{{ item.notify }}">{{item.notify}}</span>
+                                <span class="badge bg-warning text-black rounded-pill mt-1 flex-shrink-0" data-notify-count="{{ item.notify }}">{{item.notify}}</span>
                                 {%else%}
-                                <span class="badge bg-warning text-black rounded-pill mt-1" data-notify-count="0" style="display: none;"></span>
+                                <span class="badge bg-warning text-black rounded-pill mt-1 flex-shrink-0" data-notify-count="0" style="display: none;"></span>
                                 {%endif%}
-                        </a>
-                        {%endfor%}
+                            </a>
+                            {%endfor%}
+                        </div>
                     </div>
                 </div>
             </div>
-        </div>
-        {%endfor%}
-    </nav>
-    <div class="sidebar-resizer" id="appSidebarResizer" aria-hidden="true"></div>
+            {%endfor%}
+        </nav>
+    </div>
+    <div class="sidebar-resizer d-none d-lg-block" id="appSidebarResizer" aria-hidden="true"></div>
 </div>
 <script>
+    var ADMIN_SIDEBAR_LG = 992;
+
+    function isSidebarDesktop() {
+      return window.innerWidth >= ADMIN_SIDEBAR_LG;
+    }
+
+    function getSidebarContainer() {
+      return document.getElementById('appSidebar');
+    }
+
     function getSidebarWidthLimits() {
       return {
         min: 220,
@@ -75,9 +58,16 @@
       };
     }
 
+    function resetSidebarMobileWidth() {
+      var container = getSidebarContainer();
+      if (container) {
+        container.style.width = '';
+      }
+    }
+
     function applySidebarWidth(width) {
-      var container = document.getElementById('appSidebarContainer');
-      if (!container) {
+      var container = getSidebarContainer();
+      if (!container || !isSidebarDesktop()) {
         return;
       }
 
@@ -87,6 +77,11 @@
     }
 
     function loadSidebarWidth() {
+      if (!isSidebarDesktop()) {
+        resetSidebarMobileWidth();
+        return;
+      }
+
       try {
         var savedWidth = localStorage.getItem('sidebarWidth');
         applySidebarWidth(savedWidth ? parseInt(savedWidth, 10) : 320);
@@ -96,7 +91,7 @@
     }
 
     function initSidebarResizer() {
-      var container = document.getElementById('appSidebarContainer');
+      var container = getSidebarContainer();
       var resizer = document.getElementById('appSidebarResizer');
       if (!container || !resizer) {
         return;
@@ -135,6 +130,10 @@
       }
 
       resizer.addEventListener('mousedown', function(e) {
+        if (!isSidebarDesktop()) {
+          return;
+        }
+
         e.preventDefault();
         isResizing = true;
         startX = e.clientX;
@@ -148,12 +147,33 @@
       });
 
       window.addEventListener('resize', function() {
-        applySidebarWidth(container.offsetWidth);
+        if (isSidebarDesktop()) {
+          loadSidebarWidth();
+        } else {
+          resetSidebarMobileWidth();
+        }
+      });
+    }
+
+    function initSidebarOffcanvasNav() {
+      var container = getSidebarContainer();
+      if (!container || typeof bootstrap === 'undefined') {
+        return;
+      }
+
+      container.querySelectorAll('.sidebar-module-link').forEach(function(link) {
+        link.addEventListener('click', function() {
+          if (!isSidebarDesktop()) {
+            var instance = bootstrap.Offcanvas.getInstance(container);
+            if (instance) {
+              instance.hide();
+            }
+          }
+        });
       });
     }
 
     function updateCollapseIndicators() {
-      // Update all collapse indicators based on current state
       $('[id^="collapse"]').each(function() {
         var collapseElement = $(this);
         var header = collapseElement.prev('.card-header');
@@ -167,15 +187,10 @@
     }
 
     function loadConfSidebar() {
-      // Check if local storage is available
       if (typeof(Storage) !== "undefined") {
-        // Check if the collapse state is stored
         if (localStorage.getItem('collapseSidebar')) {
-          // Get the collapse state from local storage
           var collapseState = JSON.parse(localStorage.getItem('collapseSidebar'));
-          // Loop through each collapse element
           collapseState.forEach(function(item) {
-            // Set the collapse state
             var element = $('#' + item.id);
             if (!item.collapsed) {
               element.addClass('show');
@@ -184,29 +199,25 @@
             }
           });
         } else {
-          // Initialize collapseState if it's not stored
           var collapseState = [];
           $('[id^="collapse"]').each(function() {
             collapseState.push({id: $(this).attr('id'), collapsed: !$(this).hasClass('show')});
           });
           localStorage.setItem('collapseSidebar', JSON.stringify(collapseState));
         }
-        
-        // Update indicators after loading state
+
         updateCollapseIndicators();
-      
-        // Update indicator on collapse show/hide events
+
         $('[id^="collapse"]').on('show.bs.collapse', function () {
           var header = $(this).prev('.card-header');
           header.find('.collapse-indicator').css('transform', 'rotate(180deg)');
         });
-        
+
         $('[id^="collapse"]').on('hide.bs.collapse', function () {
           var header = $(this).prev('.card-header');
           header.find('.collapse-indicator').css('transform', 'rotate(0deg)');
         });
-      
-        // Store the collapse state when a collapse element is toggled
+
         $('[data-bs-toggle="collapse"]').on('click', function () {
           setTimeout(function() {
             var collapseState = [];
@@ -218,13 +229,12 @@
         });
       }
     }
-   
-    // Call the function to load configuration after document is loaded
-$(document).ready(function() {
-    loadConfSidebar();
-    loadSidebarWidth();
-    initSidebarResizer();
-});
-    
+
+    $(document).ready(function() {
+      loadConfSidebar();
+      loadSidebarWidth();
+      initSidebarResizer();
+      initSidebarOffcanvasNav();
+    });
 </script>
 <!-- [ navigation menu ] end -->

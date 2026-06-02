@@ -569,10 +569,13 @@
         _renderNotificationIndicators: function(stats) {
             // Обновление индикатора в navbar
             const navbarIndicator = $('#unreadNotifyIndicator');
+            const navbarIndicatorCompact = $('#unreadNotifyIndicatorCompact');
             if (stats.unread > 0) {
-                navbarIndicator.show();
+                navbarIndicator.removeClass('d-none').addClass('d-flex');
+                navbarIndicatorCompact.removeClass('d-none');
             } else {
-                navbarIndicator.hide();
+                navbarIndicator.addClass('d-none').removeClass('d-flex');
+                navbarIndicatorCompact.addClass('d-none');
             }
             
             // Обновление индикаторов в sidebar

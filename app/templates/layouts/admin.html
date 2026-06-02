@@ -3,17 +3,19 @@
 
     {% include 'includes/websockets.html' %}
 
-    {% include 'includes/navbar.html' %}
-    
-    <div class="container-fluid">
-        <div class="d-flex">
-            {% include 'includes/sidebar.html' %}
-            <main role="main" class="flex-grow-1">
-                {% block content %}{% endblock content %}
-            </main>
+    <div class="admin-shell">
+        {% include 'includes/navbar.html' %}
+
+        <div class="container-fluid px-2 px-lg-3">
+            <div class="d-flex flex-column flex-lg-row">
+                {% include 'includes/sidebar.html' %}
+                <main role="main" class="flex-grow-1 min-vw-0 admin-main">
+                    {% block content %}{% endblock content %}
+                </main>
+            </div>
         </div>
     </div>
 
     {% include 'includes/scripts.html' %}
-    
+
 {% endblock main %}

@@ -1,0 +1,19 @@
+services:
+  osyshome:
+    image: ${OSYSHOME_IMAGE:-anisan1981/osyshome:latest}
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: osyshome
+    restart: unless-stopped
+    ports:
+      - "${OSYSHOME_PORT:-5000}:5000"
+    volumes:
+      - ./config.yaml:/app/config.yaml
+      - ./logs:/app/logs
+      - ./cache:/app/cache
+      - ./files:/app/files
+      - ./plugins:/app/plugins
+      - ./app.db:/app/app.db
+    environment:
+      - TZ=${TZ:-Europe/Moscow}
