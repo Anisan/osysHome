@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
 
 env:
-  IMAGE_NAME: anisan/osyshome
+  IMAGE_NAME: anisan1981/osyshome
 
 jobs:
   build-and-push:
