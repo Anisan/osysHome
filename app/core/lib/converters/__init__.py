@@ -1,5 +1,6 @@
 from .core import * # noqa
 from .color import * # noqa
+from .color_value import * # noqa
 from .temperature import * # noqa
 from .humidity import * # noqa
 from .pressure import * # noqa

@@ -180,6 +180,65 @@ value = obj.getProperty("counter")  # Вернет None (не default_value!)
 > - Старый формат (значения в корне params) **не поддерживается**
 > - Это позволяет использовать любые ключи как enum значения без конфликтов с системными параметрами
 
+### Тип: color
+
+`color` хранится в универсальном виде внутри БД и отдается в формате из `params.read_format`. Подробное руководство: [COLOR_TYPE_USAGE.ru.md](COLOR_TYPE_USAGE.ru.md).
+
+#### Универсальный формат хранения
+
+```json
+{
+  "xy": [0.458312, 0.410201],
+  "rgb": [84, 102, 150]
+}
+```
+
+Дополнительно могут храниться: `hs`, `hsv`, `hsl`, `hsb`, `color_temp`, `mired`.
+
+#### Параметры color
+
+```json
+{
+  "read_format": "canonical",
+  "write_format": "auto",
+  "color_temp_unit": "kelvin",
+  "hue_scale": 360,
+  "sat_scale": 100
+}
+```
+
+- `read_format`: `canonical`, `hex`, `rgb`, `xy`, `hs`, `hsv`, `hsl`, `hsb`, `color_temp`, `zigbee2mqtt`
+- `write_format`: `auto`, `hex`, `rgb`, `xy`, `hs`, `hsv`, `hsl`, `hsb`, `color_temp`, `zigbee2mqtt`
+- `color_temp_unit`: `kelvin` или `mired`
+- `hue_scale`: `360` или `254`
+- `sat_scale`: `100` или `254`
+
+#### Пример для Zigbee2MQTT
+
+```json
+{
+  "read_format": "zigbee2mqtt",
+  "write_format": "auto",
+  "hue_scale": 360,
+  "sat_scale": 100
+}
+```
+
+#### Пример для UI/API
+
+```json
+{
+  "read_format": "hex",
+  "write_format": "hex"
+}
+```
+
+#### Важно
+
+- Яркость (`brightness`, `level`) рекомендуется хранить отдельным свойством.
+- Если `write_format != auto`, формат входных данных проверяется строго.
+- Конвертации выполняются через `app/core/lib/converters/color.py`.
+
 ## Расширенные параметры валидации
 
 ### step (Дискретность)

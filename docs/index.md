@@ -21,6 +21,16 @@ If you are new to the system, read the documents in this order:
 
 ---
 
+## Property reference
+
+| Topic | Document |
+|-------|----------|
+| `params` (all types) | [PARAMS_DOCUMENTATION.md](PARAMS_DOCUMENTATION.md) |
+| `enum` type | [ENUM_TYPE_USAGE.md](ENUM_TYPE_USAGE.md) |
+| `color` type | [COLOR_TYPE_USAGE.md](COLOR_TYPE_USAGE.md) |
+
+---
+
 ## System Architecture
 
 ```

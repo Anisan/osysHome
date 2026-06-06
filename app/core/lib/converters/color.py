@@ -1,4 +1,5 @@
 import math
+import json
 
 
 def hex_to_rgb(hex_str):
@@ -233,7 +234,11 @@ def xyz_to_rgb(x, y, z):
     g = gamma_correct(g)
     b = gamma_correct(b)
 
-    return round(r * 255), round(g * 255), round(b * 255)
+    return (
+        max(0, min(255, round(r * 255))),
+        max(0, min(255, round(g * 255))),
+        max(0, min(255, round(b * 255))),
+    )
 
 
 def rgb_to_xyz(r, g, b):
@@ -318,6 +323,14 @@ def rgb_to_xyY(r, g, b):
     return xyz_to_xyY(x, y, z)
 
 
+def rgb_to_xy(r, g, b):
+    """
+    Преобразует RGB в XY (без яркости Y).
+    """
+    x, y, _ = rgb_to_xyY(r, g, b)
+    return x, y
+
+
 def xyY_to_rgb(x, y, Y):
     """
     Преобразует xyY в RGB.
@@ -331,6 +344,14 @@ def xyY_to_rgb(x, y, Y):
     """
     X, Y, Z = xyY_to_xyz(x, y, Y)
     return xyz_to_rgb(X, Y, Z)
+
+
+def xy_to_rgb(x, y, y_luminance=None):
+    """
+    Преобразует XY в RGB, используя опциональную яркость.
+    """
+    luminance = 1.0 if y_luminance is None else float(y_luminance)
+    return xyY_to_rgb(float(x), float(y), luminance)
 
 
 def xyz_to_lab(x, y, z):
@@ -361,16 +382,196 @@ def xyz_to_lab(x, y, z):
     return L, a, b
 
 
-COLOR_MAP = {
-    (255, 0, 0): "red",
-    (0, 255, 0): "green",
-    (0, 0, 255): "blue",
-    (255, 255, 0): "yellow",
-    (255, 0, 255): "magenta",
-    (0, 255, 255): "cyan",
-    (0, 0, 0): "black",
-    (255, 255, 255): "white",
+# English CSS-style color names only (language-neutral API contract).
+COLOR_NAME_MAP = {
+    # basics
+    "red": (255, 0, 0),
+    "green": (0, 128, 0),
+    "blue": (0, 0, 255),
+    "yellow": (255, 255, 0),
+    "magenta": (255, 0, 255),
+    "fuchsia": (255, 0, 255),
+    "cyan": (0, 255, 255),
+    "aqua": (0, 255, 255),
+    "black": (0, 0, 0),
+    "white": (255, 255, 255),
+    # extended
+    "orange": (255, 165, 0),
+    "orangered": (255, 69, 0),
+    "purple": (128, 0, 128),
+    "violet": (238, 130, 238),
+    "indigo": (75, 0, 130),
+    "pink": (255, 192, 203),
+    "hotpink": (255, 105, 180),
+    "brown": (165, 42, 42),
+    "gray": (128, 128, 128),
+    "grey": (128, 128, 128),
+    "silver": (192, 192, 192),
+    "gold": (255, 215, 0),
+    "navy": (0, 0, 128),
+    "teal": (0, 128, 128),
+    "lime": (0, 255, 0),
+    "limegreen": (50, 205, 50),
+    "olive": (128, 128, 0),
+    "maroon": (128, 0, 0),
+    "coral": (255, 127, 80),
+    "salmon": (250, 128, 114),
+    "crimson": (220, 20, 60),
+    "tomato": (255, 99, 71),
+    "turquoise": (64, 224, 208),
+    "skyblue": (135, 206, 235),
+    "deepskyblue": (0, 191, 255),
+    "lightblue": (173, 216, 230),
+    "lightgreen": (144, 238, 144),
+    "darkblue": (0, 0, 139),
+    "darkgreen": (0, 100, 0),
+    "darkred": (139, 0, 0),
+    "darkgray": (169, 169, 169),
+    "darkgrey": (169, 169, 169),
+    "lightgray": (211, 211, 211),
+    "lightgrey": (211, 211, 211),
+    "beige": (245, 245, 220),
+    "ivory": (255, 255, 240),
+    "khaki": (240, 230, 140),
+    "lavender": (230, 230, 250),
+    "plum": (221, 160, 221),
+    "orchid": (218, 112, 214),
+    "tan": (210, 180, 140),
+    "chocolate": (210, 105, 30),
+    "sienna": (160, 82, 45),
+    "peru": (205, 133, 63),
+    "wheat": (245, 222, 179),
+    "snow": (255, 250, 250),
+    "mint": (189, 252, 201),
+    "mintcream": (245, 255, 250),
+    "chartreuse": (127, 255, 0),
+    "springgreen": (0, 255, 127),
+    "seagreen": (46, 139, 87),
+    "forestgreen": (34, 139, 34),
+    "royalblue": (65, 105, 225),
+    "steelblue": (70, 130, 180),
+    "slateblue": (106, 90, 205),
+    "slategray": (112, 128, 144),
+    "slategrey": (112, 128, 144),
+    # HTML color names (https://htmlcolorcodes.com/color-names/)
+    "aliceblue": (240, 248, 255),
+    "antiquewhite": (250, 235, 215),
+    "aquamarine": (127, 255, 212),
+    "azure": (240, 255, 255),
+    "bisque": (255, 228, 196),
+    "blanchedalmond": (255, 235, 205),
+    "blueviolet": (138, 43, 226),
+    "burlywood": (222, 184, 135),
+    "cadetblue": (95, 158, 160),
+    "cornflowerblue": (100, 149, 237),
+    "cornsilk": (255, 248, 220),
+    "darkcyan": (0, 139, 139),
+    "darkgoldenrod": (184, 134, 11),
+    "darkkhaki": (189, 183, 107),
+    "darkmagenta": (139, 0, 139),
+    "darkolivegreen": (85, 107, 47),
+    "darkorange": (255, 140, 0),
+    "darkorchid": (153, 50, 204),
+    "darksalmon": (233, 150, 122),
+    "darkseagreen": (143, 188, 139),
+    "darkslateblue": (72, 61, 139),
+    "darkslategray": (47, 79, 79),
+    "darkslategrey": (47, 79, 79),
+    "darkturquoise": (0, 206, 209),
+    "darkviolet": (148, 0, 211),
+    "deeppink": (255, 20, 147),
+    "dimgray": (105, 105, 105),
+    "dimgrey": (105, 105, 105),
+    "dodgerblue": (30, 144, 255),
+    "firebrick": (178, 34, 34),
+    "floralwhite": (255, 250, 240),
+    "gainsboro": (220, 220, 220),
+    "ghostwhite": (248, 248, 255),
+    "goldenrod": (218, 165, 32),
+    "greenyellow": (173, 255, 47),
+    "honeydew": (240, 255, 240),
+    "indianred": (205, 92, 92),
+    "lavenderblush": (255, 240, 245),
+    "lawngreen": (124, 252, 0),
+    "lemonchiffon": (255, 250, 205),
+    "lightcoral": (240, 128, 128),
+    "lightcyan": (224, 255, 255),
+    "lightgoldenrodyellow": (250, 250, 210),
+    "lightpink": (255, 182, 193),
+    "lightsalmon": (255, 160, 122),
+    "lightseagreen": (32, 178, 170),
+    "lightskyblue": (135, 206, 250),
+    "lightslategray": (119, 136, 153),
+    "lightslategrey": (119, 136, 153),
+    "lightsteelblue": (176, 196, 222),
+    "lightyellow": (255, 255, 224),
+    "linen": (250, 240, 230),
+    "mediumaquamarine": (102, 205, 170),
+    "mediumblue": (0, 0, 205),
+    "mediumorchid": (186, 85, 211),
+    "mediumpurple": (147, 112, 219),
+    "mediumseagreen": (60, 179, 113),
+    "mediumslateblue": (123, 104, 238),
+    "mediumspringgreen": (0, 250, 154),
+    "mediumturquoise": (72, 209, 204),
+    "mediumvioletred": (199, 21, 133),
+    "midnightblue": (25, 25, 112),
+    "mistyrose": (255, 228, 225),
+    "moccasin": (255, 228, 181),
+    "navajowhite": (255, 222, 173),
+    "oldlace": (253, 245, 230),
+    "olivedrab": (107, 142, 35),
+    "palegoldenrod": (238, 232, 170),
+    "palegreen": (152, 251, 152),
+    "paleturquoise": (175, 238, 238),
+    "palevioletred": (219, 112, 147),
+    "papayawhip": (255, 239, 213),
+    "peachpuff": (255, 218, 185),
+    "powderblue": (176, 224, 230),
+    "rebeccapurple": (102, 51, 153),
+    "rosybrown": (188, 143, 143),
+    "saddlebrown": (139, 69, 19),
+    "sandybrown": (244, 164, 96),
+    "seashell": (255, 245, 238),
+    "thistle": (216, 191, 216),
+    "whitesmoke": (245, 245, 245),
+    "yellowgreen": (154, 205, 50),
+    # smart-home (legacy RGB, kept for backward compatibility)
+    "warmwhite": (255, 244, 229),
+    "coolwhite": (229, 244, 255),
+    "daylight": (255, 255, 251),
+    "offwhite": (253, 245, 230),
 }
+
+COLOR_MAP = {}
+
+
+def is_color_name(value):
+    """Проверяет, является ли строка известным именем цвета."""
+    if not isinstance(value, str):
+        return False
+    return value.strip().lower() in COLOR_NAME_MAP
+
+
+def parse_color_name(name):
+    """
+    Преобразует английское имя цвета (red, green, blue, ...) в RGB.
+
+    Поддерживаются английские имена CSS/HTML и smart-home (warmwhite, relax, …).
+    Локализованные названия не принимаются — используйте hex/rgb/xy.
+
+    Args:
+        name (str): имя цвета, регистр не важен
+
+    Returns:
+        tuple: (R, G, B) как целые числа 0-255
+    """
+    if not isinstance(name, str):
+        raise ValueError("Color name must be a string")
+    normalized = name.strip().lower()
+    if normalized not in COLOR_NAME_MAP:
+        raise ValueError(f"Unknown color name: {name}")
+    return COLOR_NAME_MAP[normalized]
 
 
 def rgb_to_color_name(r, g, b):
@@ -458,3 +659,153 @@ def kelvin_to_rgb(kelvin):
         max(0, min(255, round(g))),
         max(0, min(255, round(b))),
     )
+
+
+def _build_smart_home_color_names():
+    """CCT whites and scene presets for smart-home automations."""
+    names = {}
+    for name, kelvin in {
+        "candlelight": 2000,
+        "candle": 2000,
+        "bedtime": 1800,
+        "nightlight": 2000,
+        "relax": 2200,
+        "softwhite": 2700,
+        "incandescent": 2700,
+        "neutralwhite": 4000,
+        "naturalwhite": 4000,
+        "reading": 4000,
+        "brightwhite": 5000,
+        "energize": 6500,
+        "arcticwhite": 7500,
+        "coldwhite": 7500,
+    }.items():
+        names[name] = kelvin_to_rgb(kelvin)
+    names.update({
+        "sunset": (255, 120, 60),
+        "amber": (255, 191, 0),
+        "fire": (255, 80, 20),
+    })
+    return names
+
+
+COLOR_NAME_MAP.update(_build_smart_home_color_names())
+for _name, _rgb in COLOR_NAME_MAP.items():
+    COLOR_MAP.setdefault(_rgb, _name)
+
+
+def hsb_to_rgb(h, s, b):
+    """
+    HSB эквивалентен HSV в текущей модели.
+    """
+    return hsv_to_rgb(h, s, b)
+
+
+def rgb_to_hsb(r, g, b):
+    """
+    HSB эквивалентен HSV в текущей модели.
+    """
+    return rgb_to_hsv(r, g, b)
+
+
+def kelvin_to_mired(kelvin):
+    kelvin = float(kelvin)
+    if kelvin <= 0:
+        raise ValueError("kelvin must be > 0")
+    return round(1000000.0 / kelvin)
+
+
+def mired_to_kelvin(mired):
+    mired = float(mired)
+    if mired <= 0:
+        raise ValueError("mired must be > 0")
+    return round(1000000.0 / mired)
+
+
+def normalize_hue_sat(h, s, hue_scale=360, sat_scale=100):
+    """
+    Нормализует hue/saturation в диапазоны 0..360 и 0..100.
+    """
+    hue_scale = float(hue_scale or 360)
+    sat_scale = float(sat_scale or 100)
+    h_norm = (float(h) * 360.0) / hue_scale
+    s_norm = (float(s) * 100.0) / sat_scale
+    h_norm = max(0.0, min(360.0, h_norm))
+    s_norm = max(0.0, min(100.0, s_norm))
+    return h_norm, s_norm
+
+
+def denormalize_hue_sat(h, s, hue_scale=360, sat_scale=100):
+    """
+    Переводит hue/saturation из 0..360/0..100 в целевые шкалы.
+    """
+    hue_scale = float(hue_scale or 360)
+    sat_scale = float(sat_scale or 100)
+    h_raw = (float(h) * hue_scale) / 360.0
+    s_raw = (float(s) * sat_scale) / 100.0
+    return round(h_raw, 3), round(s_raw, 3)
+
+
+def parse_rgb_string(value):
+    """
+    Парсит строку вида 'R,G,B' в tuple RGB.
+    """
+    if not isinstance(value, str):
+        raise ValueError("rgb string must be a string")
+    parts = [p.strip() for p in value.split(",")]
+    if len(parts) != 3:
+        raise ValueError(f"Invalid rgb string: {value}")
+    r, g, b = (int(p) for p in parts)
+    for channel in (r, g, b):
+        if channel < 0 or channel > 255:
+            raise ValueError(f"RGB channel out of range: {channel}")
+    return r, g, b
+
+
+def _safe_rgb_from_universal(univ):
+    rgb = univ.get("rgb")
+    if isinstance(rgb, (list, tuple)) and len(rgb) == 3:
+        return int(rgb[0]), int(rgb[1]), int(rgb[2])
+    xy = univ.get("xy")
+    if isinstance(xy, (list, tuple)) and len(xy) == 2:
+        return xy_to_rgb(float(xy[0]), float(xy[1]))
+    raise ValueError("Universal color must contain rgb or xy")
+
+
+def build_zigbee2mqtt_color(univ, fmt_hint=None):
+    """
+    Собирает payload для zigbee2mqtt поля `color`.
+    """
+    if not isinstance(univ, dict):
+        raise ValueError("Universal color must be a dict")
+
+    hint = (fmt_hint or "").lower()
+    if hint == "xy" and "xy" in univ:
+        return {"color": {"x": float(univ["xy"][0]), "y": float(univ["xy"][1])}}
+    if hint in ("hs", "hue_saturation"):
+        hs = univ.get("hs")
+        if hs and len(hs) == 2:
+            return {"color": {"hue": round(float(hs[0]), 3), "saturation": round(float(hs[1]), 3)}}
+    if hint in ("hsv", "hsb") and hint in univ:
+        values = univ[hint]
+        if isinstance(values, (list, tuple)) and len(values) == 3:
+            return {"color": {hint: f"{values[0]},{values[1]},{values[2]}"}}
+
+    if "xy" in univ:
+        return {"color": {"x": float(univ["xy"][0]), "y": float(univ["xy"][1])}}
+    if "hs" in univ and isinstance(univ["hs"], (list, tuple)) and len(univ["hs"]) == 2:
+        return {
+            "color": {
+                "hue": round(float(univ["hs"][0]), 3),
+                "saturation": round(float(univ["hs"][1]), 3),
+            }
+        }
+    rgb = _safe_rgb_from_universal(univ)
+    return {"color": {"r": rgb[0], "g": rgb[1], "b": rgb[2]}}
+
+
+def color_json_dumps(value):
+    """
+    Стабильная сериализация цвета для БД.
+    """
+    return json.dumps(value, sort_keys=True, separators=(",", ":"))
