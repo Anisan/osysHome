@@ -12,6 +12,11 @@ app = createApp(Config)
 
 if __name__ == '__main__':
     _logger.info("osyHome version: %s", get_current_version())
+    if getattr(Config, 'SECURITY_DEFAULTS_APPLIED', False):
+        _logger.warning(
+            "Security defaults were auto-applied (sample secret_key). "
+            "Review config.yaml and store secret_key safely."
+        )
 
     _logger.info("Init SystemVar")
     with app.app_context():

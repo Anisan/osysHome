@@ -19,6 +19,14 @@
 | 7 | [Плагины](plugins.ru.md) | Как устроена система плагинов на высоком уровне |
 | 8 | [Разработка плагинов](plugin-development.ru.md) | Как написать собственный плагин |
 
+### Production и эксплуатация
+
+| Документ | Содержание |
+|----------|------------|
+| [Production-развёртывание (nginx + HTTPS)](DEPLOY_PRODUCTION.ru.md) | TLS, systemd, Docker, Let's Encrypt |
+| [Безопасность и доступ](SECURITY_ACCESS.ru.md) | Аутентификация, роли, API-ключи |
+| [Конфигурация](configuration.ru.md) | Справочник `config.yaml` |
+
 ---
 
 ## Справочник свойств

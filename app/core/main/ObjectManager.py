@@ -392,6 +392,10 @@ class TypeOperation(Enum):
     Call = "call"
     Edit = "edit"
 
+_USERS_ADMIN_SET_PROPERTIES = frozenset({
+    'role', 'password', 'apikey', 'home_page', 'timezone', 'image', 'lastLogin',
+})
+
 class PropertyManager():
     """
     Initializes an ObjectManager instance with the given parameters.
@@ -1098,6 +1102,27 @@ class ObjectManager:
 
         if role == 'root':
             return True
+
+        if property_name and 'Users' in getattr(self, 'parents', []):
+            if property_name == 'password' and operation == TypeOperation.Get:
+                raise PermissionError(
+                    f"User {username}({role}) don't have permission to {operation.name} "
+                    f"obj:{name} property:{property_name} (sensitive)"
+                )
+            if operation == TypeOperation.Set and role == 'admin':
+                if property_name in _USERS_ADMIN_SET_PROPERTIES:
+                    return True
+            if property_name == 'password' and operation == TypeOperation.Set and role != 'admin':
+                raise PermissionError(
+                    f"User {username}({role}) don't have permission to {operation.name} "
+                    f"obj:{name} property:{property_name} (sensitive)"
+                )
+            if property_name == 'apikey' and operation in (TypeOperation.Get, TypeOperation.Set):
+                if role != 'admin' and username != name:
+                    raise PermissionError(
+                        f"User {username}({role}) don't have permission to {operation.name} "
+                        f"obj:{name} property:{property_name} (sensitive)"
+                    )
 
         _permissions = object.__getattribute__(self, "__permissions")
         if _permissions is None:

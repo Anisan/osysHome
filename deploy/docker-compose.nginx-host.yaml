@@ -1,0 +1,10 @@
+# Use with host nginx (HTTPS on 443, app only on localhost):
+#
+#   docker compose -f docker-compose.yml -f deploy/docker-compose.nginx-host.yaml up -d
+#
+# nginx site: deploy/nginx/osyshome-docker.conf
+
+services:
+  osyshome:
+    ports:
+      - "127.0.0.1:5000:5000"

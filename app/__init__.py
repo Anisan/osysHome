@@ -139,9 +139,11 @@ def createApp(config_object):
     @app.context_processor
     def inject_config():
         from app.admin.tools import can_restart_system
+        from flask_wtf.csrf import generate_csrf
         return {
             'config': config_object,
             'can_restart_system': can_restart_system(),
+            'csrf_token': generate_csrf,
         }
 
     # === Собираем IntelliSense-кэш ПОСЛЕ создания приложения ===
@@ -324,6 +326,31 @@ def registerBlueprints(app):
         module = import_module('app.{}.routes'.format(moduleName))
         app.register_blueprint(module.blueprint)
 
+
+# Маршруты, доступные без аутентификации (явный whitelist).
+_PUBLIC_ENDPOINTS = frozenset({
+    'static',
+    'auth.login',
+    'auth.logout',
+    'api.about',
+    'files.public_file',
+})
+
+
+def _resolve_required_roles(view_func, http_method):
+    """Роли из декоратора: обычные view и flask-restx Resource."""
+    if view_func is None:
+        return None
+    if hasattr(view_func, 'view_class'):
+        resource_class = view_func.view_class
+        method_name = http_method.lower()
+        if hasattr(resource_class, method_name):
+            handler = getattr(resource_class, method_name)
+            return getattr(handler, 'required_roles', None)
+        return None
+    return getattr(view_func, 'required_roles', None)
+
+
 def check_page_access(request):
     # Извлекаем имя blueprint из endpoint
     parts = request.endpoint.split('.')
@@ -346,6 +373,9 @@ def check_page_access(request):
     role = getattr(current_user, 'role', None)
 
     if role == 'root':
+        return True
+
+    if request.endpoint in _PUBLIC_ENDPOINTS:
         return True
 
     endpoint = request.endpoint.replace(".", ":")
@@ -380,21 +410,9 @@ def check_page_access(request):
             if role in access_roles or "*" in access_roles:
                 return True
 
-    # Получаем функцию-обработчик для текущего маршрута
     view_func = current_app.view_functions.get(request.endpoint)
+    required_roles = _resolve_required_roles(view_func, request.method)
 
-    # Проверяем, есть ли у функции атрибут required_role
-    required_roles = getattr(view_func, 'required_roles', None)
-
-    # для не заданных ролей считаем что открыто (FIXME потенциальная дыра в безопасности)
-    if required_roles is None and not permissions:
-        return True
-
-    # Пропускаем системные маршруты (например, /login, /static)
-    if request.endpoint in ['static', 'login', 'logout']:
-        return True
-
-    # Проверяем, авторизован ли пользователь
     if not current_user.is_authenticated:
         security_audit_log(
             'UNAUTHORIZED', ip=_get_client_ip(), url=request.url, endpoint=request.endpoint or '?',
@@ -403,11 +421,13 @@ def check_page_access(request):
         _logger.warning(f"Unauthorized access attempt from {_get_client_ip()} to {request.url}")
         return None
 
-    # Проверяем роль пользователя
-    if required_roles and role in required_roles:
-        return True
+    if required_roles:
+        if role in required_roles:
+            return True
+        return False
 
-    return False
+    # Аутентифицирован, роль на маршруте не задана — доступ любому вошедшему пользователю.
+    return True
 
 def registerErrorHandlers(app):
 

@@ -160,8 +160,11 @@ service:
 
 ## Security Tips
 
-1. Change `secret_key` to a long random value before production use.
+1. Change `secret_key` to a long random value before production use.  
+   If it still matches `sample_config.yaml`, osysHome auto-generates a key on first start and applies safe defaults (comments in `config.yaml` are preserved).
 2. Do not commit `config.yaml` to a public repository.
-3. Set `session_cookie_secure: true` when running behind HTTPS.
+3. Set `session_cookie_secure: true` when running behind HTTPS (nginx + Let's Encrypt).
 4. In production, keep `debug: false`, `sqlalchemy_echo: false`, and `debug_tools.enabled: false`.
 5. Enable `sqlalchemy_record_queries` only temporarily while investigating slow pages.
+
+For a full production checklist (nginx, systemd, firewall, verification), see [Production Deploy](DEPLOY_PRODUCTION.md).

@@ -215,7 +215,25 @@ docker run --rm -p 5000:5000 \
 
 On first start, if `plugins/` is empty, recommended plugins are cloned automatically. If `config.yaml` is missing or empty, it is created from `sample_config.yaml`.
 
-### 9. Where to go next
+### 9. Production (HTTPS + nginx)
+
+For access from the internet, do **not** expose port `5000` directly. Use nginx on port 443 in front of osysHome on `127.0.0.1:5000`.
+
+| Resource | Description |
+|----------|-------------|
+| [docs/DEPLOY_PRODUCTION.md](DEPLOY_PRODUCTION.md) | Full guide: TLS, systemd, Docker, checks |
+| [deploy/](../deploy/README.md) | Ready-made nginx and systemd configs |
+| [docs/SECURITY_ACCESS.md](SECURITY_ACCESS.md) | Auth, roles, API security |
+
+Minimal `config.yaml` after HTTPS is ready:
+
+```yaml
+application:
+  session_cookie_secure: true
+  debug: false
+```
+
+### 10. Where to go next
 
 - Web UI top menu → **Docs** — open `docs/index.html` or this repo’s `docs/INDEX.md`.
 - Learn architecture: `docs/ARCHITECTURE.md`
@@ -440,7 +458,25 @@ docker run --rm -p 5000:5000 \
 
 При первом запуске, если `plugins/` пуст, рекомендованные плагины клонируются автоматически. Если `config.yaml` отсутствует или пуст — создаётся из `sample_config.yaml`.
 
-### 9. Что дальше
+### 9. Production (HTTPS + nginx)
+
+Для доступа из интернета **не открывайте** порт `5000` напрямую. Поставьте nginx на 443 перед osysHome на `127.0.0.1:5000`.
+
+| Ресурс | Описание |
+|--------|----------|
+| [docs/DEPLOY_PRODUCTION.ru.md](DEPLOY_PRODUCTION.ru.md) | Полное руководство: TLS, systemd, Docker |
+| [deploy/](../deploy/README.md) | Готовые конфиги nginx и systemd |
+| [docs/SECURITY_ACCESS.ru.md](SECURITY_ACCESS.ru.md) | Аутентификация и API |
+
+После настройки HTTPS в `config.yaml`:
+
+```yaml
+application:
+  session_cookie_secure: true
+  debug: false
+```
+
+### 10. Что дальше
 
 - Пункт меню в веб‑интерфейсе **Docs** → статическая документация (`docs/index.html`).
 - В репозитории: `docs/INDEX.md` — обзор всех разделов.

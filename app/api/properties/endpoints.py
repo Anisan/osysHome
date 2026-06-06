@@ -1,8 +1,9 @@
 import datetime
 from flask import request, abort
 from flask_restx import Namespace, Resource, fields
-from app.database import session_scope, convert_local_to_utc, convert_utc_to_local
+from app.database import session_scope, convert_local_to_utc
 from app.api.decorators import api_key_required
+from app.api.property_helpers import read_property_details, read_property_value
 from app.authentication.handlers import handle_user_required
 from app.api.models import model_result, model_404
 from app.core.main.ObjectsStorage import objects_storage
@@ -68,7 +69,10 @@ class GetProperty(Resource):
         elif property_name == "template":
             result = obj.template
         else:
-            result = obj.getProperty(property_name)
+            try:
+                result = read_property_value(obj, property_name)
+            except PermissionError:
+                return {"success": False, "msg": "Forbidden."}, 403
         return {"success": True,
                 "result": result}, 200
 
@@ -91,14 +95,14 @@ class GetProperty(Resource):
         for object_property in properties:
             object_name, property_name = object_property.split('.', 1)
             obj = objects_storage.getObjectByName(object_name)
-            if obj:
-                data = {}
-                if property_name in obj.properties:
-                    prop = obj.properties[property_name]
-                    data['value'] = prop.value
-                    data['source'] = prop.source
-                    data['changed'] = convert_utc_to_local(prop.changed)
-                    result[object_property] = data
+            if not obj:
+                continue
+            if property_name not in obj.properties:
+                continue
+            try:
+                result[object_property] = read_property_details(obj, property_name)
+            except PermissionError:
+                continue
         return {"success": True,
                 "result": result}, 200
 
@@ -131,11 +135,10 @@ class PropertyWithPath(Resource):
             return {"success": False,
                     "msg": "Property not found."}, 404
 
-        prop = obj.properties[property_name]
-        result = {}
-        result['value'] = prop.value
-        result['source'] = prop.source
-        result['changed'] = convert_utc_to_local(prop.changed)
+        try:
+            result = read_property_details(obj, property_name)
+        except PermissionError:
+            return {"success": False, "msg": "Forbidden."}, 403
         return {"success": True,
                 "result": result}, 200
 
@@ -167,6 +170,8 @@ class PropertyWithPath(Resource):
                     item.setProperty(property_name,value,source)
                     return {'success': True}, 200
 
+                except PermissionError:
+                    return {'success': False, "error": "Forbidden."}, 403
                 except Exception as e:
                     return {'success': False,"error": f"Failed to parse JSON: {str(e)}"}, 400
 
@@ -176,6 +181,8 @@ class PropertyWithPath(Resource):
                     payload = request.data.decode('utf-8')  # Декодируем байты в строку
                     item.setProperty(property_name, payload, "api")
                     return {'success': True}, 200
+                except PermissionError:
+                    return {'success': False, "error": "Forbidden."}, 403
                 except Exception as e:
                     return {'success': False,"error": f"Failed to process text data: {str(e)}"}, 400
 

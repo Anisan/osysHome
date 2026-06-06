@@ -53,8 +53,22 @@ curl -H "X-API-Key: <API_KEY>" \
   "http://localhost:5000/api/property/SomeObject.someProp"
 ```
 
+## Production deployment
+
+For internet-facing installs:
+
+- Use **nginx + HTTPS**; bind osysHome to `127.0.0.1:5000` only.
+- Set `session_cookie_secure: true` in `config.yaml`.
+- Do not expose port 5000 on the router.
+- SQL API (`/api/sql/*`) is **admin-only** by default; override via Permissions plugin if needed.
+- Routes without explicit roles are **deny-by-default** for anonymous users (public whitelist: login, static files, `/api/about`, etc.).
+
+Step-by-step guide: [Production Deploy (nginx + HTTPS)](DEPLOY_PRODUCTION.md)
+
 ## Related Docs
 
+- [Production Deploy](DEPLOY_PRODUCTION.md)
+- [Configuration](configuration.md)
 - [Web Interface](web-interface.md)
 - [Core Runtime](CORE_RUNTIME.md)
 - [Boot Sequence](BOOT_SEQUENCE.md)

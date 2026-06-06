@@ -149,40 +149,19 @@ http://localhost:5000
 
 ## Запуск как системный сервис (Linux)
 
-Если вы хотите, чтобы osysHome запускался автоматически при старте сервера:
-
-1. Создайте файл `/etc/systemd/system/osyshome.service`:
-
-```ini
-[Unit]
-Description=osysHome Smart Home Platform
-After=network.target
-
-[Service]
-Type=simple
-User=your_user
-WorkingDirectory=/path/to/NextGetSmart
-ExecStart=/path/to/NextGetSmart/venv/bin/python main.py
-Restart=on-failure
-RestartSec=5s
-
-[Install]
-WantedBy=multi-user.target
-```
-
-2. Активируйте и запустите сервис:
+Готовый unit-файл в репозитории:
 
 ```bash
+sudo cp deploy/systemd/osyshome.service /etc/systemd/system/
+# При необходимости измените User, WorkingDirectory, ExecStart
 sudo systemctl daemon-reload
-sudo systemctl enable osyshome
-sudo systemctl start osyshome
-```
-
-3. Проверьте статус:
-
-```bash
+sudo systemctl enable --now osyshome
 sudo systemctl status osyshome
 ```
+
+Файл: [`deploy/systemd/osyshome.service`](../deploy/systemd/osyshome.service)
+
+HTTPS, nginx, firewall: [Production-развёртывание](DEPLOY_PRODUCTION.ru.md).
 
 В `config.yaml` укажите имя сервиса, если хотите управлять им из интерфейса:
 

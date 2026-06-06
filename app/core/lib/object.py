@@ -556,6 +556,8 @@ def setProperty(name:str, value, source:str='', save_history:bool=None, changed:
         else:
             logger.error('Object %s not found', name)
             return False
+    except PermissionError:
+        raise
     except Exception as e:
         logger.exception('setProperty %s: %s',name,e)
     return False

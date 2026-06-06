@@ -53,8 +53,22 @@ curl -H "X-API-Key: <API_KEY>" \
   "http://localhost:5000/api/property/SomeObject.someProp"
 ```
 
+## Production-развёртывание
+
+При доступе из интернета:
+
+- **nginx + HTTPS**; osysHome слушает только `127.0.0.1:5000`.
+- В `config.yaml`: `session_cookie_secure: true`.
+- Порт 5000 на роутере не открывать.
+- SQL API (`/api/sql/*`) по умолчанию только для **admin** (изменение — плагин Permissions).
+- Маршруты без роли — **запрещены для анонимов** (whitelist: login, static, `/api/about` и т.д.).
+
+Пошагово: [Production-развёртывание (nginx + HTTPS)](DEPLOY_PRODUCTION.ru.md)
+
 ## См. также
 
+- [Production-развёртывание](DEPLOY_PRODUCTION.ru.md)
+- [Конфигурация](configuration.ru.md)
 - [Веб-интерфейс](web-interface.ru.md)
 - [Core Runtime](CORE_RUNTIME.md)
 - [Порядок запуска](BOOT_SEQUENCE.ru.md)

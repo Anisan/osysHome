@@ -1,5 +1,22 @@
 # Working osysHome configuration
-# This file is created by the user based on sample_config.yaml
+# Copy this file to config.yaml and adjust settings before production use.
+#
+# SECURITY CHECKLIST (required before exposing the instance to a network / internet):
+#   1. secret_key       — MUST be a unique random string (never leave the sample value).
+#   2. debug            — MUST be false in production.
+#   3. session_cookie_secure — SHOULD be true when HTTPS / reverse proxy with TLS is used.
+#   4. Admin password   — set a strong password on first login (first visit creates admin).
+#   5. Network          — do not port-forward to the internet without TLS and a strong secret_key.
+#   6. Guest accounts   — role "user" is trusted; only create if you understand API access.
+#   7. HTTPS deploy     — see deploy/README.md (nginx + systemd + Let's Encrypt).
+#
+# SQL API (/api/sql/*) is admin-only by default. Other roles can be allowed per-endpoint
+# in the Permissions plugin (_permissions.api:select_query etc.).
+#
+# AUTO-CONFIG: On first start, if secret_key is still the sample value below, osysHome
+# generates a random secret_key, applies recommended security settings, and updates
+# config.yaml in place (your comments in this file are preserved). After you set
+# secret_key manually, auto-config never runs again.
 
 application:
   # Default UI language.
@@ -10,12 +27,14 @@ application:
   # Use an IANA timezone name such as 'Europe/Moscow'.
   default_timezone: 'Europe/Moscow'
 
-  # Flask secret key used for sessions and tokens.
-  # Replace this with a unique value in real deployments.
-  secret_key: 'your-secret-key-here'
+  # Flask secret key used for sessions and CSRF tokens.
+  # REQUIRED: generate a unique value before any real deployment, e.g.:
+  #   python -c "import secrets; print(secrets.token_hex(32))"
+  # Leaving the sample value allows session forgery.
+  secret_key: 'your-secret-key-here'  # CHANGE ME — mandatory
 
   # Global application debug mode.
-  # true: useful for development, false: safer and faster for production.
+  # REQUIRED: false in production (exposes internals, disables safe defaults).
   debug: false
 
   # HTTP port used by the application.
@@ -48,9 +67,10 @@ application:
   # Used as the default timeout for requests.get/post and similar calls.
   http_request_timeout: 15
 
-  # Require HTTPS for the session cookie.
-  # Usually true in production behind an HTTPS reverse proxy.
-  session_cookie_secure: false
+  # Require HTTPS for the session cookie (Set-Cookie Secure flag).
+  # REQUIRED when the UI is served over HTTPS (reverse proxy, TLS termination).
+  # Can stay false only for pure HTTP on a trusted local network.
+  session_cookie_secure: false  # set true behind HTTPS
 
   # SameSite policy for the session cookie.
   # 'Lax' is a good default for most deployments.

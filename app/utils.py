@@ -177,14 +177,84 @@ def initSystemVar():
     if users:
         initPermissions()
 
+
+_SQL_ENDPOINT_PERMISSIONS = {
+    "api:select_query": {"get": {"access_roles": ["admin"]}},
+    "api:exec_query": {"get": {"access_roles": ["admin"]}},
+    "api:insert_query": {"post": {"access_roles": ["admin"]}},
+    "api:update_query": {"post": {"access_roles": ["admin"]}},
+}
+
+
+def _merge_endpoint_permissions(defaults):
+    """Добавляет права на endpoint, не перезаписывая настройки администратора."""
+    from app.core.lib.object import setProperty, getProperty
+
+    for endpoint, rules in defaults.items():
+        key = "_permissions." + endpoint
+        existing = getProperty(key)
+        if existing is None:
+            setProperty(key, rules)
+            continue
+        merged = dict(existing)
+        changed = False
+        for method, method_rules in rules.items():
+            current = merged.get(method)
+            if current is None:
+                merged[method] = method_rules
+                changed = True
+                continue
+            updated = dict(current)
+            for rule_name, rule_value in method_rules.items():
+                if rule_name not in updated:
+                    updated[rule_name] = rule_value
+                    changed = True
+            merged[method] = updated
+        if changed:
+            setProperty(key, merged)
+
+
 def initPermissions():
     from app.core.lib.object import setProperty, getProperty
+    _merge_endpoint_permissions(_SQL_ENDPOINT_PERMISSIONS)
     # set default permissions
-    permissions_user = {"properties": {"role": {"get": {"access_roles": ["admin", "editor", "user"]},
-                                                "set": {"access_roles": ["admin"], "denied_roles": ["editor", "user"]},
-                                                "edit": {"access_roles": ["admin"], "denied_roles": ["editor", "user"]}}}}
-    if getProperty("_permissions.class:Users") is None:
+    permissions_user = {
+        "properties": {
+            "role": {
+                "get": {"access_roles": ["admin", "editor", "user"]},
+                "set": {"access_roles": ["admin"], "denied_roles": ["editor", "user"]},
+                "edit": {"access_roles": ["admin"], "denied_roles": ["editor", "user"]},
+            },
+            "password": {
+                "get": {"denied_roles": ["admin", "editor", "user"]},
+                "set": {"access_roles": ["admin"]},
+            },
+            "apikey": {
+                "get": {"access_roles": ["admin"]},
+                "set": {"access_roles": ["admin"]},
+            },
+        }
+    }
+    existing = getProperty("_permissions.class:Users")
+    if existing is None:
         setProperty("_permissions.class:Users", permissions_user)
+        return
+
+    merged = dict(existing)
+    props = dict(merged.get("properties") or {})
+    for prop_name, rules in permissions_user["properties"].items():
+        current = props.get(prop_name)
+        if not current:
+            props[prop_name] = rules
+            continue
+        updated = dict(current)
+        for op_name, op_rules in rules.items():
+            if not updated.get(op_name):
+                updated[op_name] = op_rules
+        props[prop_name] = updated
+    merged["properties"] = props
+    if props != (existing.get("properties") or {}):
+        setProperty("_permissions.class:Users", merged)
 
 def startSystemVar():
     from app.core.lib.object import setProperty

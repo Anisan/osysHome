@@ -149,40 +149,19 @@ On the first run you will be prompted to create an administrator account. Enter 
 
 ## Running as a System Service (Linux)
 
-If you want osysHome to start automatically when the server boots:
-
-1. Create the file `/etc/systemd/system/osyshome.service`:
-
-```ini
-[Unit]
-Description=osysHome Smart Home Platform
-After=network.target
-
-[Service]
-Type=simple
-User=your_user
-WorkingDirectory=/path/to/NextGetSmart
-ExecStart=/path/to/NextGetSmart/venv/bin/python main.py
-Restart=on-failure
-RestartSec=5s
-
-[Install]
-WantedBy=multi-user.target
-```
-
-2. Enable and start the service:
+If you want osysHome to start automatically when the server boots, use the ready-made unit:
 
 ```bash
+sudo cp deploy/systemd/osyshome.service /etc/systemd/system/
+# Edit User, WorkingDirectory, ExecStart if not using /opt/osyshome
 sudo systemctl daemon-reload
-sudo systemctl enable osyshome
-sudo systemctl start osyshome
-```
-
-3. Check the status:
-
-```bash
+sudo systemctl enable --now osyshome
 sudo systemctl status osyshome
 ```
+
+Unit file: [`deploy/systemd/osyshome.service`](../deploy/systemd/osyshome.service)
+
+For HTTPS, nginx, and firewall: [Production Deploy](DEPLOY_PRODUCTION.md).
 
 In `config.yaml`, specify the service name if you want to manage it from the UI:
 

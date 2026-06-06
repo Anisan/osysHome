@@ -19,6 +19,14 @@ If you are new to the system, read the documents in this order:
 | 7 | [Plugins](plugins.md) | How the plugin system works at a high level |
 | 8 | [Plugin Development](plugin-development.md) | How to write your own plugin |
 
+### Production & operations
+
+| Document | What you'll learn |
+|----------|-------------------|
+| [Production Deploy (nginx + HTTPS)](DEPLOY_PRODUCTION.md) | TLS, systemd, Docker, Let's Encrypt |
+| [Security & Access](SECURITY_ACCESS.md) | Authentication, roles, API keys |
+| [Configuration](configuration.md) | `config.yaml` reference |
+
 ---
 
 ## Property reference

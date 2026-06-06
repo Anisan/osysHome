@@ -160,8 +160,11 @@ service:
 
 ## Советы по безопасности
 
-1. Перед production обязательно замените `secret_key` на длинное случайное значение.
+1. Перед production замените `secret_key` на уникальное значение.  
+   Если ключ совпадает с `sample_config.yaml`, при первом старте osysHome сгенерирует новый и применит безопасные defaults (комментарии в файле сохраняются).
 2. Не публикуйте `config.yaml` в открытых репозиториях.
-3. При работе за HTTPS включайте `session_cookie_secure: true`.
-4. В production держите `debug: false`, `sqlalchemy_echo: false` и `debug_tools.enabled: false`.
-5. `sqlalchemy_record_queries` включайте только временно, когда ищете причину медленных страниц.
+3. За HTTPS (nginx) включайте `session_cookie_secure: true`.
+4. В production: `debug: false`, `sqlalchemy_echo: false`, `debug_tools.enabled: false`.
+5. `sqlalchemy_record_queries` — только временно при отладке.
+
+Полный чеклист production (nginx, systemd, firewall): [Production-развёртывание](DEPLOY_PRODUCTION.ru.md).
