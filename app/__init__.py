@@ -17,6 +17,7 @@ from app.core.intelli import build_intelli_cache
 from app.utils import get_current_version
 
 from .logging_config import getLogger, security_audit_log
+from app.authentication.handlers import public_endpoint
 _logger = getLogger('flask')
 _logger_error_http = getLogger('http_errors')
 
@@ -327,14 +328,32 @@ def registerBlueprints(app):
         app.register_blueprint(module.blueprint)
 
 
-# Маршруты, доступные без аутентификации (явный whitelist).
+# Маршруты ядра без view-функции для декоратора (например, Flask static).
 _PUBLIC_ENDPOINTS = frozenset({
     'static',
-    'auth.login',
-    'auth.logout',
-    'api.about',
-    'files.public_file',
 })
+
+
+def _resolve_public_access(view_func, http_method):
+    """Флаг public_access у обычного view и flask-restx Resource."""
+    if view_func is None:
+        return False
+    if getattr(view_func, 'public_access', False) is True:
+        return True
+    if hasattr(view_func, 'view_class'):
+        resource_class = view_func.view_class
+        method_name = http_method.lower()
+        if hasattr(resource_class, method_name):
+            handler = getattr(resource_class, method_name)
+            return getattr(handler, 'public_access', False) is True
+    return False
+
+
+def _is_public_endpoint(request):
+    if request.endpoint in _PUBLIC_ENDPOINTS:
+        return True
+    view_func = current_app.view_functions.get(request.endpoint)
+    return _resolve_public_access(view_func, request.method)
 
 
 def _resolve_required_roles(view_func, http_method):
@@ -375,7 +394,7 @@ def check_page_access(request):
     if role == 'root':
         return True
 
-    if request.endpoint in _PUBLIC_ENDPOINTS:
+    if _is_public_endpoint(request):
         return True
 
     endpoint = request.endpoint.replace(".", ":")
@@ -497,6 +516,7 @@ def registerErrorHandlers(app):
         return render_template('errors/page-403.html'), 403
 
     @app.route('/forbidden')
+    @public_endpoint
     def access_forbidden():
         return render_template('errors/page-403.html'), 403
 

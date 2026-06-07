@@ -3,12 +3,13 @@ from flask import send_from_directory
 from . import blueprint
 from app.configuration import Config
 from app.logging_config import getLogger
-from app.authentication.handlers import handle_admin_required, handle_user_required
+from app.authentication.handlers import handle_admin_required, handle_user_required, public_endpoint
 
 _logger = getLogger("main")
 
 # Маршруты для отображения файлов
 @blueprint.route('/files/public/<path:filename>')
+@public_endpoint
 def public_file(filename):
     return send_from_directory(os.path.join(Config.FILES_DIR,"public"), filename)
 

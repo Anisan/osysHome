@@ -4,6 +4,7 @@ from flask import Blueprint
 from flask_restx import Api, Resource
 from app.logging_config import getLogger
 from app.api.decorators import g, api_key_required
+from app.authentication.handlers import public_endpoint
 from app.api.classes.endpoints import classes_ns
 from app.api.objects.endpoints import objects_ns
 from app.api.properties.endpoints import props_ns
@@ -55,6 +56,7 @@ api.representations["application/json"] = _safe_output_json
 
 @api.route('/about')
 class AboutResource(Resource):
+    @public_endpoint
     @api.doc(security=None)
     def get(self):
         '''

@@ -119,6 +119,11 @@ class BasePlugin:
         app.register_blueprint(self.blueprint)
 
     def register_routes(self):
+        """Discover route_* methods and register them on the plugin blueprint.
+
+        Use ``@public_endpoint`` on a route handler when the endpoint should bypass
+        global session/API-key checks (e.g. custom token auth in the handler).
+        """
         for attr_name in dir(self):
             if attr_name.startswith("route_"):
                 method = getattr(self, attr_name)
