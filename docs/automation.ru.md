@@ -229,6 +229,35 @@ clearTimeout("TurnOffLamp")
 
 ---
 
+## Cron-объекты и onInit
+
+Объекты класса **Cron** хранят расписание в свойствах и регистрируют job через `startJob()`. После перезапуска osysHome фоновая подгрузка объектов вызывает **`onInit`**, поэтому достаточно добавить в класс Cron метод:
+
+```python
+# onInit (метод класса Cron в Admin)
+if self.crontab:
+    self.startJob()
+
+# onStop
+self.stopJob()
+```
+
+Тогда cron-задачи поднимутся автоматически без ручного вызова `startJob` из сценария.
+
+---
+
+## Runtime vs Property в автоматизациях
+
+| Нужно | Использовать |
+|-------|--------------|
+| Состояние устройства, история, UI | Property |
+| Debounce, счётчик вызовов, флаг «уже обрабатываю» | `self.runtime` |
+| Диагностика петли A→B→A | `self.runtime.get("last_reactive_loop")` |
+
+При цепочке `setProperty` → method → `setProperty` ядро отслеживает глубину и циклы. При петле срабатывает лог и уведомление (если `reactive_loop_notify: true`). В `source` передавайте осмысленные метки (`plugin:z2m`, имя метода), чтобы linked не зацикливал обратную связь.
+
+---
+
 ## Мониторинг задач
 
 На странице **Admin → Scheduler** вкладка **Monitoring** показывает:

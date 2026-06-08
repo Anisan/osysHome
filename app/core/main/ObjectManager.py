@@ -7,7 +7,9 @@ import json
 from sqlalchemy import delete
 from flask_login import current_user
 from app.database import session_scope,row2dict, convert_utc_to_local, convert_local_to_utc, get_now_to_utc
-from app.core.lib.common import getModule, getModulesByAction
+from app.core.lib.common import getModule, getModulesByAction, addNotify
+from app.core.lib.constants import CategoryNotify
+from app.core.main.reactive_chain import chain_enter, chain_exit, chain_format
 from app.core.models.Clasess import Object, Property, Value, History
 from app.core.lib.common import setTimeout
 from app.core.lib.execute import execute_and_capture_output
@@ -1058,6 +1060,8 @@ class ObjectManager:
         object.__setattr__(self, "__permissions", None)
         object.__setattr__(self, "__templates", {})
         object.__setattr__(self, "_current_execution_source", None)
+        object.__setattr__(self, "_runtime", {})
+        object.__setattr__(self, "_lifecycle_running", False)
         object.__setattr__(self, "_render_env", None)
         object.__setattr__(self, "_render_template_name", None)
         object.__setattr__(self, "_render_template", None)
@@ -1068,6 +1072,27 @@ class ObjectManager:
         self._logger = ObjectLoggerAdapter(_logger, {'object_name': self.name})
         self.properties = {}
         self.methods = {}
+
+    @property
+    def runtime(self) -> dict:
+        return object.__getattribute__(self, "_runtime")
+
+    def clear_runtime(self) -> None:
+        object.__getattribute__(self, "_runtime").clear()
+
+    def _record_reactive_loop(self, chain: str) -> None:
+        self._runtime["last_reactive_loop"] = {
+            "chain": chain,
+            "at": str(get_now_to_utc()),
+        }
+        self._logger.error("[ReactiveLoop] %s", chain)
+        if Config.REACTIVE_LOOP_NOTIFY:
+            addNotify(
+                name=f"reactive_loop:{self.name}",
+                description=chain,
+                category=CategoryNotify.Warning,
+                source="Objects",
+            )
 
     def _addProperty(self, property: PropertyManager) -> None:
         if property.value_id is None:
@@ -1291,18 +1316,26 @@ class ObjectManager:
             # Check dependencies before setting value
             if prop.params and 'depends_on' in prop.params:
                 self._validate_dependencies(name, value, prop.params['depends_on'])
-            
-            old = prop.getValue()
-            if source is None or source == '':
-                if self._current_execution_source is not None:
-                    source = self._current_execution_source
-            prop.setValue(value, source, changed=changed, save_history=save_history)
-            value = prop.getValue()
-            if prop.method:
-                args = {
-                    'VALUE': value, 'NEW_VALUE': value, 'OLD_VALUE': old, 'PROPERTY': name, 'SOURCE': source,
-                }
-                self.callMethod(prop.method, args, source)
+
+            if not chain_enter(self.name, name):
+                self._record_reactive_loop(chain_format())
+                return False
+
+            try:
+                old = prop.getValue()
+                if source is None or source == '':
+                    if self._current_execution_source is not None:
+                        source = self._current_execution_source
+                prop.setValue(value, source, changed=changed, save_history=save_history)
+                value = prop.getValue()
+                if prop.method:
+                    args = {
+                        'VALUE': value, 'NEW_VALUE': value, 'OLD_VALUE': old, 'PROPERTY': name, 'SOURCE': source,
+                    }
+                    self.callMethod(prop.method, args, source)
+            finally:
+                chain_exit()
+
             # link
             if prop.linked:
                 for link in prop.linked:
@@ -1512,6 +1545,7 @@ class ObjectManager:
                 'params': args,
                 'logger': _logger,
                 'source': source,
+                'runtime': self._runtime,
                 **vars(self)
             }
             methods = self.methods[name].methods
@@ -1833,7 +1867,8 @@ class ObjectManager:
             "properties": properties_dict,
             "methods": methods_dict,
             "parents": self.parents,
-            "permissions": object.__getattribute__(self, "__permissions")
+            "permissions": object.__getattribute__(self, "__permissions"),
+            "runtime": dict(object.__getattribute__(self, "_runtime")),
         }
 
     def __str__(self):

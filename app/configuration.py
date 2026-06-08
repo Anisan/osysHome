@@ -146,6 +146,12 @@ class ConfigLoader(object):
         self.POOL_TIMEOUT_THRESHOLD = 60.0  # Порог таймаута задач в секундах
         self.BATCH_WRITER_FLUSH_INTERVAL = 0.5  # Интервал записи батча в секундах
 
+        self.REACTIVE_MAX_DEPTH = 20
+        self.REACTIVE_LOOP_NOTIFY = True
+        self.OBJECT_PRELOAD_ENABLED = True
+        self.OBJECT_PRELOAD_BATCH_SIZE = 10
+        self.OBJECT_PRELOAD_INTERVAL_SEC = 0.5
+
         # DB settings
         self.SQLALCHEMY_ECHO = False  # SQL log
         DB_NAME = 'app.db'
@@ -281,6 +287,11 @@ class ConfigLoader(object):
         self.POOL_MAX_SIZE = app_config.get('pool_max_size', None)
         self.POOL_TIMEOUT_THRESHOLD = app_config.get('pool_timeout_threshold', 60.0)
         self.BATCH_WRITER_FLUSH_INTERVAL = app_config.get('batch_writer_flush_interval', 0.5)
+        self.REACTIVE_MAX_DEPTH = app_config.get('reactive_max_depth', 20)
+        self.REACTIVE_LOOP_NOTIFY = app_config.get('reactive_loop_notify', True)
+        self.OBJECT_PRELOAD_ENABLED = app_config.get('object_preload_enabled', True)
+        self.OBJECT_PRELOAD_BATCH_SIZE = app_config.get('object_preload_batch_size', 10)
+        self.OBJECT_PRELOAD_INTERVAL_SEC = app_config.get('object_preload_interval_sec', 0.5)
 
         # Session lifetime configuration
         self.SESSION_LIFETIME_DAYS = app_config.get('session_lifetime_days', 31)

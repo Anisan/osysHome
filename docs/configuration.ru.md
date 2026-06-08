@@ -26,6 +26,11 @@ application:
   pool_max_size: 100
   pool_timeout_threshold: 60.0
   batch_writer_flush_interval: 0.5
+  reactive_max_depth: 20
+  reactive_loop_notify: true
+  object_preload_enabled: true
+  object_preload_batch_size: 10
+  object_preload_interval_sec: 0.5
   session_lifetime_days: 31
   http_request_timeout: 15
   session_cookie_secure: false
@@ -44,6 +49,11 @@ application:
 | `pool_max_size` | Максимальный размер пула рабочих потоков | `100` |
 | `pool_timeout_threshold` | Порог в секундах, после которого задача в пуле считается долгой | `60.0` |
 | `batch_writer_flush_interval` | Интервал принудительного сброса batched-записей в секундах | `0.5` |
+| `reactive_max_depth` | Максимальная глубина синхронной цепочки property→method | `20` |
+| `reactive_loop_notify` | Уведомление админу при обнаружении реактивной петли | `true` |
+| `object_preload_enabled` | Фоновая подгрузка всех объектов после старта плагинов | `true` |
+| `object_preload_batch_size` | Размер батча фоновой подгрузки | `10` |
+| `object_preload_interval_sec` | Пауза между батчами подгрузки (сек) | `0.5` |
 | `session_lifetime_days` | Время жизни пользовательской сессии в днях | `31` |
 | `http_request_timeout` | Таймаут исходящих HTTP-запросов в секундах | `15` |
 | `session_cookie_secure` | Требовать HTTPS для cookie сессии | `false` |

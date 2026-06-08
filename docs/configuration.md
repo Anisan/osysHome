@@ -26,6 +26,11 @@ application:
   pool_max_size: 100
   pool_timeout_threshold: 60.0
   batch_writer_flush_interval: 0.5
+  reactive_max_depth: 20
+  reactive_loop_notify: true
+  object_preload_enabled: true
+  object_preload_batch_size: 10
+  object_preload_interval_sec: 0.5
   session_lifetime_days: 31
   http_request_timeout: 15
   session_cookie_secure: false
@@ -44,6 +49,11 @@ application:
 | `pool_max_size` | Maximum size of the worker thread pool | `100` |
 | `pool_timeout_threshold` | Threshold in seconds after which a pool task is considered slow | `60.0` |
 | `batch_writer_flush_interval` | Forced flush interval for batched writes in seconds | `0.5` |
+| `reactive_max_depth` | Max depth of synchronous property→method reactive chains | `20` |
+| `reactive_loop_notify` | Admin notification when a reactive loop is blocked | `true` |
+| `object_preload_enabled` | Background preload of all objects after plugin startup | `true` |
+| `object_preload_batch_size` | Batch size for background object preload | `10` |
+| `object_preload_interval_sec` | Pause between preload batches in seconds | `0.5` |
 | `session_lifetime_days` | User session lifetime in days | `31` |
 | `http_request_timeout` | Default timeout for outbound HTTP requests in seconds | `15` |
 | `session_cookie_secure` | Require HTTPS for the session cookie | `false` |

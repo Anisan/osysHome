@@ -59,6 +59,15 @@ application:
   # Lower values write data sooner but increase write frequency.
   batch_writer_flush_interval: 0.5
 
+  # Reactive property->method chain: max depth and admin notify on loop.
+  reactive_max_depth: 20
+  reactive_loop_notify: true
+
+  # Background preload of all objects after startup (lazy onInit without blocking boot).
+  object_preload_enabled: true
+  object_preload_batch_size: 10
+  object_preload_interval_sec: 0.5
+
   # User session lifetime in days.
   # Default is 31 days, matching Flask's default behavior.
   session_lifetime_days: 31
