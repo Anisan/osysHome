@@ -1,0 +1,14 @@
+# Paste into config.yaml when publishing behind nginx + HTTPS.
+# Comments in your config.yaml are preserved if you edit manually.
+
+application:
+  debug: false
+  env: production
+  # secret_key: must NOT be the sample value (auto-generated on first start if left as sample)
+  session_cookie_secure: true
+  session_cookie_samesite: Lax
+  app_port: 5000   # bind locally; nginx proxies 443 → 127.0.0.1:5000
+
+  rate_limit:
+    enabled: true
+    login: '5 per minute'

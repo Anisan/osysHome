@@ -36,7 +36,6 @@ osysHome (Object System smartHome) is smart home system developed in Python that
 * git clone https://github.com/Anisan/osysHome-Scheduler.git plugins/Scheduler
 * git clone https://github.com/Anisan/osysHome-wsServer.git plugins/wsServer
 * git clone https://github.com/Anisan/osysHome-Dashboard.git plugins/Dashboard
-* git clone https://github.com/Anisan/osysHome-Docs.git plugins/Docs
 
 ## Settings
 
@@ -67,11 +66,29 @@ osysHome (Object System smartHome) is smart home system developed in Python that
 * Copy module in directory module
 * Restart osysHome
 
-## Systemd
+## Systemd (Linux)
 
-Use osyshome.service
+```bash
+sudo cp deploy/systemd/osyshome.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now osyshome
+```
+
+Unit file: [`deploy/systemd/osyshome.service`](deploy/systemd/osyshome.service)
 
 ## Docker
 
-* sudo docker build -t osyshome .
-* sudo docker run -d --network host -p 5000:5000 osyshome
+```bash
+docker compose up -d
+```
+
+Image: [Docker Hub](https://hub.docker.com/r/anisan1981/osyshome). Data volumes — see [`docker-compose.yml`](docker-compose.yml).
+
+## Production (HTTPS + nginx)
+
+Do not expose port `5000` on the router. Use nginx on port 443 in front of the app.
+
+| Resource | Description |
+|----------|-------------|
+| [`docs/DEPLOY_PRODUCTION.md`](docs/DEPLOY_PRODUCTION.md) | Full guide (TLS, firewall, checks) |
+| [`deploy/`](deploy/README.md) | nginx, systemd, Docker overlay configs |

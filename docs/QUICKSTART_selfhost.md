@@ -131,18 +131,109 @@ For more details on properties and validation params, see:
 - `PARAMS_DOCUMENTATION.md`
 - `ENUM_TYPE_USAGE.md`
 
-### 8. Docker (optional lazy path)
+### 8. Docker (recommended for production)
 
-You can also run osysHome in Docker:
+The core image is published on [Docker Hub](https://hub.docker.com/r/anisan1981/osyshome). Runtime data (config, logs, cache, files, plugins, database) is stored **outside** the container via volumes.
+
+#### Prepare host directories
+
+If you already cloned the repository:
 
 ```bash
-sudo docker build -t osyshome .
-sudo docker run -d --network host -p 5000:5000 osyshome
+# Linux/macOS
+./docker/init-data.sh
+
+# Windows (PowerShell)
+.\docker\init-data.ps1
 ```
 
-For persistent data, mount volumes for `config.yaml` and `app.db` (or your external DB).
+Without cloning the full repository (downloads only init script and required files):
 
-### 9. Where to go next
+```bash
+mkdir -p osyshome && cd osyshome
+curl -fsSL https://raw.githubusercontent.com/Anisan/osysHome/master/docker/init-data.sh | bash
+```
+
+```powershell
+mkdir osyshome -Force; cd osyshome
+Invoke-WebRequest -Uri "https://raw.githubusercontent.com/Anisan/osysHome/master/docker/init-data.ps1" -OutFile init-data.ps1
+.\init-data.ps1
+```
+
+The script creates `config.yaml`, `docker-compose.yml`, data directories, and `app.db`.
+
+Edit `config.yaml` before first start.
+
+#### Run with Docker Compose
+
+```bash
+docker compose up -d
+```
+
+Open `http://localhost:5000` (image `anisan1981/osyshome:latest`).
+
+GitHub Actions builds and publishes the image on push to **master** (tag `latest`).
+
+#### Pull prebuilt image (without local build)
+
+```bash
+export OSYSHOME_IMAGE=anisan1981/osyshome:latest
+docker compose pull
+docker compose up -d
+```
+
+#### Volume layout
+
+| Host path | Container path | Purpose |
+|-----------|----------------|---------|
+| `./config.yaml` | `/app/config.yaml` | User configuration |
+| `./logs/` | `/app/logs/` | Application logs |
+| `./cache/` | `/app/cache/` | File cache |
+| `./files/` | `/app/files/` | Uploaded files |
+| `./plugins/` | `/app/plugins/` | Plugins (update via `git pull` on host) |
+| `./app.db` | `/app/app.db` | SQLite database |
+
+#### Updating
+
+- **Core**: `docker compose pull && docker compose up -d`
+- **Plugins**: update repositories in `./plugins/` on the host, then restart the container.
+- **Plugin pip dependencies**: included in the image at build time. If a plugin adds new Python packages, rebuild and publish a new core image.
+
+#### Build locally
+
+```bash
+docker build -t anisan1981/osyshome:local .
+docker run --rm -p 5000:5000 \
+  -v "$(pwd)/config.yaml:/app/config.yaml" \
+  -v "$(pwd)/logs:/app/logs" \
+  -v "$(pwd)/cache:/app/cache" \
+  -v "$(pwd)/files:/app/files" \
+  -v "$(pwd)/plugins:/app/plugins" \
+  -v "$(pwd)/app.db:/app/app.db" \
+  anisan1981/osyshome:local
+```
+
+On first start, if `plugins/` is empty, recommended plugins are cloned automatically. If `config.yaml` is missing or empty, it is created from `sample_config.yaml`.
+
+### 9. Production (HTTPS + nginx)
+
+For access from the internet, do **not** expose port `5000` directly. Use nginx on port 443 in front of osysHome on `127.0.0.1:5000`.
+
+| Resource | Description |
+|----------|-------------|
+| [docs/DEPLOY_PRODUCTION.md](DEPLOY_PRODUCTION.md) | Full guide: TLS, systemd, Docker, checks |
+| [deploy/](../deploy/README.md) | Ready-made nginx and systemd configs |
+| [docs/SECURITY_ACCESS.md](SECURITY_ACCESS.md) | Auth, roles, API security |
+
+Minimal `config.yaml` after HTTPS is ready:
+
+```yaml
+application:
+  session_cookie_secure: true
+  debug: false
+```
+
+### 10. Where to go next
 
 - Web UI top menu → **Docs** — open `docs/index.html` or this repo’s `docs/INDEX.md`.
 - Learn architecture: `docs/ARCHITECTURE.md`
@@ -283,18 +374,109 @@ python main.py
 - `PARAMS_DOCUMENTATION.md`
 - `ENUM_TYPE_USAGE.md`
 
-### 8. Docker (ленивый вариант)
+### 8. Docker (рекомендуется для продакшена)
 
-Можно запустить osysHome в Docker:
+Образ ядра публикуется на [Docker Hub](https://hub.docker.com/r/anisan1981/osyshome). Данные (конфиг, логи, кеш, файлы, плагины, БД) хранятся **вне контейнера** через volume.
+
+#### Подготовка каталогов на хосте
+
+Если репозиторий уже склонирован:
 
 ```bash
-sudo docker build -t osyshome .
-sudo docker run -d --network host -p 5000:5000 osyshome
+# Linux/macOS
+./docker/init-data.sh
+
+# Windows (PowerShell)
+.\docker\init-data.ps1
 ```
 
-Для постоянного хранения данных примонтируйте тома под `config.yaml` и БД (`app.db` или внешняя БД).
+Без клонирования всего репозитория (скачивает только init-скрипт и нужные файлы):
 
-### 9. Что дальше
+```bash
+mkdir -p osyshome && cd osyshome
+curl -fsSL https://raw.githubusercontent.com/Anisan/osysHome/master/docker/init-data.sh | bash
+```
+
+```powershell
+mkdir osyshome -Force; cd osyshome
+Invoke-WebRequest -Uri "https://raw.githubusercontent.com/Anisan/osysHome/master/docker/init-data.ps1" -OutFile init-data.ps1
+.\init-data.ps1
+```
+
+Скрипт создаёт `config.yaml`, `docker-compose.yml`, каталоги данных и `app.db`.
+
+Отредактируйте `config.yaml` перед первым запуском.
+
+#### Запуск через Docker Compose
+
+```bash
+docker compose up -d
+```
+
+Откройте `http://localhost:5000` (образ `anisan1981/osyshome:latest`).
+
+Сборка образа в GitHub Actions — при push в ветку **master** (тег `latest`).
+
+#### Готовый образ (без локальной сборки)
+
+```bash
+export OSYSHOME_IMAGE=anisan1981/osyshome:latest
+docker compose pull
+docker compose up -d
+```
+
+#### Что монтируется
+
+| Путь на хосте | Путь в контейнере | Назначение |
+|---------------|-------------------|------------|
+| `./config.yaml` | `/app/config.yaml` | Конфигурация |
+| `./logs/` | `/app/logs/` | Логи |
+| `./cache/` | `/app/cache/` | Кеш |
+| `./files/` | `/app/files/` | Файлы |
+| `./plugins/` | `/app/plugins/` | Плагины |
+| `./app.db` | `/app/app.db` | SQLite |
+
+#### Обновление
+
+- **Ядро**: `docker compose pull && docker compose up -d`
+- **Плагины**: обновите репозитории в `./plugins/` на хосте и перезапустите контейнер.
+- **pip-зависимости плагинов**: ставятся при сборке образа. Если плагину нужны новые пакеты — нужна пересборка и публикация нового образа ядра.
+
+#### Локальная сборка
+
+```bash
+docker build -t anisan1981/osyshome:local .
+docker run --rm -p 5000:5000 \
+  -v "$(pwd)/config.yaml:/app/config.yaml" \
+  -v "$(pwd)/logs:/app/logs" \
+  -v "$(pwd)/cache:/app/cache" \
+  -v "$(pwd)/files:/app/files" \
+  -v "$(pwd)/plugins:/app/plugins" \
+  -v "$(pwd)/app.db:/app/app.db" \
+  anisan1981/osyshome:local
+```
+
+При первом запуске, если `plugins/` пуст, рекомендованные плагины клонируются автоматически. Если `config.yaml` отсутствует или пуст — создаётся из `sample_config.yaml`.
+
+### 9. Production (HTTPS + nginx)
+
+Для доступа из интернета **не открывайте** порт `5000` напрямую. Поставьте nginx на 443 перед osysHome на `127.0.0.1:5000`.
+
+| Ресурс | Описание |
+|--------|----------|
+| [docs/DEPLOY_PRODUCTION.ru.md](DEPLOY_PRODUCTION.ru.md) | Полное руководство: TLS, systemd, Docker |
+| [deploy/](../deploy/README.md) | Готовые конфиги nginx и systemd |
+| [docs/SECURITY_ACCESS.ru.md](SECURITY_ACCESS.ru.md) | Аутентификация и API |
+
+После настройки HTTPS в `config.yaml`:
+
+```yaml
+application:
+  session_cookie_secure: true
+  debug: false
+```
+
+### 10. Что дальше
 
 - Пункт меню в веб‑интерфейсе **Docs** → статическая документация (`docs/index.html`).
 - В репозитории: `docs/INDEX.md` — обзор всех разделов.

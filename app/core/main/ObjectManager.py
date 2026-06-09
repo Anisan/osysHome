@@ -7,7 +7,9 @@ import json
 from sqlalchemy import delete
 from flask_login import current_user
 from app.database import session_scope,row2dict, convert_utc_to_local, convert_local_to_utc, get_now_to_utc
-from app.core.lib.common import getModule, getModulesByAction
+from app.core.lib.common import getModule, getModulesByAction, addNotify
+from app.core.lib.constants import CategoryNotify
+from app.core.main.reactive_chain import chain_enter, chain_exit, chain_format
 from app.core.models.Clasess import Object, Property, Value, History
 from app.core.lib.common import setTimeout
 from app.core.lib.execute import execute_and_capture_output
@@ -19,6 +21,15 @@ from collections import deque
 from dataclasses import dataclass
 from typing import Optional
 import logging
+from app.core.lib.converters.color_value import (
+    parse as parse_color_value,
+    to_universal as to_universal_color,
+    from_universal as from_universal_color,
+    encode as encode_color_value,
+    decode as decode_color_value,
+    detect_format as detect_color_format,
+    merge_xy_luminance,
+)
 
 _logger = getLogger('object')
 
@@ -383,6 +394,10 @@ class TypeOperation(Enum):
     Call = "call"
     Edit = "edit"
 
+_USERS_ADMIN_SET_PROPERTIES = frozenset({
+    'role', 'password', 'apikey', 'home_page', 'timezone', 'image', 'lastLogin',
+})
+
 class PropertyManager():
     """
     Initializes an ObjectManager instance with the given parameters.
@@ -454,6 +469,57 @@ class PropertyManager():
         self.count_read = 0
         self.count_write = 0
         self.readed = get_now_to_utc()
+
+    def _get_color_scales(self):
+        return {
+            "hue_scale": self.params.get("hue_scale", 360) if self.params else 360,
+            "sat_scale": self.params.get("sat_scale", 100) if self.params else 100,
+            "color_temp_unit": self.params.get("color_temp_unit", "kelvin") if self.params else "kelvin",
+        }
+
+    def _get_color_read_format(self):
+        if self.params and self.params.get("read_format"):
+            return str(self.params.get("read_format")).lower()
+        return "canonical"
+
+    def _ensure_universal_color(self, value):
+        """Приводит legacy/строковое значение к универсальному dict для type=color."""
+        if value is None or value == "None" or value == "":
+            return None
+        if isinstance(value, dict):
+            try:
+                return to_universal_color(value)
+            except Exception:
+                return value
+        try:
+            return decode_color_value(value)
+        except Exception:
+            parsed_color = parse_color_value(value, write_format="auto", scales=self._get_color_scales())
+            return to_universal_color(parsed_color)
+
+    def _color_to_output(self, value, read_format=None):
+        if value is None:
+            return None
+        if isinstance(value, str) or (isinstance(value, dict) and "rgb" not in value and "xy" not in value):
+            value = self._ensure_universal_color(value)
+        target_format = (read_format or self._get_color_read_format() or "canonical").lower()
+        return from_universal_color(value, target_format, scales=self._get_color_scales())
+
+    def getColorValue(self, read_format=None):
+        return self._color_to_output(self.__value, read_format=read_format)
+
+    def _format_output_value(self, value):
+        """Форматирует внутреннее значение для выдачи наружу (get/history)."""
+        if value is None:
+            return None
+        if self.type == 'color':
+            return self._color_to_output(value)
+        if self.type == 'datetime':
+            try:
+                return convert_utc_to_local(value)
+            except Exception as ex:
+                _logger.exception(ex)
+        return value
 
     def _decodeValue(self, value, init=False):
         if value is None:
@@ -559,6 +625,27 @@ class PropertyManager():
                             raise ValueError(f"Value '{converted_value}' is not in allowed enum values: {list(enum_values.keys())}")
                     else:
                         _logger.warning(f"Property {self.name}: enum_values is not a dict or empty")
+            elif self.type == "color":
+                if init:
+                    converted_value = self._ensure_universal_color(value)
+                else:
+                    write_format = "auto"
+                    if self.params and self.params.get("write_format"):
+                        write_format = str(self.params.get("write_format")).lower()
+                    if write_format != "auto":
+                        detected = detect_color_format(value)
+                        if detected not in ("canonical", write_format):
+                            raise ValueError(
+                                f"Color write format mismatch for '{self.name}': expected '{write_format}', got '{detected}'"
+                            )
+                    parsed_color = parse_color_value(value, write_format=write_format, scales=self._get_color_scales())
+                    if not init and self.__value not in (None, 'None', ''):
+                        try:
+                            existing_color = self._ensure_universal_color(self.__value)
+                            parsed_color = merge_xy_luminance(parsed_color, existing_color)
+                        except Exception:
+                            pass
+                    converted_value = to_universal_color(parsed_color)
             else:
                 converted_value = value
             
@@ -582,7 +669,16 @@ class PropertyManager():
                             )
         except (ParserError, json.JSONDecodeError) as ex:
             # Parsing errors (datetime, JSON) should be handled gracefully during init
-            if init:
+            if init and self.type == "color":
+                try:
+                    converted_value = self._ensure_universal_color(value)
+                except Exception as color_ex:
+                    _logger.warning(
+                        f"Error parsing color during initialization (object_id={self.object_id}, name={self.name}, value={value}): {color_ex}",
+                        exc_info=True,
+                    )
+                    converted_value = value
+            elif init:
                 _logger.warning(
                     f"Error parsing value during initialization (object_id={self.object_id}, name={self.name}, type={self.type}, value={value}): {str(ex)}",
                     exc_info=True
@@ -603,7 +699,16 @@ class PropertyManager():
         except Exception as ex:
             # Other errors (parsing, type conversion) are logged but we don't want to silently fail
             # If init=True, we might want to be more lenient (e.g., during initialization from DB)
-            if init:
+            if init and self.type == "color":
+                try:
+                    converted_value = self._ensure_universal_color(value)
+                except Exception as color_ex:
+                    _logger.warning(
+                        f"Error decoding color during initialization (object_id={self.object_id}, name={self.name}, value={value}): {color_ex}",
+                        exc_info=True,
+                    )
+                    converted_value = value
+            elif init:
                 _logger.warning(
                     f"Error decoding value during initialization (object_id={self.object_id}, name={self.name}, value={value}): {str(ex)}",
                     exc_info=True
@@ -640,6 +745,8 @@ class PropertyManager():
                 return json.dumps(value)
             elif self.type == "enum":
                 return str(value)
+            elif self.type == "color":
+                return encode_color_value(value)
             else:
                 return value
         except Exception as ex:
@@ -789,12 +896,7 @@ class PropertyManager():
                 _logger.error(f"Error decoding default_value for {self.name}: {ex}")
                 return self.default_value
 
-        if self.type == 'datetime' and self.__value:
-            try:
-                return convert_utc_to_local(self.__value)
-            except Exception as ex:
-                _logger.exception(ex)
-        return self.__value
+        return self._format_output_value(self.__value)
 
     @property
     def value(self):
@@ -862,6 +964,17 @@ class PropertyManager():
                 result["rate_limit"] = self.params['rate_limit']
             if 'depends_on' in self.params:
                 result["depends_on"] = self.params['depends_on']
+            if self.type == 'color':
+                if 'read_format' in self.params:
+                    result["read_format"] = self.params['read_format']
+                if 'write_format' in self.params:
+                    result["write_format"] = self.params['write_format']
+                if 'color_temp_unit' in self.params:
+                    result["color_temp_unit"] = self.params['color_temp_unit']
+                if 'hue_scale' in self.params:
+                    result["hue_scale"] = self.params['hue_scale']
+                if 'sat_scale' in self.params:
+                    result["sat_scale"] = self.params['sat_scale']
         
         return result
 
@@ -947,6 +1060,8 @@ class ObjectManager:
         object.__setattr__(self, "__permissions", None)
         object.__setattr__(self, "__templates", {})
         object.__setattr__(self, "_current_execution_source", None)
+        object.__setattr__(self, "_runtime", {})
+        object.__setattr__(self, "_lifecycle_running", False)
         object.__setattr__(self, "_render_env", None)
         object.__setattr__(self, "_render_template_name", None)
         object.__setattr__(self, "_render_template", None)
@@ -957,6 +1072,27 @@ class ObjectManager:
         self._logger = ObjectLoggerAdapter(_logger, {'object_name': self.name})
         self.properties = {}
         self.methods = {}
+
+    @property
+    def runtime(self) -> dict:
+        return object.__getattribute__(self, "_runtime")
+
+    def clear_runtime(self) -> None:
+        object.__getattribute__(self, "_runtime").clear()
+
+    def _record_reactive_loop(self, chain: str) -> None:
+        self._runtime["last_reactive_loop"] = {
+            "chain": chain,
+            "at": str(get_now_to_utc()),
+        }
+        self._logger.error("[ReactiveLoop] %s", chain)
+        if Config.REACTIVE_LOOP_NOTIFY:
+            addNotify(
+                name=f"reactive_loop:{self.name}",
+                description=chain,
+                category=CategoryNotify.Warning,
+                source="Objects",
+            )
 
     def _addProperty(self, property: PropertyManager) -> None:
         if property.value_id is None:
@@ -991,6 +1127,27 @@ class ObjectManager:
 
         if role == 'root':
             return True
+
+        if property_name and 'Users' in getattr(self, 'parents', []):
+            if property_name == 'password' and operation == TypeOperation.Get:
+                raise PermissionError(
+                    f"User {username}({role}) don't have permission to {operation.name} "
+                    f"obj:{name} property:{property_name} (sensitive)"
+                )
+            if operation == TypeOperation.Set and role == 'admin':
+                if property_name in _USERS_ADMIN_SET_PROPERTIES:
+                    return True
+            if property_name == 'password' and operation == TypeOperation.Set and role != 'admin':
+                raise PermissionError(
+                    f"User {username}({role}) don't have permission to {operation.name} "
+                    f"obj:{name} property:{property_name} (sensitive)"
+                )
+            if property_name == 'apikey' and operation in (TypeOperation.Get, TypeOperation.Set):
+                if role != 'admin' and username != name:
+                    raise PermissionError(
+                        f"User {username}({role}) don't have permission to {operation.name} "
+                        f"obj:{name} property:{property_name} (sensitive)"
+                    )
 
         _permissions = object.__getattribute__(self, "__permissions")
         if _permissions is None:
@@ -1159,18 +1316,26 @@ class ObjectManager:
             # Check dependencies before setting value
             if prop.params and 'depends_on' in prop.params:
                 self._validate_dependencies(name, value, prop.params['depends_on'])
-            
-            old = prop.getValue()
-            if source is None or source == '':
-                if self._current_execution_source is not None:
-                    source = self._current_execution_source
-            prop.setValue(value, source, changed=changed, save_history=save_history)
-            value = prop.getValue()
-            if prop.method:
-                args = {
-                    'VALUE': value, 'NEW_VALUE': value, 'OLD_VALUE': old, 'PROPERTY': name, 'SOURCE': source,
-                }
-                self.callMethod(prop.method, args, source)
+
+            if not chain_enter(self.name, name):
+                self._record_reactive_loop(chain_format())
+                return False
+
+            try:
+                old = prop.getValue()
+                if source is None or source == '':
+                    if self._current_execution_source is not None:
+                        source = self._current_execution_source
+                prop.setValue(value, source, changed=changed, save_history=save_history)
+                value = prop.getValue()
+                if prop.method:
+                    args = {
+                        'VALUE': value, 'NEW_VALUE': value, 'OLD_VALUE': old, 'PROPERTY': name, 'SOURCE': source,
+                    }
+                    self.callMethod(prop.method, args, source)
+            finally:
+                chain_exit()
+
             # link
             if prop.linked:
                 for link in prop.linked:
@@ -1248,11 +1413,13 @@ class ObjectManager:
 
         try:
             # cast value and validate constraints
+            oldValue = self.getProperty(name)
             if name in self.properties:
                 prop = self.properties[name]
                 # Decode and validate value (init=False to enforce constraints)
                 value = prop._decodeValue(value, init=False)
-            oldValue = self.getProperty(name)
+                if prop.type == "color":
+                    oldValue = prop.getColorValue(read_format="canonical")
             if oldValue != value:
                 return self.setProperty(name, value, source)
             return True
@@ -1295,6 +1462,13 @@ class ObjectManager:
                     enum_values = prop.params['enum_values']
                     return enum_values
                 return None
+
+            if prop.type == 'color':
+                color_formats = {'canonical', 'xy', 'rgb', 'hex', 'hs', 'hsv', 'hsl', 'hsb', 'color_temp', 'zigbee2mqtt'}
+                if data in color_formats:
+                    return prop.getColorValue(read_format=data)
+                if data == 'value':
+                    return prop.getValue()
             
             value = getattr(prop, data, None)
             if data == 'changed' and value:
@@ -1371,6 +1545,7 @@ class ObjectManager:
                 'params': args,
                 'logger': _logger,
                 'source': source,
+                'runtime': self._runtime,
                 **vars(self)
             }
             methods = self.methods[name].methods
@@ -1562,7 +1737,8 @@ class ObjectManager:
         with session_scope() as session:
             result = History.getHistory(session, value_id, dt_begin,dt_end,limit,order_desc,row2dict)
             for item in result:
-                item['value'] = prop._decodeValue(item["value"])
+                decoded = prop._decodeValue(item["value"], init=True)
+                item['value'] = prop._format_output_value(decoded)
                 del item["value_id"]
 
             from app.core.lib.common import is_datetime_in_range
@@ -1691,7 +1867,8 @@ class ObjectManager:
             "properties": properties_dict,
             "methods": methods_dict,
             "parents": self.parents,
-            "permissions": object.__getattribute__(self, "__permissions")
+            "permissions": object.__getattribute__(self, "__permissions"),
+            "runtime": dict(object.__getattribute__(self, "_runtime")),
         }
 
     def __str__(self):

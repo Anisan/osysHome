@@ -5,6 +5,8 @@ from flask_login import (
     login_user,
     logout_user
 )
+from flask_wtf.csrf import validate_csrf
+from wtforms.validators import ValidationError
 
 from . import blueprint
 from .forms import LoginForm
@@ -14,6 +16,7 @@ from app.core.lib.object import getObject, getObjectsByClass, addObject, setProp
 from app import safe_translate as _
 
 from app.logging_config import security_audit_log
+from app.authentication.handlers import public_endpoint
 
 
 def _get_client_ip():
@@ -38,126 +41,132 @@ def _apply_login_limit(f):
     return f
 
 
+def _process_login(username, password, login_form, register=False):
+    ip = _get_client_ip()
+
+    lock_key = f"login_lock:{username}:{ip}"
+    lock_info = cache.get(lock_key)
+    if lock_info:
+        return render_template('accounts/login.html',
+                               msg=_('Wrong user or password'),
+                               register=register,
+                               form=login_form)
+
+    users = getObjectsByClass('Users')
+    user = None
+    obj = getObject(username)
+    if obj:
+        user = User(obj)
+    elif users is None or len(users) == 0:
+        obj = addObject(username, "Users", "Administrator")
+        user = User(obj)
+        user.set_password(password)
+        user.role = 'admin'
+        session.permanent = True
+        login_user(user)
+        setProperty(username + ".password", user.password)
+        setProperty(username + ".role", 'admin')
+
+        from app.utils import initPermissions
+        initPermissions()
+
+        security_audit_log(
+            'LOGIN_SUCCESS',
+            ip=ip,
+            url=request.url,
+            username=username,
+            reason='first_admin_created'
+        )
+        return redirect("/")
+
+    if user and user.password and user.check_password(password):
+        setProperty(username + ".lastLogin", datetime.datetime.now(), source=ip)
+        session.permanent = True
+        login_user(user)
+        security_audit_log(
+            'LOGIN_SUCCESS',
+            ip=ip,
+            url=request.url,
+            username=username,
+            reason='user_authenticated'
+        )
+        return redirect("/")
+
+    fail_key = f"login_fail:{username}:{ip}"
+    lock_timeout = 15 * 60
+    fail_count = cache.get(fail_key) or 0
+    fail_count += 1
+    cache.set(fail_key, fail_count, timeout=lock_timeout)
+
+    max_failures = 5
+    if fail_count >= max_failures:
+        cache.set(lock_key, True, timeout=lock_timeout)
+        security_audit_log(
+            'LOGIN_LOCKED',
+            ip=ip,
+            url=request.url,
+            username=username,
+            reason=f'too_many_failed_attempts({fail_count})'
+        )
+
+    security_audit_log('LOGIN_FAILED', ip=ip, url=request.url, username=username)
+
+    return render_template('accounts/login.html',
+                           msg=_('Wrong user or password'),
+                           register=register,
+                           form=login_form)
+
+
 @blueprint.route('/login', methods=['GET', 'POST'])
 @_apply_login_limit
+@public_endpoint
 def login():
-    login_form = LoginForm(request.form)
+    login_form = LoginForm()
     users = getObjectsByClass('Users')
+    register = not users
 
-    if 'login' in request.form and request.method == "POST":
+    if login_form.validate_on_submit():
+        username = (login_form.username.data or '').strip()
+        password = login_form.password.data or ''
 
-        # read form data
-        username = request.form['username']
         if not username:
             return render_template('accounts/login.html',
                                    msg=_('Username cannot be empty'),
-                                   register=False,
+                                   register=register,
                                    form=login_form)
 
-        password = request.form['password']
         if not password:
             return render_template('accounts/login.html',
                                    msg=_('Password cannot be empty'),
-                                   register=False,
+                                   register=register,
                                    form=login_form)
 
-        ip = _get_client_ip()
-
-        # Проверка на блокировку по username+ip (эскалация после N неудач)
-        lock_key = f"login_lock:{username}:{ip}"
-        lock_info = cache.get(lock_key)
-        if lock_info:
-            # Уже заблокирован — не даём даже проверять пароль
-            # Логирование события блокировки выполняется в момент её установки,
-            # поэтому здесь повторно в audit-лог не пишем, чтобы избежать дублей.
-            return render_template('accounts/login.html',
-                                   msg=_('Wrong user or password'),
-                                   register=False,
-                                   form=login_form)
-
-        user = None
-        obj = getObject(username)
-        if obj:
-            user = User(obj)
-        else:
-            if users is None or len(users) == 0:
-                # Create first admin user
-                obj = addObject(username,"Users","Administrator")
-                user = User(obj)
-                user.set_password(password)
-                user.role = 'admin'
-                session.permanent = True
-                login_user(user)
-                setProperty(username + ".password", user.password)
-                setProperty(username + ".role", 'admin')
-
-                from app.utils import initPermissions
-                initPermissions()
-
-        # Check the password
-        if user and user.password and user.check_password(password):
-            setProperty(username + ".lastLogin",datetime.datetime.now(),source=ip)
-            session.permanent = True
-            login_user(user)
-            # Логирование успешного входа
-            security_audit_log(
-                'LOGIN_SUCCESS',
-                ip=ip,
-                url=request.url,
-                username=username,
-                reason='user_authenticated'
-            )
-            return redirect("/")
-
-        # Something (user or pass) is not ok
-
-        # Регистрируем неудачную попытку для username+ip
-        fail_key = f"login_fail:{username}:{ip}"
-        # окно блокировки, сек
-        lock_timeout = 15 * 60
-        fail_count = cache.get(fail_key) or 0
-        fail_count += 1
-        # храним счётчик в том же временном окне, что и блокировку
-        cache.set(fail_key, fail_count, timeout=lock_timeout)
-
-        # после N неудач — блокируем на lock_timeout
-        max_failures = 5
-        if fail_count >= max_failures:
-            cache.set(lock_key, True, timeout=lock_timeout)
-            security_audit_log(
-                'LOGIN_LOCKED',
-                ip=ip,
-                url=request.url,
-                username=username,
-                reason=f'too_many_failed_attempts({fail_count})'
-            )
-
-        security_audit_log('LOGIN_FAILED', ip=ip, url=request.url, username=username)
-        
-        return render_template('accounts/login.html',
-                               msg=_('Wrong user or password'),
-                               register=False,
-                               form=login_form)
+        return _process_login(username, password, login_form, register=register)
 
     if not current_user.is_authenticated:
         msg = None
-        register = False
-        if not users:
+        if register:
             msg = _('For create a user with administrator rights, specify login and password!')
-            register = True
         return render_template('accounts/login.html',
                                form=login_form,
                                register=register,
                                msg=msg)
-    # get home page from settings user
+
     home_page = current_user.home_page
     if not home_page:
         home_page = '/admin'
     return redirect(home_page)
 
 
-@blueprint.route('/logout')
+@blueprint.route('/logout', methods=['GET', 'POST'])
+@public_endpoint
 def logout():
+    if request.method == 'POST':
+        try:
+            validate_csrf(request.form.get('csrf_token'))
+        except ValidationError:
+            return render_template('errors/page-403.html'), 403
+
     ip = _get_client_ip()
     username = getattr(current_user, 'username', '') or 'anonymous'
     security_audit_log(

@@ -228,6 +228,27 @@ clearTimeout("TurnOffLamp")
 
 ---
 
+## Cron objects and onInit
+
+**Cron** class objects register scheduler jobs via `startJob()`. After restart, background object preload runs **`onInit`** on each object. Add these methods to the Cron class in Admin:
+
+```python
+# onInit
+if self.crontab:
+    self.startJob()
+
+# onStop
+self.stopJob()
+```
+
+---
+
+## Runtime vs Property in automations
+
+Use **Properties** for persisted device state and UI. Use **`self.runtime`** for debounce timers, call counters, and in-flight flags. The core blocks synchronous reactive loops (`property → method → property`) when depth or cycles exceed limits; optional notify via `reactive_loop_notify` in `config.yaml`.
+
+---
+
 ## Task Monitoring
 
 The **Admin → Scheduler** → **Monitoring** tab shows:

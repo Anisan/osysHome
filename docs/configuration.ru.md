@@ -26,6 +26,11 @@ application:
   pool_max_size: 100
   pool_timeout_threshold: 60.0
   batch_writer_flush_interval: 0.5
+  reactive_max_depth: 20
+  reactive_loop_notify: true
+  object_preload_enabled: true
+  object_preload_batch_size: 10
+  object_preload_interval_sec: 0.5
   session_lifetime_days: 31
   http_request_timeout: 15
   session_cookie_secure: false
@@ -44,6 +49,11 @@ application:
 | `pool_max_size` | Максимальный размер пула рабочих потоков | `100` |
 | `pool_timeout_threshold` | Порог в секундах, после которого задача в пуле считается долгой | `60.0` |
 | `batch_writer_flush_interval` | Интервал принудительного сброса batched-записей в секундах | `0.5` |
+| `reactive_max_depth` | Максимальная глубина синхронной цепочки property→method | `20` |
+| `reactive_loop_notify` | Уведомление админу при обнаружении реактивной петли | `true` |
+| `object_preload_enabled` | Фоновая подгрузка всех объектов после старта плагинов | `true` |
+| `object_preload_batch_size` | Размер батча фоновой подгрузки | `10` |
+| `object_preload_interval_sec` | Пауза между батчами подгрузки (сек) | `0.5` |
 | `session_lifetime_days` | Время жизни пользовательской сессии в днях | `31` |
 | `http_request_timeout` | Таймаут исходящих HTTP-запросов в секундах | `15` |
 | `session_cookie_secure` | Требовать HTTPS для cookie сессии | `false` |
@@ -160,8 +170,11 @@ service:
 
 ## Советы по безопасности
 
-1. Перед production обязательно замените `secret_key` на длинное случайное значение.
+1. Перед production замените `secret_key` на уникальное значение.  
+   Если ключ совпадает с `sample_config.yaml`, при первом старте osysHome сгенерирует новый и применит безопасные defaults (комментарии в файле сохраняются).
 2. Не публикуйте `config.yaml` в открытых репозиториях.
-3. При работе за HTTPS включайте `session_cookie_secure: true`.
-4. В production держите `debug: false`, `sqlalchemy_echo: false` и `debug_tools.enabled: false`.
-5. `sqlalchemy_record_queries` включайте только временно, когда ищете причину медленных страниц.
+3. За HTTPS (nginx) включайте `session_cookie_secure: true`.
+4. В production: `debug: false`, `sqlalchemy_echo: false`, `debug_tools.enabled: false`.
+5. `sqlalchemy_record_queries` — только временно при отладке.
+
+Полный чеклист production (nginx, systemd, firewall): [Production-развёртывание](DEPLOY_PRODUCTION.ru.md).

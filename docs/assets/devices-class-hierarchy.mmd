@@ -1,0 +1,80 @@
+flowchart LR
+    Devices["Devices"]
+
+    Devices --> Sensors["Sensors"]
+    Devices --> Camera["Camera"]
+    Devices --> Controllers["Controllers"]
+    Devices --> Counter["Counter"]
+    Devices --> OpenHasp["OpenHasp"]
+
+    Sensors --> Climat["Climat"]
+    Sensors --> CO2["CO2"]
+    Sensors --> Leak["Leak"]
+    Sensors --> Light["Light"]
+    Sensors --> Motion["Motion"]
+    Sensors --> OpenClose["OpenClose"]
+    Sensors --> Plant["Plant"]
+    Sensors --> Power["Power"]
+    Sensors --> Smoke["Smoke"]
+    Sensors --> Button["Button"]
+
+    Controllers --> Relay["Relay"]
+    Controllers --> Dimmer["Dimmer"]
+    Controllers --> Curtains["Curtains"]
+    Controllers --> RGB["RGB"]
+    Controllers --> TV["TV"]
+    Controllers --> Washer["Washer"]
+    Controllers --> WLED["WLED"]
+    Controllers --> Thermostats["Thermostats"]
+    Controllers --> GroupRelay["GroupRelay"]
+
+    subgraph col1[" "]
+        direction TB
+        Devices
+    end
+
+    subgraph col2[" "]
+        direction TB
+        Sensors
+        Camera
+        Controllers
+        Counter
+        OpenHasp
+    end
+
+    subgraph col3s[" "]
+        direction LR
+        Climat
+        CO2
+        Leak
+        Light
+        Motion
+        OpenClose
+        Plant
+        Power
+        Smoke
+        Button
+    end
+
+    subgraph col3c[" "]
+        direction LR
+        Relay
+        Dimmer
+        Curtains
+        RGB
+        TV
+        Washer
+        WLED
+        Thermostats
+        GroupRelay
+    end
+
+    classDef root fill:#dbeafe,stroke:#60a5fa,stroke-width:2px,color:#0f172a;
+    classDef level1 fill:#f8fafc,stroke:#94a3b8,stroke-width:2px,color:#0f172a;
+    classDef leaf fill:#ffffff,stroke:#cbd5e1,stroke-width:1.5px,color:#0f172a;
+    classDef ghost fill:transparent,stroke:transparent,color:transparent;
+
+    class Devices root;
+    class Sensors,Camera,Controllers,Counter,OpenHasp level1;
+    class Climat,CO2,Leak,Light,Motion,OpenClose,Plant,Power,Smoke,Button,Relay,Dimmer,Curtains,RGB,TV,Washer,WLED,Thermostats,GroupRelay leaf;
+    class col1,col2,col3s,col3c ghost;

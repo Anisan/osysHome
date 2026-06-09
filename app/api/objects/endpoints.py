@@ -2,7 +2,8 @@ from flask import request
 from flask_restx import Namespace, Resource
 from app.api.models import model_result, model_404
 from app.api.decorators import api_key_required
-from app.authentication.handlers import handle_user_required, handle_admin_required
+from app.api.property_helpers import collect_object_property_values
+from app.authentication.handlers import handle_user_required
 from app.core.main.ObjectsStorage import objects_storage
 
 objects_ns = Namespace(name="objects",description="Objects namespace",validate=True)
@@ -54,8 +55,7 @@ class GetObjectData(Resource):
             obj = {}
             obj['name'] = object_name
             obj['description'] = item.description
-            for key,prop in item.properties.items():
-                obj[key] = prop.value
+            obj.update(collect_object_property_values(item))
             return {
                 'success': True,
                 'result': obj}, 200
@@ -139,9 +139,7 @@ class ObjectByClass(Resource):
             obj = {}
             obj['name'] = item.name
             obj['description'] = item.description
-            obj['properties'] = {}
-            for key,prop in item.properties.items():
-                obj['properties'][key] = prop.value
+            obj['properties'] = collect_object_property_values(item)
             result[item.name] = obj
         return {'success': True,
                 'result': result}, 200

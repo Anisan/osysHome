@@ -1,0 +1,44 @@
+# osysHome systemd unit (native Python install, nginx terminates TLS)
+#
+# Install:
+#   sudo useradd --system --home /opt/osyshome --shell /usr/sbin/nologin osyshome || true
+#   sudo mkdir -p /opt/osyshome
+#   # copy or clone project to /opt/osyshome, create venv, config.yaml, etc.
+#   sudo cp deploy/systemd/osyshome.service /etc/systemd/system/osyshome.service
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now osyshome
+#
+# Edit paths below if the install directory differs.
+
+[Unit]
+Description=osysHome smart home hub
+Documentation=https://github.com/Anisan/osysHome
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=osyshome
+Group=osyshome
+WorkingDirectory=/opt/osyshome
+
+# Virtualenv created during install: python3 -m venv /opt/osyshome/venv
+Environment=PYTHONUNBUFFERED=1
+Environment=TZ=Europe/Moscow
+ExecStart=/opt/osyshome/venv/bin/python /opt/osyshome/main.py
+
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+
+# Hardening (adjust if a plugin needs broader filesystem access)
+NoNewPrivileges=true
+PrivateTmp=true
+
+# Logs: journalctl -u osyshome -f
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=osyshome
+
+[Install]
+WantedBy=multi-user.target

@@ -1,5 +1,7 @@
 import threading
+from contextlib import nullcontext
 from datetime import datetime
+from app.configuration import Config
 from app.database import row2dict, session_scope, get_now_to_utc
 from app.core.main.ObjectManager import ObjectManager, PropertyManager, MethodManager
 from app.core.models.Clasess import Class, Property, Method, Object, Value, History
@@ -44,8 +46,35 @@ class ObjectStorage():
         self.clean_objects = {}
 
         self._stop_event = threading.Event()
+        self._preload_stop_event = threading.Event()
+        self._preload_thread = None
         self.cleaner_thread = threading.Thread(target=self.clean_task, daemon=True)
         self.cleaner_thread.start()
+
+    def _invoke_lifecycle(self, om: ObjectManager, hook: str) -> None:
+        if hook not in om.methods or om._lifecycle_running:
+            return
+        om._lifecycle_running = True
+        try:
+            om.callMethod(hook, source=f"system:{hook}")
+        except Exception:
+            self.logger.exception("Lifecycle hook %s failed for object %s", hook, om.name)
+        finally:
+            om._lifecycle_running = False
+
+    def invoke_lifecycle_all(self, hook: str) -> None:
+        for _, om in list(self.objects.items()):
+            self._invoke_lifecycle(om, hook)
+
+    def _replace_object_manager(self, session, obj: Object) -> ObjectManager:
+        old_om = self.objects.get(obj.name)
+        if old_om:
+            self._invoke_lifecycle(old_om, "onStop")
+        om = self._createObjectManager(session, obj)
+        self.objects[obj.name] = om
+        om.clear_runtime()
+        self._invoke_lifecycle(om, "onInit")
+        return om
 
     def clean_task(self):
 
@@ -89,8 +118,10 @@ class ObjectStorage():
             with session_scope() as session:
                 obj = session.query(Object).filter_by(name=name).one_or_none()
                 if obj:
-                    self.objects[obj.name] = self._createObjectManager(session, obj)
+                    om = self._createObjectManager(session, obj)
+                    self.objects[obj.name] = om
                     self.stats[obj.name] = {'count_get':1, 'last_get': get_now_to_utc()}
+                    self._invoke_lifecycle(om, "onInit")
                     condition.notify_all()
                     return self.objects[name]
 
@@ -334,6 +365,7 @@ class ObjectStorage():
     def remove_object(self, object_name):
         self.logger.debug(f"Remove object - name:{object_name}")
         if object_name in self.objects:
+            self._invoke_lifecycle(self.objects[object_name], "onStop")
             del self.objects[object_name]
             if object_name in self.clean_objects:
                 del self.clean_objects[object_name]
@@ -360,8 +392,7 @@ class ObjectStorage():
                 # Пересоздаем ObjectManager вместо полного удаления,
                 # чтобы объект оставался доступен в хранилище с обновленной
                 # схемой (свойства/методы/шаблоны и т.д.).
-                om = self._createObjectManager(session, obj)
-                self.objects[obj.name] = om
+                om = self._replace_object_manager(session, obj)
                 # Обновляем/инициализируем статистику, не сбрасывая счетчики,
                 # если они уже были.
                 if obj.name not in self.stats:
@@ -382,8 +413,7 @@ class ObjectStorage():
                 # Обновляем только те объекты, которые уже есть в кэше.
                 # Остальные будут загружены лениво при первом обращении.
                 if obj.name in self.objects:
-                    om = self._createObjectManager(session, obj)
-                    self.objects[obj.name] = om
+                    om = self._replace_object_manager(session, obj)
                     if obj.name not in self.stats:
                         self.stats[obj.name] = {
                             'count_get': 1,
@@ -403,9 +433,57 @@ class ObjectStorage():
             objs = session.query(Object).order_by(Object.name).all()
             for obj in objs:
                 if obj.name not in self.objects:
-                    self.objects[obj.name] = self._createObjectManager(session, obj)
+                    om = self._createObjectManager(session, obj)
+                    self.objects[obj.name] = om
                     if obj.name not in self.stats:
                         self.stats[obj.name] = {'count_get':1, 'last_get': get_now_to_utc()}
+                    self._invoke_lifecycle(om, "onInit")
+
+    def start_background_preload(self, app=None) -> None:
+        if not Config.OBJECT_PRELOAD_ENABLED:
+            return
+        if self._preload_thread and self._preload_thread.is_alive():
+            return
+        self._preload_stop_event.clear()
+        self._preload_thread = threading.Thread(
+            target=self._background_preload_worker,
+            args=(app,),
+            daemon=True,
+            name="ObjectPreload",
+        )
+        self._preload_thread.start()
+
+    def stop_background_preload(self) -> None:
+        self._preload_stop_event.set()
+        thread = self._preload_thread
+        if thread and thread.is_alive():
+            thread.join(timeout=5.0)
+
+    def _background_preload_worker(self, app) -> None:
+        ctx = app.app_context() if app is not None else nullcontext()
+        batch_size = Config.OBJECT_PRELOAD_BATCH_SIZE or 10
+        interval = Config.OBJECT_PRELOAD_INTERVAL_SEC or 0.5
+        try:
+            with ctx:
+                with session_scope() as session:
+                    names = [o.name for o in session.query(Object).order_by(Object.name).all()]
+                total = len(names)
+                for i in range(0, total, batch_size):
+                    if self._preload_stop_event.is_set():
+                        break
+                    batch = names[i:i + batch_size]
+                    for name in batch:
+                        if self._preload_stop_event.is_set():
+                            break
+                        if name in self.objects:
+                            continue
+                        self.getObjectByName(name)
+                    preloaded = sum(1 for n in names if n in self.objects)
+                    self.logger.info("Preloaded %s/%s objects", preloaded, total)
+                    if self._preload_stop_event.wait(interval):
+                        break
+        except Exception:
+            self.logger.exception("Background object preload failed")
 
     def clear(self):
         self.logger.info("Clear storage")

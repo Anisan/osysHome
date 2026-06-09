@@ -20,4 +20,5 @@ class PropertyType(Enum):
     List = 'list'
     Bool = 'bool'
     Enum = 'enum'
+    Color = 'color'
     

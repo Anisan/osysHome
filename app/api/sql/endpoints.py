@@ -2,14 +2,14 @@
 from flask import request
 from app.database import row2dict
 from flask_restx import Namespace, Resource, fields
-from app.authentication.handlers import handle_user_required, handle_admin_required
+from app.authentication.handlers import handle_admin_required
 from app.core.lib.sql import SqlSelect, SqlExec, SqlInsert, SqlUpdate
 
 sql_ns = Namespace(name="sql",description="SQL namespace",validate=True)
 
 @sql_ns.route("/select", endpoint="select_query")
 class SelectQuery(Resource):
-    @handle_user_required
+    @handle_admin_required
     @sql_ns.param('query', 'SQL query')
     def get(self):
         '''
@@ -55,7 +55,7 @@ insert_model = sql_ns.model('InsertModel', {
 
 @sql_ns.route("/insert", endpoint="insert_query")
 class InsertQuery(Resource):
-    @handle_user_required
+    @handle_admin_required
     @sql_ns.expect(insert_model)
     def post(self):
         '''
@@ -77,7 +77,7 @@ update_model = sql_ns.model('UpdateModel', {
 
 @sql_ns.route("/update", endpoint="update_query")
 class UpdateQuery(Resource):
-    @handle_user_required
+    @handle_admin_required
     @sql_ns.expect(update_model)
     def post(self):
         '''

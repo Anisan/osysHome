@@ -89,7 +89,14 @@
             <li><a class="dropdown-item" href="#" onclick="if(confirm('{{ _('Are you sure you want to restart the system?') }}')) restart_system()"><i class="fas fa-gears me-2"></i>{{ _('Restart')}}</a></li>
             {%endif%}
             <li><hr class="dropdown-divider"></li>
-            <li><a class="dropdown-item" href="/logout"><i class="fas fa-sign-out-alt me-2"></i>{{ _('Logout')}}</a></li>
+            <li>
+              <form method="post" action="{{ url_for('auth.logout') }}" class="d-inline w-100">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="dropdown-item border-0 bg-transparent w-100 text-start">
+                  <i class="fas fa-sign-out-alt me-2"></i>{{ _('Logout')}}
+                </button>
+              </form>
+            </li>
           </ul>
       </div>
       </div>

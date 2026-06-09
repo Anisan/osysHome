@@ -19,6 +19,24 @@
 | 7 | [Плагины](plugins.ru.md) | Как устроена система плагинов на высоком уровне |
 | 8 | [Разработка плагинов](plugin-development.ru.md) | Как написать собственный плагин |
 
+### Production и эксплуатация
+
+| Документ | Содержание |
+|----------|------------|
+| [Production-развёртывание (nginx + HTTPS)](DEPLOY_PRODUCTION.ru.md) | TLS, systemd, Docker, Let's Encrypt |
+| [Безопасность и доступ](SECURITY_ACCESS.ru.md) | Аутентификация, роли, API-ключи |
+| [Конфигурация](configuration.ru.md) | Справочник `config.yaml` |
+
+---
+
+## Справочник свойств
+
+| Тема | Документ |
+|------|----------|
+| Параметры `params` (все типы) | [PARAMS_DOCUMENTATION.md](PARAMS_DOCUMENTATION.md) |
+| Тип `enum` | [ENUM_TYPE_USAGE.md](ENUM_TYPE_USAGE.md) |
+| Тип `color` | [COLOR_TYPE_USAGE.ru.md](COLOR_TYPE_USAGE.ru.md) |
+
 ---
 
 ## Архитектура системы

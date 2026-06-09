@@ -201,6 +201,14 @@ runCode("setProperty('Light.state', True)")
 
 ---
 
+## Object runtime (ephemeral state)
+
+Each object loaded in memory has **`self.runtime`** — a dict that is **not persisted** to the database. Use it for in-session counters, caches, and internal flags. Use Properties for device state that must survive restarts.
+
+Lifecycle hooks **`onInit`** and **`onStop`** are reserved method names. They run when an object is first loaded/reloaded (`system:onInit`) or before unload/shutdown (`system:onStop`). After startup, the core gradually preloads remaining objects in the background so hooks like Cron `startJob()` run without blocking boot.
+
+---
+
 ## Example: Full Device Lifecycle
 
 ```
