@@ -291,7 +291,13 @@ class ObjectStorage():
             pm = PropertyManager(obj.id, prop, value)
             if prop.method_id:
                 method = session.query(Method).filter(Method.id == prop.method_id).one_or_none()
-                pm.bindMethod(method.name)
+                if method:
+                    pm.bindMethod(method.name)
+                else:
+                    self.logger.warning(
+                        "Property %s.%s references missing method id %s",
+                        obj.name, prop.name, prop.method_id,
+                    )
             om._addProperty(pm)
         # load methods
         methods = self._getMethodsClass(session, obj.class_id, [])
