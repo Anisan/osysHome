@@ -126,6 +126,11 @@ def initSystemVar():
     addObjectMethod('isStarted',"SystemVar","Method for start",'say("System started");')
     addObjectProperty('Started','SystemVar',"Datetime starting system",0,PropertyType.Datetime,"isStarted")
     addObjectProperty('NeedRestart','SystemVar',"Need restart system",0,PropertyType.Bool)
+    addObjectProperty('core_branch', 'SystemVar', "Core update branch", 0, PropertyType.String, update=True)
+    addObjectProperty('upgraded', 'SystemVar', "Last core upgrade datetime", 0, PropertyType.Datetime, update=True)
+    addObjectProperty('update', 'SystemVar', "Core update available", 0, PropertyType.Bool, update=True)
+    if getProperty("SystemVar.core_branch") is None:
+        setProperty("SystemVar.core_branch", "master", "osysHome")
     addObjectProperty('LastSay','SystemVar',"Last 'say' message",7,PropertyType.String)
     addObjectProperty('UnreadNotify','SystemVar',"Flag indicating the presence of an unread notification",0,PropertyType.Bool)
     addObjectProperty('LastNotify','SystemVar',"Last 'notify' message",7,PropertyType.Dictionary)

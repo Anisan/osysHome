@@ -43,7 +43,7 @@ class GetProperty(Resource):
     @props_ns.param('property', 'Property name')
     @props_ns.response(200, "Result", response_result)
     @props_ns.response(404, 'Not Found', response_404)
-    def get(self, object_property):
+    def get(self, object_property=None):
         '''
         Get value of object property.
         '''
@@ -114,7 +114,7 @@ class PropertyWithPath(Resource):
     @props_ns.param('object_property', 'Object and property name in format "object.property"', _in='path')
     @props_ns.response(200, "Result", response_result)
     @props_ns.response(404, 'Not Found', response_404)
-    def get(self, object_property):
+    def get(self, object_property=None):
         '''
         Get value of object property.
         '''
@@ -201,7 +201,7 @@ class PropertyInfo(Resource):
     @props_ns.param('object_property', 'Object and property name in format "object.property"', _in='path')
     @props_ns.response(200, "Result", response_result)
     @props_ns.response(404, 'Not Found', response_404)
-    def get(self, object_property):
+    def get(self, object_property=None):
         '''
         Get info of object property.
         '''
