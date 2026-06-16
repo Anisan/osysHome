@@ -83,8 +83,8 @@ class NotificationManager {
           
         const toastElement = container.querySelector(`#toast-${notificationId}`);  
         const bsToast = new bootstrap.Toast(toastElement, {
-            autohide: config.persistent,
-            delay: config.persistent ? 999999999 : config.duration  
+            autohide: !config.persistent,
+            delay: config.duration
         });  
   
         this.notifications.set(notificationId, {  
@@ -144,12 +144,12 @@ class NotificationManager {
         return `  
             <div id="toast-${id}" class="toast notification-toast notification-${config.level}"   
                  role="alert" aria-live="assertive" aria-atomic="true">  
-                <div class="toast-header">  
-                    <i class="${levelIcons[config.level]} text-${levelColors[config.level]} me-2"></i>  
-                    <strong class="me-auto">${config.title}</strong>  
-                    <small class="text-muted">${timeString}</small>  
-                    ${config.persistent ? '' : '<button type="button" class="btn-close" data-bs-dismiss="toast"></button>'}  
-                </div>  
+                <div class="toast-header">
+                    <i class="${levelIcons[config.level]} text-${levelColors[config.level]} me-2"></i>
+                    <strong class="me-auto">${config.title}</strong>
+                    <small class="text-muted">${timeString}</small>
+                    <button type="button" class="btn-close ms-2" data-bs-dismiss="toast" aria-label="Close"></button>
+                </div>
                 <div class="toast-body">  
                     <div class="notification-message">${config.message}</div>  
                     ${actionsHTML ? `<div class="notification-actions mt-2">${actionsHTML}</div>` : ''}  

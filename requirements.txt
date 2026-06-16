@@ -17,4 +17,3 @@ tzdata
 requests
 pycryptodome
 python-lsp-server[all]
-markdown

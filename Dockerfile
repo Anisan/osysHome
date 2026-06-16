@@ -5,7 +5,13 @@ ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    dnsutils \
     git \
+    iproute2 \
+    iputils-ping \
+    netcat-openbsd \
+    traceroute \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
