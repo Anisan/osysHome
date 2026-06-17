@@ -688,7 +688,6 @@ class PylspClient:
         try:
             # Проверяем кэш объектов
             if self._object_completions_cache is None:
-                objects_storage.preload_objects()
                 items = []
                 for name, obj in objects_storage.items():
                     if not isinstance(name, str):

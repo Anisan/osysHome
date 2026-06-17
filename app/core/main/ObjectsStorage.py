@@ -1,13 +1,3 @@
-import threading
-from contextlib import nullcontext
-from datetime import datetime
-from app.configuration import Config
-from app.database import row2dict, session_scope, get_now_to_utc
-from app.core.main.ObjectManager import ObjectManager, PropertyManager, MethodManager
-from app.core.models.Clasess import Class, Property, Method, Object, Value, History
-from app.logging_config import getLogger
-from app.core.main.PluginsHelper import plugins
-
 """
 A class for managing objects storage with thread-safe operations.
 
@@ -36,10 +26,54 @@ The class provides methods for:
 Note:
     This class is designed to be thread-safe and includes background maintenance tasks.
 """
+import threading
+from contextlib import nullcontext
+from datetime import datetime
+from app.configuration import Config
+from app.database import row2dict, session_scope, get_now_to_utc
+from app.core.main.ObjectManager import ObjectManager, PropertyManager, MethodManager
+from app.core.models.Clasess import Class, Property, Method, Object, Value, History
+from app.logging_config import getLogger
+from app.core.main.PluginsHelper import plugins
+
+
+class _RuntimeObjectMap(dict):
+    """Runtime cache map; full enumeration syncs missing objects from DB."""
+
+    __slots__ = ("_storage",)
+
+    def __init__(self, storage: "ObjectStorage"):
+        super().__init__()
+        self._storage = storage
+
+    def _sync_for_enumeration(self) -> None:
+        self._storage.sync_missing()
+
+    def keys(self):
+        self._sync_for_enumeration()
+        return super().keys()
+
+    def values(self):
+        self._sync_for_enumeration()
+        return super().values()
+
+    def items(self):
+        self._sync_for_enumeration()
+        return super().items()
+
+    def __iter__(self):
+        self._sync_for_enumeration()
+        return super().__iter__()
+
+    def __len__(self):
+        self._sync_for_enumeration()
+        return super().__len__()
+
+
 class ObjectStorage():
     def __init__(self):
         self.logger = getLogger('object_storage')
-        self.objects = {}
+        self.objects = _RuntimeObjectMap(self)
         self.stats = {}
         self.name_lock_global = threading.Lock()
         self.name_lock = {}
@@ -63,7 +97,7 @@ class ObjectStorage():
             om._lifecycle_running = False
 
     def invoke_lifecycle_all(self, hook: str) -> None:
-        for _, om in list(self.objects.items()):
+        for _, om in list(dict.items(self.objects)):
             self._invoke_lifecycle(om, hook)
 
     def _replace_object_manager(self, session, obj: Object) -> ObjectManager:
@@ -76,20 +110,36 @@ class ObjectStorage():
         self._invoke_lifecycle(om, "onInit")
         return om
 
+    def _load_or_reload_object(self, session, obj: Object) -> ObjectManager:
+        if obj.name in self.objects:
+            om = self._replace_object_manager(session, obj)
+        else:
+            om = self._createObjectManager(session, obj)
+            self.objects[obj.name] = om
+            self._invoke_lifecycle(om, "onInit")
+        if obj.name not in self.stats:
+            self.stats[obj.name] = {
+                'count_get': 1,
+                'last_get': get_now_to_utc(),
+            }
+        if obj.name in self.clean_objects:
+            del self.clean_objects[obj.name]
+        return om
+
     def clean_task(self):
 
         while not self._stop_event.is_set():
             try:
                 now = datetime.now()
 
-                object_keys = list(self.objects.keys())
+                object_keys = list(dict.keys(self.objects))
                 if not object_keys:
                     self._stop_event.wait(60)
                     continue
 
                 self.logger.debug("Check objects for clean history")
 
-                for key,obj in self.objects.items():
+                for key, obj in dict.items(self.objects):
                     if self.clean_objects.get(key) is None or now.date() > self.clean_objects.get(key,{}).get("dt").date():
                         res = obj.cleanHistory()
                         count_deleted = 0
@@ -370,80 +420,86 @@ class ObjectStorage():
     # remove object
     def remove_object(self, object_name):
         self.logger.debug(f"Remove object - name:{object_name}")
+        removed = False
         if object_name in self.objects:
             self._invoke_lifecycle(self.objects[object_name], "onStop")
             del self.objects[object_name]
             if object_name in self.clean_objects:
                 del self.clean_objects[object_name]
+            removed = True
+        if removed:
+            with session_scope() as session:
+                obj = session.query(Object).filter_by(name=object_name).one_or_none()
+                if obj:
+                    self._load_or_reload_object(session, obj)
 
     def remove_objects_by_class(self, class_id):
         self.logger.debug(f"Remove objects by class - id:{class_id}")
         with session_scope() as session:
             objs = session.query(Object).filter(Object.class_id == class_id).all()
             for obj in objs:
-                if obj.name in self.objects:
-                    del self.objects[obj.name]
-                    if obj.name in self.clean_objects:
-                        del self.clean_objects[obj.name]
+                self.remove_object(obj.name)
             childs = session.query(Class).filter(Class.parent_id == class_id).all()
             for child in childs:
                 self.remove_objects_by_class(child.id)
+
+    def sync_missing(self) -> int:
+        """Load objects that exist in DB but are not yet in runtime cache."""
+        loaded = 0
+        with session_scope() as session:
+            objs = session.query(Object).order_by(Object.name).all()
+            for obj in objs:
+                if obj.name in self.objects:
+                    continue
+                om = self._createObjectManager(session, obj)
+                self.objects[obj.name] = om
+                if obj.name not in self.stats:
+                    self.stats[obj.name] = {'count_get': 1, 'last_get': get_now_to_utc()}
+                self._invoke_lifecycle(om, "onInit")
+                loaded += 1
+        if loaded:
+            self.logger.debug("Synced %s missing object(s) into runtime cache", loaded)
+        return loaded
+
+    def sync_removed(self) -> int:
+        """Evict cached objects that were deleted from DB."""
+        with session_scope() as session:
+            db_names = {name for (name,) in session.query(Object.name).all()}
+        removed = 0
+        for name in list(dict.keys(self.objects)):
+            if name not in db_names:
+                self.remove_object(name)
+                removed += 1
+        if removed:
+            self.logger.debug("Evicted %s stale object(s) from runtime cache", removed)
+        return removed
+
+    def sync_cache(self) -> None:
+        """Align runtime cache with DB: evict deleted, load missing."""
+        self.sync_removed()
+        self.sync_missing()
 
     # reload object
     def reload_object(self, object_id):
         self.logger.debug(f"Reload object - id:{object_id}")
         with session_scope() as session:
             obj = session.query(Object).filter(Object.id == object_id).one_or_none()
-            if obj and obj.name in self.objects:
-                # Пересоздаем ObjectManager вместо полного удаления,
-                # чтобы объект оставался доступен в хранилище с обновленной
-                # схемой (свойства/методы/шаблоны и т.д.).
-                om = self._replace_object_manager(session, obj)
-                # Обновляем/инициализируем статистику, не сбрасывая счетчики,
-                # если они уже были.
-                if obj.name not in self.stats:
-                    self.stats[obj.name] = {
-                        'count_get': 1,
-                        'last_get': get_now_to_utc(),
-                    }
-                # Сбрасываем только информацию о чистке истории,
-                # чтобы она была пересчитана при следующем проходе cleaner'а.
-                if obj.name in self.clean_objects:
-                    del self.clean_objects[obj.name]
+            if obj:
+                self._load_or_reload_object(session, obj)
 
     def reload_objects_by_class(self, class_id):
         self.logger.debug(f"Reload objects by class - id:{class_id}")
         with session_scope() as session:
             objs = session.query(Object).filter(Object.class_id == class_id).order_by(Object.name).all()
             for obj in objs:
-                # Обновляем только те объекты, которые уже есть в кэше.
-                # Остальные будут загружены лениво при первом обращении.
-                if obj.name in self.objects:
-                    om = self._replace_object_manager(session, obj)
-                    if obj.name not in self.stats:
-                        self.stats[obj.name] = {
-                            'count_get': 1,
-                            'last_get': get_now_to_utc(),
-                        }
-                    # Обнуляем только данные по чистке истории, чтобы
-                    # cleaner пересчитал их с учетом новой схемы.
-                    if obj.name in self.clean_objects:
-                        del self.clean_objects[obj.name]
+                self._load_or_reload_object(session, obj)
             childs = session.query(Class).filter(Class.parent_id == class_id).all()
             for child in childs:
                 self.reload_objects_by_class(child.id)
 
     # preload all storage objects
     def preload_objects(self):
-        with session_scope() as session:
-            objs = session.query(Object).order_by(Object.name).all()
-            for obj in objs:
-                if obj.name not in self.objects:
-                    om = self._createObjectManager(session, obj)
-                    self.objects[obj.name] = om
-                    if obj.name not in self.stats:
-                        self.stats[obj.name] = {'count_get':1, 'last_get': get_now_to_utc()}
-                    self._invoke_lifecycle(om, "onInit")
+        self.sync_missing()
 
     def start_background_preload(self, app=None) -> None:
         if not Config.OBJECT_PRELOAD_ENABLED:
@@ -493,8 +549,9 @@ class ObjectStorage():
 
     def clear(self):
         self.logger.info("Clear storage")
-        self.objects.clear()
+        dict.clear(self.objects)
         self.stats.clear()
+        self.sync_cache()
 
     def changeObject(self, event, object_name, property_name, method_name, new_value):
         # send event to plugins
