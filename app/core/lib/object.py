@@ -828,6 +828,46 @@ def deleteObject(name: str):
         objects_storage.remove_object(name)
         return True
 
+def renameObject(old_name: str, new_name: str) -> bool:
+    """Rename object in the database.
+
+    Args:
+        old_name (str): Current object name
+        new_name (str): New object name
+
+    Returns:
+        bool: Success rename
+
+    Raises:
+        PermissionError: If the new name is already taken
+    """
+    old_name = (old_name or "").strip()
+    new_name = (new_name or "").strip()
+    if not old_name or not new_name or old_name == new_name:
+        return False
+
+    logger = _get_object_logger(old_name)
+    with session_scope() as session:
+        obj = session.query(Object).filter(Object.name == old_name).one_or_none()
+        if not obj:
+            logger.error('Object %s not found for rename', old_name)
+            return False
+        if session.query(Object).filter(Object.name == new_name).one_or_none():
+            raise PermissionError(f'Object "{new_name}" already exists')
+        obj.name = new_name
+        session.commit()
+        object_id = obj.id
+
+    perm_key_old = f"object:{old_name}"
+    perm_key_new = f"object:{new_name}"
+    perm_value = getProperty(f"_permissions.{perm_key_old}")
+    if perm_value is not None:
+        setProperty(f"_permissions.{perm_key_new}", perm_value, "renameObject")
+        deleteObjectProperty(f"_permissions.{perm_key_old}")
+
+    objects_storage.rename_object(old_name, new_name, object_id)
+    return True
+
 def setLinkToObject(object_name:str, property_name:str, link:str) -> bool:
     """Set link for value
 

@@ -433,6 +433,18 @@ class ObjectStorage():
                 if obj:
                     self._load_or_reload_object(session, obj)
 
+    def rename_object(self, old_name: str, new_name: str, object_id: int) -> None:
+        self.logger.debug(f"Rename object - {old_name} -> {new_name}")
+        if old_name in self.objects:
+            self._invoke_lifecycle(self.objects[old_name], "onStop")
+            del self.objects[old_name]
+        if old_name in self.stats:
+            del self.stats[old_name]
+        if old_name in self.clean_objects:
+            del self.clean_objects[old_name]
+        self.reload_object(object_id)
+        self.changeObject("rename", old_name, None, None, new_name)
+
     def remove_objects_by_class(self, class_id):
         self.logger.debug(f"Remove objects by class - id:{class_id}")
         with session_scope() as session:
