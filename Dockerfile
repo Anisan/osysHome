@@ -41,5 +41,6 @@ EXPOSE 5000
 
 VOLUME ["/app/logs", "/app/cache", "/app/files", "/app/plugins"]
 
-ENTRYPOINT ["/app/docker/docker-entrypoint.sh"]
+# Invoke via sh so the container still starts after in-app ZIP updates strip +x from scripts.
+ENTRYPOINT ["sh", "/app/docker/docker-entrypoint.sh"]
 CMD ["python", "main.py"]
