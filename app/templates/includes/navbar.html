@@ -62,13 +62,243 @@
       <button class="btn btn-outline-secondary navbar-toolbar-btn navbar-toolbar-btn--icon flex-shrink-0" data-bs-toggle="modal" data-bs-target="#consoleModal" title="{{ _('Console') }}" aria-label="{{ _('Console') }}"><i class="fa-solid fa-terminal"></i><span class="navbar-btn-text ms-xl-1">{{ _('Console')}}</span></button>
       <button class="btn btn-outline-success navbar-toolbar-btn navbar-toolbar-btn--icon flex-shrink-0" data-bs-toggle="modal" data-bs-target="#searchModal" title="{{ _('Search') }}" aria-label="{{ _('Search') }}"><i class="fa-solid fa-magnifying-glass"></i><span class="navbar-btn-text ms-xl-1">{{ _('Search')}}</span></button>
       {%endif%}
-      <button class="btn btn-outline-secondary navbar-toolbar-btn theme-toggle flex-shrink-0" id="darkModeSwitch" type="button" aria-label="{{ _('Toggle theme')}}" title="{{ _('Toggle theme')}}">
-        <i class="fas fa-sun d-inline d-xxl-none"></i>
-        <span class="d-none d-xxl-inline">
-          <i class="fas fa-sun theme-icon-light"></i>
-          <i class="fas fa-moon theme-icon-dark"></i>
-        </span>
-      </button>
+      <div class="dropdown flex-shrink-0">
+        <button class="btn btn-outline-secondary navbar-toolbar-btn dropdown-toggle" id="uiThemeSwitch" type="button" data-bs-toggle="dropdown" data-bs-auto-close="true" aria-expanded="false" aria-label="{{ _('Theme')}}" title="{{ _('Theme')}}">
+          <i class="fas fa-palette ui-theme-icon"></i>
+          <span class="navbar-btn-text d-none d-xxl-inline ms-1">{{ _('Theme')}}</span>
+        </button>
+        <ul class="dropdown-menu dropdown-menu-end ui-theme-menu" id="uiThemeMenu" role="menu" aria-labelledby="uiThemeSwitch">
+          <li role="none" class="dropdown-header px-3 py-1 text-muted small">{{ _('Theme Basic')}}</li>
+          <li role="none">
+            <a class="dropdown-item" href="#" role="menuitemradio" data-ui-theme="light" aria-checked="false">
+              <span class="ui-theme-swatch ui-theme-swatch--light" aria-hidden="true"></span>
+              {{ _('Theme Light')}}
+            </a>
+          </li>
+          <li role="none">
+            <a class="dropdown-item" href="#" role="menuitemradio" data-ui-theme="dark" aria-checked="false">
+              <span class="ui-theme-swatch ui-theme-swatch--dark" aria-hidden="true"></span>
+              {{ _('Theme Dark')}}
+            </a>
+          </li>
+          <li role="separator" class="dropdown-divider"></li>
+          <li role="none" class="dropdown-header px-3 py-1 text-muted small">{{ _('Theme Accent')}}</li>
+          <li role="none">
+            <a class="dropdown-item" href="#" role="menuitemradio" data-ui-theme="dark-blue" aria-checked="false">
+              <span class="ui-theme-swatch ui-theme-swatch--dark-blue" aria-hidden="true"></span>
+              {{ _('Theme Dark Blue')}}
+            </a>
+          </li>
+          <li role="none">
+            <a class="dropdown-item" href="#" role="menuitemradio" data-ui-theme="sepia" aria-checked="false">
+              <span class="ui-theme-swatch ui-theme-swatch--sepia" aria-hidden="true"></span>
+              {{ _('Theme Sepia')}}
+            </a>
+          </li>
+          <li role="none">
+            <a class="dropdown-item" href="#" role="menuitemradio" data-ui-theme="midnight" aria-checked="false">
+              <span class="ui-theme-swatch ui-theme-swatch--midnight" aria-hidden="true"></span>
+              {{ _('Theme Midnight')}}
+            </a>
+          </li>
+          <li role="separator" class="dropdown-divider"></li>
+          <li role="none" class="dropdown-header px-3 py-1 text-muted small">Vue.js</li>
+          <li role="none">
+            <a class="dropdown-item" href="#" role="menuitemradio" data-ui-theme="vue" aria-checked="false">
+              <span class="ui-theme-swatch ui-theme-swatch--vue" aria-hidden="true"></span>
+              {{ _('Theme Vue')}}
+            </a>
+          </li>
+          <li role="none">
+            <a class="dropdown-item" href="#" role="menuitemradio" data-ui-theme="vue-dark" aria-checked="false">
+              <span class="ui-theme-swatch ui-theme-swatch--vue-dark" aria-hidden="true"></span>
+              {{ _('Theme Vue Dark')}}
+            </a>
+          </li>
+          <li role="separator" class="dropdown-divider"></li>
+          <li role="none" class="dropdown-header px-3 py-1 text-muted small">{{ _('Theme Popular')}}</li>
+          <li role="none">
+            <a class="dropdown-item" href="#" role="menuitemradio" data-ui-theme="nord" aria-checked="false">
+              <span class="ui-theme-swatch ui-theme-swatch--nord" aria-hidden="true"></span>
+              {{ _('Theme Nord')}}
+            </a>
+          </li>
+          <li role="none">
+            <a class="dropdown-item" href="#" role="menuitemradio" data-ui-theme="dracula" aria-checked="false">
+              <span class="ui-theme-swatch ui-theme-swatch--dracula" aria-hidden="true"></span>
+              {{ _('Theme Dracula')}}
+            </a>
+          </li>
+          <li role="none">
+            <a class="dropdown-item" href="#" role="menuitemradio" data-ui-theme="catppuccin" aria-checked="false">
+              <span class="ui-theme-swatch ui-theme-swatch--catppuccin" aria-hidden="true"></span>
+              {{ _('Theme Catppuccin')}}
+            </a>
+          </li>
+          <li role="none">
+            <a class="dropdown-item" href="#" role="menuitemradio" data-ui-theme="one-dark" aria-checked="false">
+              <span class="ui-theme-swatch ui-theme-swatch--one-dark" aria-hidden="true"></span>
+              {{ _('Theme One Dark')}}
+            </a>
+          </li>
+          <li role="none">
+            <a class="dropdown-item" href="#" role="menuitemradio" data-ui-theme="ayu" aria-checked="false">
+              <span class="ui-theme-swatch ui-theme-swatch--ayu" aria-hidden="true"></span>
+              {{ _('Theme Ayu')}}
+            </a>
+          </li>
+          <li role="none">
+            <a class="dropdown-item" href="#" role="menuitemradio" data-ui-theme="material-ocean" aria-checked="false">
+              <span class="ui-theme-swatch ui-theme-swatch--material-ocean" aria-hidden="true"></span>
+              {{ _('Theme Material Ocean')}}
+            </a>
+          </li>
+          <li role="none">
+            <a class="dropdown-item" href="#" role="menuitemradio" data-ui-theme="monokai-pro" aria-checked="false">
+              <span class="ui-theme-swatch ui-theme-swatch--monokai-pro" aria-hidden="true"></span>
+              {{ _('Theme Monokai Pro')}}
+            </a>
+          </li>
+          <li role="separator" class="dropdown-divider"></li>
+          <li role="none" class="dropdown-header px-3 py-1 text-muted small">{{ _('Theme Classic')}}</li>
+          <li role="none">
+            <a class="dropdown-item" href="#" role="menuitemradio" data-ui-theme="solarized-light" aria-checked="false">
+              <span class="ui-theme-swatch ui-theme-swatch--solarized-light" aria-hidden="true"></span>
+              {{ _('Theme Solarized Light')}}
+            </a>
+          </li>
+          <li role="none">
+            <a class="dropdown-item" href="#" role="menuitemradio" data-ui-theme="solarized-dark" aria-checked="false">
+              <span class="ui-theme-swatch ui-theme-swatch--solarized-dark" aria-hidden="true"></span>
+              {{ _('Theme Solarized Dark')}}
+            </a>
+          </li>
+          <li role="none">
+            <a class="dropdown-item" href="#" role="menuitemradio" data-ui-theme="gruvbox-light" aria-checked="false">
+              <span class="ui-theme-swatch ui-theme-swatch--gruvbox-light" aria-hidden="true"></span>
+              {{ _('Theme Gruvbox Light')}}
+            </a>
+          </li>
+          <li role="none">
+            <a class="dropdown-item" href="#" role="menuitemradio" data-ui-theme="gruvbox-dark" aria-checked="false">
+              <span class="ui-theme-swatch ui-theme-swatch--gruvbox-dark" aria-hidden="true"></span>
+              {{ _('Theme Gruvbox Dark')}}
+            </a>
+          </li>
+          <li role="none">
+            <a class="dropdown-item" href="#" role="menuitemradio" data-ui-theme="tokyo-night" aria-checked="false">
+              <span class="ui-theme-swatch ui-theme-swatch--tokyo-night" aria-hidden="true"></span>
+              {{ _('Theme Tokyo Night')}}
+            </a>
+          </li>
+          <li role="separator" class="dropdown-divider"></li>
+          <li role="none" class="dropdown-header px-3 py-1 text-muted small">{{ _('Theme Pastel')}}</li>
+          <li role="none">
+            <a class="dropdown-item" href="#" role="menuitemradio" data-ui-theme="rose-pine" aria-checked="false">
+              <span class="ui-theme-swatch ui-theme-swatch--rose-pine" aria-hidden="true"></span>
+              {{ _('Theme Rose Pine')}}
+            </a>
+          </li>
+          <li role="none">
+            <a class="dropdown-item" href="#" role="menuitemradio" data-ui-theme="rose-pine-dawn" aria-checked="false">
+              <span class="ui-theme-swatch ui-theme-swatch--rose-pine-dawn" aria-hidden="true"></span>
+              {{ _('Theme Rose Pine Dawn')}}
+            </a>
+          </li>
+          <li role="none">
+            <a class="dropdown-item" href="#" role="menuitemradio" data-ui-theme="everforest-dark" aria-checked="false">
+              <span class="ui-theme-swatch ui-theme-swatch--everforest-dark" aria-hidden="true"></span>
+              {{ _('Theme Everforest Dark')}}
+            </a>
+          </li>
+          <li role="none">
+            <a class="dropdown-item" href="#" role="menuitemradio" data-ui-theme="everforest-light" aria-checked="false">
+              <span class="ui-theme-swatch ui-theme-swatch--everforest-light" aria-hidden="true"></span>
+              {{ _('Theme Everforest Light')}}
+            </a>
+          </li>
+          <li role="none">
+            <a class="dropdown-item" href="#" role="menuitemradio" data-ui-theme="kanagawa" aria-checked="false">
+              <span class="ui-theme-swatch ui-theme-swatch--kanagawa" aria-hidden="true"></span>
+              {{ _('Theme Kanagawa')}}
+            </a>
+          </li>
+          <li role="none">
+            <a class="dropdown-item" href="#" role="menuitemradio" data-ui-theme="kanagawa-lotus" aria-checked="false">
+              <span class="ui-theme-swatch ui-theme-swatch--kanagawa-lotus" aria-hidden="true"></span>
+              {{ _('Theme Kanagawa Lotus')}}
+            </a>
+          </li>
+          <li role="separator" class="dropdown-divider"></li>
+          <li role="none" class="dropdown-header px-3 py-1 text-muted small">Dashboard</li>
+          <li role="none">
+            <a class="dropdown-item" href="#" role="menuitemradio" data-ui-theme="nordic-minimal" aria-checked="false">
+              <span class="ui-theme-swatch ui-theme-swatch--nordic-minimal" aria-hidden="true"></span>
+              Nordic Minimal
+            </a>
+          </li>
+          <li role="none">
+            <a class="dropdown-item" href="#" role="menuitemradio" data-ui-theme="slate-dark" aria-checked="false">
+              <span class="ui-theme-swatch ui-theme-swatch--slate-dark" aria-hidden="true"></span>
+              Slate Dark
+            </a>
+          </li>
+          <li role="none">
+            <a class="dropdown-item" href="#" role="menuitemradio" data-ui-theme="cyberpunk-neon" aria-checked="false">
+              <span class="ui-theme-swatch ui-theme-swatch--cyberpunk-neon" aria-hidden="true"></span>
+              Cyberpunk Neon
+            </a>
+          </li>
+          <li role="none">
+            <a class="dropdown-item" href="#" role="menuitemradio" data-ui-theme="corporate-light" aria-checked="false">
+              <span class="ui-theme-swatch ui-theme-swatch--corporate-light" aria-hidden="true"></span>
+              Corporate Light
+            </a>
+          </li>
+          <li role="none">
+            <a class="dropdown-item" href="#" role="menuitemradio" data-ui-theme="warm-beige" aria-checked="false">
+              <span class="ui-theme-swatch ui-theme-swatch--warm-beige" aria-hidden="true"></span>
+              Warm Beige
+            </a>
+          </li>
+          <li role="none">
+            <a class="dropdown-item" href="#" role="menuitemradio" data-ui-theme="forest-emerald" aria-checked="false">
+              <span class="ui-theme-swatch ui-theme-swatch--forest-emerald" aria-hidden="true"></span>
+              Forest Emerald
+            </a>
+          </li>
+          <li role="none">
+            <a class="dropdown-item" href="#" role="menuitemradio" data-ui-theme="high-contrast-pro" aria-checked="false">
+              <span class="ui-theme-swatch ui-theme-swatch--high-contrast-pro" aria-hidden="true"></span>
+              High Contrast Pro
+            </a>
+          </li>
+          <li role="none">
+            <a class="dropdown-item" href="#" role="menuitemradio" data-ui-theme="oled-black" aria-checked="false">
+              <span class="ui-theme-swatch ui-theme-swatch--oled-black" aria-hidden="true"></span>
+              OLED Black
+            </a>
+          </li>
+          <li role="none">
+            <a class="dropdown-item" href="#" role="menuitemradio" data-ui-theme="github-light" aria-checked="false">
+              <span class="ui-theme-swatch ui-theme-swatch--github-light" aria-hidden="true"></span>
+              GitHub Light
+            </a>
+          </li>
+          <li role="none">
+            <a class="dropdown-item" href="#" role="menuitemradio" data-ui-theme="github-dark" aria-checked="false">
+              <span class="ui-theme-swatch ui-theme-swatch--github-dark" aria-hidden="true"></span>
+              GitHub Dark
+            </a>
+          </li>
+          <li role="none">
+            <a class="dropdown-item" href="#" role="menuitemradio" data-ui-theme="material-3" aria-checked="false">
+              <span class="ui-theme-swatch ui-theme-swatch--material-3" aria-hidden="true"></span>
+              Material 3
+            </a>
+          </li>
+        </ul>
+      </div>
       </div>
       <div class="dropdown navbar-user-dropdown">
           <button type="button" class="btn btn-outline-secondary navbar-toolbar-btn dropdown-toggle d-inline-flex align-items-center justify-content-center" id="navbarDropdown" data-bs-toggle="dropdown" data-bs-auto-close="true" aria-expanded="false">

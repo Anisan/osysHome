@@ -219,13 +219,19 @@
                 `<span class="ms-1">${this.escapeHtml(notif.description)}</span>` : '';
             
             return `
-                <div class="alert alert-${color} alert-dismissible fade show p-2 my-1" data-notify-id="${notif.id}">
-                    ${countBadge}
-                    <i class="${icon} me-1"></i>
-                    <b>${this.escapeHtml(notif.name)}</b>
-                    ${descriptionHtml}
-                    <span class="ms-2">${dateInfo}</span>
-                    <button type="button" class="btn-close p-2 my-1" onclick="if(typeof NotificationSystem !== 'undefined') NotificationSystem.readNotify(${notif.id})" data-bs-dismiss="alert" aria-label="${this.escapeHtml(t('close', 'Close'))}"></button>
+                <div class="alert alert-${color} alert-dismissible fade show p-2 my-1" role="alert" data-notify-id="${notif.id}">
+                    <button type="button" class="btn-close" onclick="if(typeof NotificationSystem !== 'undefined') NotificationSystem.readNotify(${notif.id})" data-bs-dismiss="alert" aria-label="${this.escapeHtml(t('close', 'Close'))}"></button>
+                    <div class="d-flex align-items-start gap-2 pe-3">
+                        <i class="${icon} mt-1 flex-shrink-0"></i>
+                        <div class="flex-grow-1 min-width-0">
+                            <div>
+                                ${countBadge}
+                                <b>${this.escapeHtml(notif.name)}</b>
+                                ${descriptionHtml}
+                            </div>
+                            <div class="small text-muted mt-1">${dateInfo}</div>
+                        </div>
+                    </div>
                 </div>
             `;
         },

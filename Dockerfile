@@ -5,7 +5,13 @@ ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    dnsutils \
     git \
+    iproute2 \
+    iputils-ping \
+    netcat-openbsd \
+    traceroute \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
@@ -35,5 +41,6 @@ EXPOSE 5000
 
 VOLUME ["/app/logs", "/app/cache", "/app/files", "/app/plugins"]
 
-ENTRYPOINT ["/app/docker/docker-entrypoint.sh"]
+# Invoke via sh so the container still starts after in-app ZIP updates strip +x from scripts.
+ENTRYPOINT ["sh", "/app/docker/docker-entrypoint.sh"]
 CMD ["python", "main.py"]

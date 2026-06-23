@@ -20,6 +20,7 @@
 
     <!-- custom css -->
     <link rel="stylesheet" href="{{ config.ASSETS_ROOT }}/css/custom.css">
+    <link rel="stylesheet" href="{{ config.ASSETS_ROOT }}/css/themes.css">
 
     <script src="{{ config.ASSETS_ROOT }}/plugins/jquery/jquery-3.6.0.min.js"></script>
 
@@ -27,11 +28,35 @@
     {% block stylesheets %}{% endblock stylesheets %}
 
 </head>
-<body data-tag="body" data-bs-theme="light">
+<body data-tag="body" data-bs-theme="light" data-ui-theme="light">
     <script>
-        var dragTheme = window.localStorage.getItem('dark-theme');
-        const bodyTagHead = document.querySelector('[data-tag="body"]');
-        bodyTagHead.setAttribute('data-bs-theme', (dragTheme == "true")? "dark" : "light");
+        (function () {
+            var THEMES = {
+                light: 'light', dark: 'dark', 'dark-blue': 'dark', sepia: 'light', midnight: 'dark',
+                vue: 'light', 'vue-dark': 'dark', nord: 'dark', dracula: 'dark',
+                catppuccin: 'dark', 'one-dark': 'dark', 'solarized-light': 'light',
+                'solarized-dark': 'dark', 'gruvbox-light': 'light', 'gruvbox-dark': 'dark',
+                'tokyo-night': 'dark', 'rose-pine': 'dark', 'rose-pine-dawn': 'light',
+                'everforest-dark': 'dark', 'everforest-light': 'light', kanagawa: 'dark',
+                'kanagawa-lotus': 'light', ayu: 'dark', 'material-ocean': 'dark',
+                'monokai-pro': 'dark', 'nordic-minimal': 'dark', 'slate-dark': 'dark',
+                'cyberpunk-neon': 'dark', 'corporate-light': 'light', 'warm-beige': 'light',
+                'forest-emerald': 'dark', 'high-contrast-pro': 'dark', 'oled-black': 'dark',
+                'github-light': 'light', 'github-dark': 'dark', 'material-3': 'light'
+            };
+            var stored = localStorage.getItem('ui-theme');
+            if (!stored || !THEMES[stored]) {
+                stored = localStorage.getItem('dark-theme') === 'true' ? 'dark' : 'light';
+            }
+            var bodyTagHead = document.querySelector('[data-tag="body"]');
+            var rootTagHead = document.documentElement;
+            var bsTheme = THEMES[stored];
+            bodyTagHead.setAttribute('data-bs-theme', bsTheme);
+            bodyTagHead.setAttribute('data-ui-theme', stored);
+            rootTagHead.setAttribute('data-bs-theme', bsTheme);
+            rootTagHead.setAttribute('data-ui-theme', stored);
+            bodyTagHead.classList.toggle('dark-mode', bsTheme === 'dark');
+        })();
     </script>
     {% block main %}{% endblock main %}
 

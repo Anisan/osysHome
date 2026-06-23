@@ -88,7 +88,6 @@ class ObjectList(Resource):
         Get dictionary of objects description.
         """
         result = {}
-        objects_storage.preload_objects()
         for key,obj in objects_storage.items():
             result[key] = obj.description
         return {'success': True,
@@ -106,7 +105,6 @@ class ObjectListDetails(Resource):
         Get dictionary objects with properties and methods descriptions
         """
         result = {}
-        objects_storage.preload_objects()
         for name,item in objects_storage.items():
             obj = {}
             obj['description'] = item.description
