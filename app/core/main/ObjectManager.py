@@ -531,7 +531,20 @@ class PropertyManager():
                 converted_value = None
             elif self.type == "int":
                 if value != '':
-                    converted_value = int(value)
+                    try:
+                        converted_value = int(value)
+                    except ValueError:
+                        if init:
+                            try:
+                                converted_value = int(float(value))
+                            except (TypeError, ValueError):
+                                _logger.warning(
+                                    f"Error parsing int during initialization (object_id={self.object_id}, name={self.name}, value={value})",
+                                    exc_info=True,
+                                )
+                                converted_value = value
+                        else:
+                            raise
                     # Validate min/max if specified
                     if not init and self.params:
                         min_val = self.params.get('min')
@@ -693,9 +706,14 @@ class PropertyManager():
                 )
                 raise ValueError(f"Failed to parse value '{value}' for property '{self.name}': {str(ex)}") from ex
         except ValueError as ex:
-            # Validation errors should be raised, not caught
-            # This includes min/max violations, regexp mismatches, enum value violations, etc.
-            raise
+            if init:
+                _logger.warning(
+                    f"Error validating value during initialization (object_id={self.object_id}, name={self.name}, type={self.type}, value={value}): {str(ex)}",
+                    exc_info=True,
+                )
+                converted_value = value
+            else:
+                raise
         except Exception as ex:
             # Other errors (parsing, type conversion) are logged but we don't want to silently fail
             # If init=True, we might want to be more lenient (e.g., during initialization from DB)
