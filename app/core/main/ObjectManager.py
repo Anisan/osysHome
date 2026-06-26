@@ -1848,7 +1848,7 @@ class ObjectManager:
         stat_props = {}
         stat_methods = {}
         for name, prop in self.properties.items():
-            from app.core.utils import truncate_string
+            from app.core.utilities.strings import truncate_string
             value = truncate_string(str(prop.value), 30)
             stat_props[name] = {
                 'id': prop.property_id,

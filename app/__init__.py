@@ -12,7 +12,7 @@ from app import commands
 from app.exceptions import InvalidUsage
 from app.extensions import db, login_manager, cors, bcrypt, toolbar, cache, limiter
 from app.core.main.PluginsHelper import registerPlugins
-from app.core.utils import CustomJSONEncoder, CustomJSONProvider
+from app.core.utilities.json_encoding import CustomJSONEncoder, CustomJSONProvider
 from app.core.intelli import build_intelli_cache
 from app.utils import get_current_version
 
