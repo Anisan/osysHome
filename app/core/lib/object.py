@@ -60,7 +60,7 @@ def getClass(name:str) -> dict:
     Returns:
         dict: Class row in DB
     """
-    with session_scope(True) as session:
+    with session_scope() as session:
         cls = session.query(Class).filter(Class.name == name).one_or_none()
         if cls:
             return row2dict(cls)
@@ -813,20 +813,18 @@ def deleteObject(name: str):
     Args:
         name (str): Name object
     """
-    with session_scope() as session:
-        obj = session.query(Object).filter(Object.name == name).one_or_none()
-        if not obj:
-            return False
-        sql = delete(Value).where(Value.object_id == obj.id)
-        session.execute(sql)
-        sql = delete(Property).where(Property.object_id == obj.id)
-        session.execute(sql)
-        sql = delete(Method).where(Method.object_id == obj.id)
-        session.execute(sql)
-        session.delete(obj)
-        session.commit()
-        objects_storage.remove_object(name)
+    from app.database import db
+    from app.core.lib.object_db import delete_object_from_db
+
+    obj = Object.query.filter(Object.name == name).one_or_none()
+    if not obj:
+        return False
+    deleted_name = delete_object_from_db(obj.id)
+    db.session.commit()
+    if deleted_name:
+        objects_storage.remove_object(deleted_name)
         return True
+    return False
 
 def renameObject(old_name: str, new_name: str) -> bool:
     """Rename object in the database.
