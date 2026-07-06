@@ -507,3 +507,87 @@ class BasePlugin:
         """Send data to websocket"""
         payload = {"operation": operation, "data": data}
         sendDataToWebsocket(self.name, payload)
+
+    # --- Optional MCP integration contract (plugins override as needed) ---
+
+    def mcp_capabilities(self) -> dict:
+        """Describe MCP-managed collections and operations for this plugin."""
+        return {
+            "mcp_version": 1,
+            "entities": False,
+            "config_schema": False,
+            "collections": [],
+            "operations": [],
+        }
+
+    def mcp_config_schema(self) -> dict:
+        """JSON Schema for Plugin.config keys managed by this plugin."""
+        return {}
+
+    def mcp_entity_schema(self, collection: str) -> dict:
+        """JSON Schema for one entity collection."""
+        raise NotImplementedError(f"Collection not supported: {collection}")
+
+    def mcp_list_entities(self, collection: str, query: str = None, limit: int = 100) -> list:
+        """List entities for a collection."""
+        raise NotImplementedError(f"Collection not supported: {collection}")
+
+    def mcp_get_entity(self, collection: str, entity_id) -> dict:
+        """Get one entity from a collection."""
+        raise NotImplementedError(f"Collection not supported: {collection}")
+
+    def mcp_upsert_entity(self, collection: str, payload: dict, entity_id=None) -> dict:
+        """Create or update an entity in a collection."""
+        raise NotImplementedError(f"Collection not supported: {collection}")
+
+    def mcp_entity_revision(self, collection: str, entity_id) -> str:
+        """Return optimistic-lock revision for one entity."""
+        raise NotImplementedError(f"Collection not supported: {collection}")
+
+    def mcp_delete_entity(self, collection: str, entity_id) -> bool:
+        """Delete an entity from a collection."""
+        raise NotImplementedError(f"Collection not supported: {collection}")
+
+    def mcp_validate_entity(self, collection: str, payload: dict, entity_id=None) -> dict:
+        """Validate full entity payload before upsert/import/diff operations."""
+        _ = (collection, payload, entity_id)
+        return {"ok": True, "errors": []}
+
+    def mcp_validate_entity_code(self, collection: str, code: str) -> dict:
+        """Validate Python code for code-bearing entities."""
+        raise NotImplementedError(f"Collection not supported: {collection}")
+
+    def mcp_run_entity_dry(self, collection: str, code: str, context: dict = None) -> dict:
+        """Dry-run entity handler code."""
+        raise NotImplementedError(f"Collection not supported: {collection}")
+
+    def mcp_invoke(self, operation: str, params: dict = None) -> dict:
+        """Run a plugin-specific operation exposed to MCP."""
+        raise NotImplementedError(f"Operation not supported: {operation}")
+
+    def mcp_tools(self) -> list:
+        """Optional declarative MCP tools descriptor list provided by plugin."""
+        return []
+
+    def mcp_resources(self) -> list:
+        """Optional declarative MCP resources descriptor list provided by plugin."""
+        return []
+
+    def mcp_prompts(self) -> list:
+        """Optional declarative MCP prompts descriptor list provided by plugin."""
+        return []
+
+    def mcp_read_resource(self, path: str):
+        """Read plugin-owned MCP resource by path relative to osys://plugin/{name}/."""
+        raise NotImplementedError(f"Resource not supported: {path}")
+
+    def mcp_get_prompt(self, name: str, arguments: dict = None) -> dict:
+        """Build MCP prompt payload for a prompt owned by this plugin."""
+        raise NotImplementedError(f"Prompt not supported: {name}")
+
+    def mcp_supported(self) -> bool:
+        """Return True when plugin exposes declarative MCP surface."""
+        try:
+            return bool(self.mcp_tools() or self.mcp_resources() or self.mcp_prompts())
+        except Exception:
+            return False

@@ -1,7 +1,9 @@
 """ Common library """
 import threading
+import time
 from contextlib import contextmanager
 import datetime
+import re
 from typing import Any, Literal, Optional, Union
 from zoneinfo import ZoneInfo
 from sqlalchemy import update, delete
@@ -10,7 +12,13 @@ from app.core.lib.execute import execute_and_capture_output
 from app.logging_config import getLogger
 from app.database import session_scope, row2dict, convert_local_to_utc, convert_utc_to_local, get_now_to_utc
 from .crontab import nextStartCronJob
-from .constants import CategoryNotify
+from .constants import (
+    CategoryNotify,
+    PropertyType,
+    SYSTEM_STATS_OBJECT,
+    SYSTEM_STATS_SOURCE,
+    SYSTEM_STATS_PLUGIN_METRIC_PREFIX,
+)
 from ..main.PluginsHelper import plugins
 from ..models.Tasks import Task
 from ..models.Plugins import Notify
@@ -832,3 +840,380 @@ def inflect_by_gender(
             return base + female_end
         case _:
             return base + default_end
+
+
+def _is_system_stats_metric_registered(property_key: str) -> bool:
+    """Return True if metric property already exists (runtime cache, memory, or DB)."""
+    with _registered_system_stats_metrics_lock:
+        if property_key in _registered_system_stats_metrics:
+            return True
+
+    from app.core.main.ObjectsStorage import objects_storage
+
+    obj = objects_storage.getObjectByName(SYSTEM_STATS_OBJECT)
+    if obj and property_key in obj.properties:
+        with _registered_system_stats_metrics_lock:
+            _registered_system_stats_metrics.add(property_key)
+        return True
+
+    from app.core.models.Clasess import Object, Property
+
+    with session_scope() as session:
+        stats_obj = (
+            session.query(Object)
+            .filter(Object.name == SYSTEM_STATS_OBJECT)
+            .one_or_none()
+        )
+        if stats_obj and (
+            session.query(Property)
+            .filter(Property.name == property_key, Property.object_id == stats_obj.id)
+            .one_or_none()
+        ):
+            with _registered_system_stats_metrics_lock:
+                _registered_system_stats_metrics.add(property_key)
+            return True
+    return False
+
+
+def registerSystemStatsMetric(
+    plugin_name: str,
+    metric_name: str,
+    *,
+    description: str = "",
+    history: int = 30,
+    prop_type: PropertyType = PropertyType.Float,
+) -> str:
+    """Create metric property on `SystemStats` for event-driven writes.
+
+    Returns property key only (without ``SystemStats.`` prefix).
+    """
+    property_key = _system_stats_metric_key(plugin_name, metric_name)
+    if _is_system_stats_metric_registered(property_key):
+        return property_key
+
+    from .object import addObjectProperty
+
+    addObjectProperty(
+        property_key,
+        SYSTEM_STATS_OBJECT,
+        description or f"{plugin_name}: {metric_name}",
+        history,
+        prop_type,
+        params={"internal": True, "plugin_metric": True},
+        update=True,
+    )
+    with _registered_system_stats_metrics_lock:
+        _registered_system_stats_metrics.add(property_key)
+    return property_key
+
+
+def writeSystemStatsMetric(
+    plugin_name: str,
+    metric_name: str,
+    value: Any,
+    *,
+    description: str = "",
+    history: int = 30,
+    prop_type: PropertyType = PropertyType.Float,
+    source: str = "",
+) -> bool:
+    """Write plugin metric to SystemStats with forced ``track_stats=False``.
+
+    This function is event-driven and does not rely on cron collectors.
+    """
+    from .object import updateProperty
+    if not _is_system_stats_enabled():
+        return False
+    property_key = registerSystemStatsMetric(
+        plugin_name,
+        metric_name,
+        description=description,
+        history=history,
+        prop_type=prop_type,
+    )
+    full_name = f"{SYSTEM_STATS_OBJECT}.{property_key}"
+    metric_source = source or f"{SYSTEM_STATS_SOURCE}:{plugin_name}"
+    return updateProperty(full_name, value, source=metric_source, track_stats=False)
+
+
+def incrementSystemStatsMetric(
+    plugin_name: str,
+    metric_name: str,
+    step: Union[int, float] = 1,
+    *,
+    description: str = "",
+    history: int = 30,
+    source: str = "",
+) -> bool:
+    """Increment numeric metric with forced ``track_stats=False``."""
+    if not _is_system_stats_enabled():
+        return False
+    property_key = _system_stats_metric_key(plugin_name, metric_name)
+    current = _read_system_stats_property_value(property_key)
+    if current is None:
+        current = 0
+    try:
+        current_val = float(current)
+    except Exception:
+        current_val = 0.0
+    new_val = current_val + step
+    return writeSystemStatsMetric(
+        plugin_name,
+        metric_name,
+        new_val,
+        description=description,
+        history=history,
+        prop_type=PropertyType.Float if isinstance(new_val, float) else PropertyType.Integer,
+        source=source,
+    )
+
+
+def unregisterSystemStatsMetric(plugin_name: str, metric_name: str) -> None:
+    # No in-memory registry anymore; metric keys remain in SystemStats object.
+    return None
+
+
+def unregisterSystemStatsPlugin(plugin_name: str) -> None:
+    """No-op in event-driven mode without registry."""
+    return None
+
+
+def _system_stats_metric_key(plugin_name: str, metric_name: str) -> str:
+    safe_metric = re.sub(r"[^a-zA-Z0-9_]", "_", str(metric_name or "").strip())
+    if not safe_metric:
+        safe_metric = "metric"
+    return f"{SYSTEM_STATS_PLUGIN_METRIC_PREFIX}{plugin_name}_{safe_metric}"
+
+
+# Hot-path core metrics: accumulate in memory, flush with BatchWriter (~flush_interval).
+_BUFFERED_CORE_METRICS = frozenset({
+    "property_reads",
+    "property_writes",
+    "methods_executed",
+    "reactive_loops",
+})
+
+_SYSTEM_STATS_ENABLED_CACHE_TTL = 2.0
+_system_stats_enabled_cache: Optional[bool] = None
+_system_stats_enabled_cache_at: float = 0.0
+_system_stats_enabled_cache_lock = threading.Lock()
+
+_SYSTEM_STATS_WS_DEBOUNCE_SEC = 0.5
+_system_stats_ws_pending: dict[tuple[str, str], Any] = {}
+_system_stats_ws_lock = threading.Lock()
+_system_stats_ws_timer: Optional[threading.Timer] = None
+
+_registered_system_stats_metrics: set[str] = set()
+_registered_system_stats_metrics_lock = threading.Lock()
+
+# Serializes buffered flush + DB increment (per process); row lock covers multi-worker.
+_stats_apply_lock = threading.Lock()
+
+
+class _CoreSystemStatsBuffer:
+    """In-memory deltas for high-frequency core metrics."""
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._pending: dict[str, Union[int, float]] = {}
+
+    def increment(self, metric_name: str, step: Union[int, float] = 1) -> None:
+        with self._lock:
+            self._pending[metric_name] = self._pending.get(metric_name, 0) + step
+
+    def flush(self) -> None:
+        if not _is_system_stats_enabled():
+            with self._lock:
+                self._pending.clear()
+            return
+        with self._lock:
+            pending = self._pending
+            self._pending = {}
+        for metric_name, delta in pending.items():
+            if not delta:
+                continue
+            _apply_core_system_stats_delta(metric_name, delta)
+
+
+_core_stats_buffer = _CoreSystemStatsBuffer()
+
+
+def scheduleSystemStatsWsNotify(object_name: str, property_name: str, value: Any) -> None:
+    """Debounce WebSocket updates for SystemStats subscriptions."""
+    global _system_stats_ws_timer
+    key = (object_name, property_name)
+    with _system_stats_ws_lock:
+        _system_stats_ws_pending[key] = value
+        if _system_stats_ws_timer is not None:
+            _system_stats_ws_timer.cancel()
+        _system_stats_ws_timer = threading.Timer(
+            _SYSTEM_STATS_WS_DEBOUNCE_SEC,
+            flushSystemStatsWsNotifications,
+        )
+        _system_stats_ws_timer.daemon = True
+        _system_stats_ws_timer.start()
+
+
+def flushSystemStatsWsNotifications() -> None:
+    global _system_stats_ws_timer
+    with _system_stats_ws_lock:
+        pending = dict(_system_stats_ws_pending)
+        _system_stats_ws_pending.clear()
+        _system_stats_ws_timer = None
+    if not pending:
+        return
+    ws = getModule("wsServer")
+    if not ws or not hasattr(ws, "changeProperty"):
+        return
+    for (obj_name, prop_name), val in pending.items():
+        try:
+            ws.changeProperty(obj_name, prop_name, val)
+        except Exception as ex:
+            _logger.exception(ex)
+
+
+def flushBufferedCoreSystemStatsMetrics() -> None:
+    """Flush buffered core metric deltas (called from BatchWriter tick)."""
+    _core_stats_buffer.flush()
+
+
+def invalidateSystemStatsEnabledCache() -> None:
+    global _system_stats_enabled_cache
+    with _system_stats_enabled_cache_lock:
+        _system_stats_enabled_cache = None
+
+
+def _get_system_stats_property_manager(metric_name: str):
+    from app.core.main.ObjectsStorage import objects_storage
+    obj = objects_storage.getObjectByName(SYSTEM_STATS_OBJECT)
+    if not obj or metric_name not in obj.properties:
+        return None, None
+    return obj, obj.properties[metric_name]
+
+
+def _sync_system_stats_property_runtime(prop, new_val: Union[int, float], source: str, changed) -> None:
+    object.__setattr__(prop, "_PropertyManager__value", new_val)
+    prop.source = source
+    prop.changed = changed
+
+
+def _apply_core_system_stats_delta(
+    metric_name: str,
+    delta: Union[int, float],
+    *,
+    source: str = "core",
+) -> bool:
+    """Atomically add delta in DB (row lock) and sync runtime cache."""
+    if not delta:
+        return False
+    metric_source = source or SYSTEM_STATS_SOURCE
+    _, prop = _get_system_stats_property_manager(metric_name)
+    if prop is None or prop.value_id is None:
+        return False
+
+    from app.core.models.Clasess import Value, History
+
+    new_val: Union[int, float]
+    changed = get_now_to_utc()
+    with _stats_apply_lock:
+        with session_scope() as session:
+            row = (
+                session.query(Value)
+                .filter(Value.id == prop.value_id)
+                .with_for_update()
+                .one_or_none()
+            )
+            if row is None:
+                return False
+            try:
+                current_val = float(row.value or 0)
+            except (TypeError, ValueError):
+                current_val = 0.0
+            new_val = current_val + float(delta)
+            if abs(new_val - round(new_val)) < 1e-9:
+                new_val = int(round(new_val))
+            encoded = str(new_val)
+            row.value = encoded
+            row.changed = changed
+            row.source = metric_source
+            if prop.history and prop.history > 0:
+                session.add(
+                    History(
+                        value_id=prop.value_id,
+                        value=encoded,
+                        added=changed,
+                        source=metric_source,
+                    )
+                )
+            session.commit()
+
+    _sync_system_stats_property_runtime(prop, new_val, metric_source, changed)
+    scheduleSystemStatsWsNotify(SYSTEM_STATS_OBJECT, metric_name, new_val)
+    return True
+
+
+def writeCoreSystemStatsMetric(
+    metric_name: str,
+    value: Any,
+    *,
+    description: str = "",
+    history: int = 30,
+    prop_type: PropertyType = PropertyType.Float,
+    source: str = "core",
+) -> bool:
+    """Write core metric to `SystemStats.<metric_name>` with track_stats=False."""
+    from .object import updateProperty
+    if not _is_system_stats_enabled():
+        return False
+    full_name = f"{SYSTEM_STATS_OBJECT}.{metric_name}"
+    metric_source = source or SYSTEM_STATS_SOURCE
+    return updateProperty(full_name, value, source=metric_source, track_stats=False)
+
+
+def incrementCoreSystemStatsMetric(
+    metric_name: str,
+    step: Union[int, float] = 1,
+    *,
+    description: str = "",
+    history: int = 30,
+    source: str = "core",
+) -> bool:
+    """Increment numeric core metric in `SystemStats.<metric_name>`."""
+    if not _is_system_stats_enabled():
+        return False
+    if metric_name in _BUFFERED_CORE_METRICS:
+        _core_stats_buffer.increment(metric_name, step)
+        return True
+    return _apply_core_system_stats_delta(metric_name, step, source=source)
+
+
+def _is_system_stats_enabled() -> bool:
+    global _system_stats_enabled_cache, _system_stats_enabled_cache_at
+    now = time.monotonic()
+    with _system_stats_enabled_cache_lock:
+        if (
+            _system_stats_enabled_cache is not None
+            and (now - _system_stats_enabled_cache_at) < _SYSTEM_STATS_ENABLED_CACHE_TTL
+        ):
+            return _system_stats_enabled_cache
+    value = _get_property_value_no_stats("SystemVar", "system_stats")
+    enabled = value is True
+    with _system_stats_enabled_cache_lock:
+        _system_stats_enabled_cache = enabled
+        _system_stats_enabled_cache_at = now
+    return enabled
+
+
+def _read_system_stats_property_value(property_name: str):
+    return _get_property_value_no_stats(SYSTEM_STATS_OBJECT, property_name)
+
+
+def _get_property_value_no_stats(object_name: str, property_name: str):
+    try:
+        from app.core.main.ObjectsStorage import objects_storage
+        obj = objects_storage.getObjectByName(object_name)
+        if not obj or property_name not in obj.properties:
+            return None
+        return obj.properties[property_name].getValue(track_stats=False)
+    except Exception:
+        return None

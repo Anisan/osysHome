@@ -192,3 +192,5 @@ setProperty("LivingRoomLamp.state", True)
 → PluginA: setProperty("LivingRoomLamp.state", True, source="PluginA")
 → ObjectManager: пропустить PluginA (source), уведомить proxy, обновить UI
 ```
+
+См. также: [MCP-управление плагинами](./mcp-plugins.ru.md).

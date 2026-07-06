@@ -78,6 +78,8 @@ class ObjectStorage():
         self.name_lock_global = threading.Lock()
         self.name_lock = {}
         self.clean_objects = {}
+        self.reactive_loop_count = 0
+        self.preload_progress = None
 
         self._stop_event = threading.Event()
         self._preload_stop_event = threading.Event()
@@ -198,9 +200,21 @@ class ObjectStorage():
             })
         return stats
 
-    def getStats(self):
+    def _all_props_internal(self, obj):
+        """Проверяет, что все свойства объекта имеют params.internal == true."""
+        for prop in obj.properties.values():
+            params = prop.params
+            if not params or not params.get('internal'):
+                return False
+        return True
+
+    def getStats(self, exclude_internal: bool = False):
         stats = {}
         for name,obj in self.objects.items():
+            if exclude_internal:
+                from app.core.lib.constants import SYSTEM_STATS_EXCLUDED_OBJECTS as EXCLUDED_OBJECTS
+                if name in EXCLUDED_OBJECTS or self._all_props_internal(obj):
+                    continue
             count_read = 0
             count_write = 0
             count_exec = 0
@@ -548,11 +562,14 @@ class ObjectStorage():
                             continue
                         self.getObjectByName(name)
                     preloaded = sum(1 for n in names if n in self.objects)
+                    self.preload_progress = {"loaded": preloaded, "total": total}
                     self.logger.info("Preloaded %s/%s objects", preloaded, total)
                     if self._preload_stop_event.wait(interval):
                         break
+                self.preload_progress = None
         except Exception:
             self.logger.exception("Background object preload failed")
+            self.preload_progress = None
 
     def clear(self):
         self.logger.info("Clear storage")
