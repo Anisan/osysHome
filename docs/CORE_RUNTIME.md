@@ -138,7 +138,8 @@ Main resources:
 - `GET /api/utils/search`:
   - global search across plugins that declare `"search"` in their `actions`,
   - for each plugin, calls `plugin.search(query)` and accumulates results (up to `limit`),
-  - results are rendered via `search_result.html` and cached using `cache` extension.
+  - returns JSON payload with `items` (`url`, `title`, `tags`) and `count`,
+  - results are cached using `cache` extension.
 - `GET /api/utils/readnotify/<id>`:
   - marks single notification as read using `readNotify`.
 - `GET /api/utils/readnotify/all`:
