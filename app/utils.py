@@ -178,6 +178,15 @@ def initSystemVar():
         _batch_writer.flush_sync()
     addObjectProperty('analytics_uuid','SystemVar',"Unique installation ID for analytics",0, PropertyType.String, params={"read_only": True}, update=True)
 
+    addObjectProperty('system_stats', 'SystemVar',
+        "Enable local SystemStats history collection", 0,
+        PropertyType.Bool, params={"icon": "fas fa-chart-line"}, update=True)
+
+    if getProperty("SystemVar.system_stats") is None:
+        setProperty("SystemVar.system_stats", False, "osysHome")
+
+    initSystemStats()
+
     users = getObjectsByClass('Users')
     if users:
         initPermissions()
@@ -261,6 +270,43 @@ def initPermissions():
     if props != (existing.get("properties") or {}):
         setProperty("_permissions.class:Users", merged)
 
+    _merge_system_stats_permissions()
+
+
+_SYSTEM_STATS_PERMISSIONS = {
+    "properties": {
+        "*": {
+            "get": {"access_roles": ["admin"]},
+            "set": {"denied_roles": ["admin", "editor", "user"]},
+            "edit": {"denied_roles": ["admin", "editor", "user"]},
+        }
+    },
+    "methods": {
+        "*": {
+            "call": {"denied_roles": ["admin", "editor", "user"]},
+        }
+    },
+}
+
+
+def _merge_system_stats_permissions():
+    from app.core.lib.object import setProperty, getProperty
+
+    key = "_permissions.object:SystemStats"
+    existing = getProperty(key)
+    if existing is None:
+        setProperty(key, _SYSTEM_STATS_PERMISSIONS)
+        return
+    merged = dict(existing)
+    for section in ("properties", "methods"):
+        section_data = dict(merged.get(section) or {})
+        for name, rules in (_SYSTEM_STATS_PERMISSIONS.get(section) or {}).items():
+            if name not in section_data:
+                section_data[name] = rules
+        merged[section] = section_data
+    if merged != existing:
+        setProperty(key, merged)
+
 def startSystemVar():
     from app.core.lib.object import setProperty
     setProperty("SystemVar.Started",datetime.datetime.now(), "osysHome")
@@ -278,6 +324,30 @@ def init_analytics_scheduler():
     setTimeout("osyshome_analytics_first", code, first_delay)
     # Ежедневная отправка в 4:00 (cron: мин час день мес день_недели)
     addCronJob("osyshome_analytics_daily", code, "0 4 * * *")
+
+def initSystemStats():
+    from app.core.lib.object import addObject, addObjectProperty
+    from app.core.lib.constants import PropertyType
+
+    addObject("SystemStats", None, "System runtime statistics (internal)")
+
+    properties = [
+        ("property_reads", "Total property reads (excluding SystemStats)", PropertyType.Integer, 30),
+        ("property_writes", "Total property writes (excluding SystemStats)", PropertyType.Integer, 30),
+        ("methods_executed", "Total method calls (excluding SystemStats)", PropertyType.Integer, 30),
+        ("batch_queue_size", "Current batch queue size", PropertyType.Integer, 30),
+        ("batch_total_errors", "Total external batch write errors", PropertyType.Integer, 30),
+        ("batch_avg_flush_ms", "Batch flush duration in ms (last flush)", PropertyType.Float, 30),
+        ("batch_values_updated", "External value updates", PropertyType.Integer, 30),
+        ("batch_history_inserted", "External history inserts", PropertyType.Integer, 30),
+        ("reactive_loops", "Reactive loop counter", PropertyType.Integer, 30),
+    ]
+
+    internal_params = {"internal": True}
+
+    for name, desc, ptype, history in properties:
+        addObjectProperty(name, "SystemStats", desc, history, ptype, params=internal_params, update=True)
+
 
 def get_current_version():
     ver_file = Path("VERSION")

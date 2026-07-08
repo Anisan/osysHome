@@ -7,8 +7,17 @@ import json
 from sqlalchemy import delete
 from flask_login import current_user
 from app.database import session_scope,row2dict, convert_utc_to_local, convert_local_to_utc, get_now_to_utc
-from app.core.lib.common import getModule, getModulesByAction, addNotify
-from app.core.lib.constants import CategoryNotify
+from app.core.lib.common import (
+    getModule,
+    getModulesByAction,
+    addNotify,
+    writeCoreSystemStatsMetric,
+    incrementCoreSystemStatsMetric,
+    flushBufferedCoreSystemStatsMetrics,
+    scheduleSystemStatsWsNotify,
+    invalidateSystemStatsEnabledCache,
+)
+from app.core.lib.constants import CategoryNotify, SYSTEM_STATS_OBJECT, PropertyType
 from app.core.main.reactive_chain import chain_enter, chain_exit, chain_format
 from app.core.models.Clasess import Object, Property, Value, History
 from app.core.lib.common import setTimeout
@@ -16,6 +25,7 @@ from app.core.lib.execute import execute_and_capture_output
 from app.logging_config import getLogger
 from app.core.MonitoredThreadPool import AdaptiveThreadPoolRouter
 from app.configuration import Config
+from app.core.lib.constants import SYSTEM_STATS_SOURCE
 import threading
 from collections import deque
 from dataclasses import dataclass
@@ -66,6 +76,7 @@ class ValueUpdate:
     history_value: Optional[str] = None
     history_only: bool = False  # Если True, обновляется только история, не само значение
     explicit_date: bool = False  # Если True, дата была указана явно (нужно проверять дубликаты)
+    internal: bool = False  # Если True, запись от SystemStats — не учитывается во внешней статистике
 
 
 class BatchWriter:
@@ -86,7 +97,11 @@ class BatchWriter:
         self._total_flushed = 0  # Всего выполнено записей в БД
         self._total_values_updated = 0  # Всего обновлено значений
         self._total_history_inserted = 0  # Всего вставлено записей истории
-        self._total_errors = 0  # Всего ошибок
+        self._total_errors = 0  # Всего ошибок (внешние батчи)
+        self._total_internal_errors = 0  # Ошибки батчей только с internal-записями
+        self._total_internal_added = 0  # Внутренних записей (SystemStats)
+        self._total_internal_values_updated = 0  # Внутренних обновлений значений
+        self._total_internal_history_inserted = 0  # Внутренних вставок истории
         self._flush_history: deque = deque(maxlen=100)  # История последних flush
         self._last_flush_time: Optional[datetime.datetime] = None
         self._last_error: Optional[str] = None
@@ -110,6 +125,8 @@ class BatchWriter:
         with self._lock:
             self._batch.append(value_update)
             self._total_added += 1
+            if value_update.internal:
+                self._total_internal_added += 1
 
     def flush(self):
         """Принудительно записывает текущий батч (асинхронно)"""
@@ -147,38 +164,40 @@ class BatchWriter:
         values_count = 0
         history_count = 0
 
-        with self._lock:
-            if not self._batch:
-                execution_time = time.time() - start_time
-                self._append_flush_history(
-                    duration_seconds=execution_time,
-                    batch_size=0,
-                    values_count=0,
-                    history_count=0,
-                    success=True,
-                )
-                return
-            batch = self._batch[:]
-            self._batch.clear()
-
-        batch_size = len(batch)
-        if not batch:
-            execution_time = time.time() - start_time
-            with self._lock:
-                self._append_flush_history(
-                    duration_seconds=execution_time,
-                    batch_size=0,
-                    values_count=0,
-                    history_count=0,
-                    success=True,
-                )
-            return
-
         try:
+            with self._lock:
+                if not self._batch:
+                    execution_time = time.time() - start_time
+                    self._append_flush_history(
+                        duration_seconds=execution_time,
+                        batch_size=0,
+                        values_count=0,
+                        history_count=0,
+                        success=True,
+                    )
+                    return
+                batch = self._batch[:]
+                self._batch.clear()
+
+            batch_size = len(batch)
+            if not batch:
+                execution_time = time.time() - start_time
+                with self._lock:
+                    self._append_flush_history(
+                        duration_seconds=execution_time,
+                        batch_size=0,
+                        values_count=0,
+                        history_count=0,
+                        success=True,
+                    )
+                return
+
             with session_scope() as session:
                 # Группируем обновления по value_id (последнее значение для каждого value_id)
                 value_updates = {}
                 history_records = []
+                internal_by_value_id: dict[int, bool] = {}
+                internal_history_count = 0
 
                 for update_item in batch:
                     # Сохраняем последнее значение для каждого value_id только если не history_only
@@ -188,6 +207,7 @@ class BatchWriter:
                             'changed': update_item.changed,
                             'source': update_item.source
                         }
+                        internal_by_value_id[update_item.value_id] = update_item.internal
 
                     # Собираем записи истории
                     if update_item.save_history and update_item.history_value is not None:
@@ -198,6 +218,8 @@ class BatchWriter:
                             'source': update_item.source,
                             'explicit_date': update_item.explicit_date
                         })
+                        if update_item.internal:
+                            internal_history_count += 1
 
                 # Bulk update для значений
                 if value_updates:
@@ -285,10 +307,15 @@ class BatchWriter:
                 
                 # Обновляем статистику при успехе
                 execution_time = time.time() - start_time
+                internal_values = sum(
+                    1 for vid in value_updates if internal_by_value_id.get(vid, False)
+                )
                 with self._lock:
                     self._total_flushed += 1
                     self._total_values_updated += values_count
                     self._total_history_inserted += history_count
+                    self._total_internal_values_updated += internal_values
+                    self._total_internal_history_inserted += internal_history_count
                     self._last_flush_time = get_now_to_utc()
                     self._append_flush_history(
                         duration_seconds=execution_time,
@@ -297,6 +324,36 @@ class BatchWriter:
                         history_count=history_count,
                         success=True,
                     )
+                ext_values = values_count - internal_values
+                ext_history = history_count - internal_history_count
+                writeCoreSystemStatsMetric(
+                    "batch_queue_size",
+                    0,
+                    description="Current batch queue size",
+                    prop_type=PropertyType.Integer,
+                    source=SYSTEM_STATS_SOURCE,
+                )
+                writeCoreSystemStatsMetric(
+                    "batch_avg_flush_ms",
+                    round(execution_time * 1000.0, 2),
+                    description="Batch flush duration (ms, event-driven)",
+                    prop_type=PropertyType.Float,
+                    source=SYSTEM_STATS_SOURCE,
+                )
+                if ext_values > 0:
+                    incrementCoreSystemStatsMetric(
+                        "batch_values_updated",
+                        ext_values,
+                        description="External value updates",
+                        source=SYSTEM_STATS_SOURCE,
+                    )
+                if ext_history > 0:
+                    incrementCoreSystemStatsMetric(
+                        "batch_history_inserted",
+                        ext_history,
+                        description="External history inserts",
+                        source=SYSTEM_STATS_SOURCE,
+                    )
 
         except Exception as ex:
             error_msg = str(ex)
@@ -304,7 +361,16 @@ class BatchWriter:
             execution_time = time.time() - start_time
             # Обновляем статистику ошибок
             with self._lock:
-                self._total_errors += 1
+                if any(not item.internal for item in batch):
+                    self._total_errors += 1
+                    incrementCoreSystemStatsMetric(
+                        "batch_total_errors",
+                        1,
+                        description="Total external batch write errors",
+                        source=SYSTEM_STATS_SOURCE,
+                    )
+                else:
+                    self._total_internal_errors += 1
                 self._last_error = error_msg
                 self._last_error_time = get_now_to_utc()
                 self._append_flush_history(
@@ -315,6 +381,8 @@ class BatchWriter:
                     success=False,
                     error=error_msg,
                 )
+        finally:
+            flushBufferedCoreSystemStatsMetrics()
 
     def shutdown(self, wait: bool = True):
         """Корректное завершение работы батчера"""
@@ -352,6 +420,12 @@ class BatchWriter:
             min_flush_time = min(successful_durations) if successful_durations else 0
             max_flush_time = max(successful_durations) if successful_durations else 0
 
+            ext_added = self._total_added - self._total_internal_added
+            ext_values = self._total_values_updated - self._total_internal_values_updated
+            ext_history = self._total_history_inserted - self._total_internal_history_inserted
+            ext_flushed = max(self._total_flushed, 1)
+            ext_errors = self._total_errors
+
             return {
                 "flush_interval": self.flush_interval,
                 "current_batch_size": current_batch_size,
@@ -361,6 +435,7 @@ class BatchWriter:
                 "total_values_updated": self._total_values_updated,
                 "total_history_inserted": self._total_history_inserted,
                 "total_errors": self._total_errors,
+                "total_internal_errors": self._total_internal_errors,
                 "last_flush_time": convert_utc_to_local(self._last_flush_time).isoformat() if self._last_flush_time else None,
                 "last_error": self._last_error,
                 "last_error_time": convert_utc_to_local(self._last_error_time).isoformat() if self._last_error_time else None,
@@ -372,8 +447,14 @@ class BatchWriter:
                 },
                 "flush_history": flush_history,
                 "efficiency": {
-                    "avg_batch_size": round(self._total_added / self._total_flushed, 2) if self._total_flushed > 0 else 0,
-                    "error_rate": round((self._total_errors / self._total_flushed * 100), 2) if self._total_flushed > 0 else 0
+                    "avg_batch_size": round(ext_added / ext_flushed, 2) if self._total_flushed > 0 else 0,
+                    "error_rate": round((ext_errors / ext_flushed * 100), 2) if self._total_flushed > 0 else 0
+                },
+                "external": {
+                    "total_added": ext_added,
+                    "total_values_updated": ext_values,
+                    "total_history_inserted": ext_history,
+                    "total_errors": ext_errors,
                 }
             }
 
@@ -798,7 +879,8 @@ class PropertyManager():
            (self.history < 0 and save_history is not None and save_history):
             should_save_history = True
 
-        # Создаем запись для батчера
+        is_internal = (source_str == SYSTEM_STATS_SOURCE)
+
         value_update = ValueUpdate(
             value_id=self.value_id,
             value=stringValue,
@@ -807,7 +889,8 @@ class PropertyManager():
             save_history=should_save_history,
             history_value=stringValue if should_save_history else None,
             history_only=history_only,
-            explicit_date=explicit_date
+            explicit_date=explicit_date,
+            internal=is_internal
         )
 
         # Добавляем в батчер (асинхронная запись)
@@ -833,7 +916,7 @@ class PropertyManager():
                 return deleted_count, count - deleted_count
             return 0, count
 
-    def setValue(self, value, source='', changed=None, save_history:bool=None, bypass_rate_limit:bool=False):
+    def setValue(self, value, source='', changed=None, save_history:bool=None, bypass_rate_limit:bool=False, track_stats:bool=True):
         # Check if property is read-only
         if self.read_only:
             raise PermissionError(f"Property '{self.name}' is read-only and cannot be modified")
@@ -899,12 +982,27 @@ class PropertyManager():
         except Exception as ex:
             _logger.exception(ex, exc_info=True)
 
-        if not history_only:
+        if not history_only and track_stats:
             self.count_write = self.count_write + 1
+            if not (self.params and self.params.get("internal")):
+                incrementCoreSystemStatsMetric(
+                    "property_writes",
+                    1,
+                    description="Total property writes (event-driven)",
+                    source=SYSTEM_STATS_SOURCE,
+                )
 
-    def getValue(self):
-        self.readed = get_now_to_utc()
-        self.count_read = self.count_read + 1
+    def getValue(self, track_stats:bool=True):
+        if track_stats:
+            self.readed = get_now_to_utc()
+            self.count_read = self.count_read + 1
+            if not (self.params and self.params.get("internal")):
+                incrementCoreSystemStatsMetric(
+                    "property_reads",
+                    1,
+                    description="Total property reads (event-driven)",
+                    source=SYSTEM_STATS_SOURCE,
+                )
 
         if self.__value is None and self.default_value is not None:
             # Decode default_value with the same logic as regular value
@@ -1103,6 +1201,14 @@ class ObjectManager:
             "chain": chain,
             "at": str(get_now_to_utc()),
         }
+        from app.core.main.ObjectsStorage import objects_storage
+        objects_storage.reactive_loop_count += 1
+        incrementCoreSystemStatsMetric(
+            "reactive_loops",
+            1,
+            description="Reactive loop counter",
+            source=SYSTEM_STATS_SOURCE,
+        )
         self._logger.error("[ReactiveLoop] %s", chain)
         if Config.REACTIVE_LOOP_NOTIFY:
             addNotify(
@@ -1302,7 +1408,7 @@ class ObjectManager:
                     f"but current value is '{current_dep_value}'"
                 )
 
-    def setProperty(self, name:str, value, source:str='', save_history:bool=None, changed:datetime.datetime=None):
+    def setProperty(self, name:str, value, source:str='', save_history:bool=None, changed:datetime.datetime=None, track_stats:bool=True):
         """ Set property value
 
         Args:
@@ -1311,6 +1417,7 @@ class ObjectManager:
             source (str): source of the value
             save_history (bool): save history of the value (default is None)
             changed (datetime.datetime, optional): Date/time for the value. Used when saving history. Defaults to None (current time).
+            track_stats (bool): increment count_write/count_read counters
 
         Returns:
             bool: Result
@@ -1344,7 +1451,7 @@ class ObjectManager:
                 if source is None or source == '':
                     if self._current_execution_source is not None:
                         source = self._current_execution_source
-                prop.setValue(value, source, changed=changed, save_history=save_history)
+                prop.setValue(value, source, changed=changed, save_history=save_history, track_stats=track_stats)
                 value = prop.getValue()
                 if prop.method:
                     args = {
@@ -1354,8 +1461,13 @@ class ObjectManager:
             finally:
                 chain_exit()
 
+            is_system_stats_write = (
+                self.name == SYSTEM_STATS_OBJECT
+                or str(source or "").startswith(SYSTEM_STATS_SOURCE)
+            )
+
             # link
-            if prop.linked:
+            if prop.linked and not is_system_stats_write:
                 for link in prop.linked:
                     if link == source:
                         continue
@@ -1382,26 +1494,33 @@ class ObjectManager:
                             _logger.exception(e)
 
             # send event to proxy
-            plugins = getModulesByAction("proxy")
-            for plugin in plugins:
-                try:
-                    # def task_wrapper(plugin, object_name, property_name, property_value):
-                    #     def wrapper():
-                    #         plugin.changeProperty(object_name, property_name, property_value)
-                    #     return wrapper
-                    # _poolLinkedProperty.submit(task_wrapper(plugin, self.name, name, value), task_id=f"proxy_{self.name, name}")
-                    _poolLinkedProperty.submit(
-                        plugin.changeProperty,
-                        f"proxy_{plugin.name}_{self.name}.{name}",
-                        f"proxy:{plugin.name}",
-                        self.name,
-                        name,
-                        value,
-                        ignore_owner_limit=True,
-                    )
+            if is_system_stats_write:
+                # Keep WebSocket updates for SystemStats subscriptions, but
+                # skip generic proxy fan-out to avoid thread-pool overload.
+                scheduleSystemStatsWsNotify(self.name, name, value)
+            else:
+                plugins = getModulesByAction("proxy")
+                for plugin in plugins:
+                    try:
+                        # def task_wrapper(plugin, object_name, property_name, property_value):
+                        #     def wrapper():
+                        #         plugin.changeProperty(object_name, property_name, property_value)
+                        #     return wrapper
+                        # _poolLinkedProperty.submit(task_wrapper(plugin, self.name, name, value), task_id=f"proxy_{self.name, name}")
+                        _poolLinkedProperty.submit(
+                            plugin.changeProperty,
+                            f"proxy_{plugin.name}_{self.name}.{name}",
+                            f"proxy:{plugin.name}",
+                            self.name,
+                            name,
+                            value,
+                            ignore_owner_limit=True,
+                        )
 
-                except Exception as e:
-                    _logger.exception(e)
+                    except Exception as e:
+                        _logger.exception(e)
+            if self.name == "SystemVar" and name == "system_stats":
+                invalidateSystemStatsEnabledCache()
             return True
         except (ValueError, PermissionError) as ex:
             # Validation errors (constraint violations) should be logged
@@ -1417,13 +1536,14 @@ class ObjectManager:
             self._logger.exception(ex, exc_info=True)
             return False
 
-    def updateProperty(self, name:str, value, source:str='') -> bool:
+    def updateProperty(self, name:str, value, source:str='', track_stats:bool=True) -> bool:
         """Update property
 
         Args:
             name (str): Name property
             value (_type_): New value
             source (str, optional): Source. Defaults to ''.
+            track_stats (bool): increment count_write/count_read counters
 
         Returns:
             bool: Result
@@ -1439,7 +1559,7 @@ class ObjectManager:
                 if prop.type == "color":
                     oldValue = prop.getColorValue(read_format="canonical")
             if oldValue != value:
-                return self.setProperty(name, value, source)
+                return self.setProperty(name, value, source, track_stats=track_stats)
             return True
         except ValueError as ex:
             # Validation errors (constraint violations) should be logged and prevent updating the value
@@ -1603,6 +1723,13 @@ class ObjectManager:
             self.methods[name].exec_params = args
             self.methods[name].exec_result = output
             self.methods[name].count_executed = self.methods[name].count_executed + 1
+            if self.name != SYSTEM_STATS_OBJECT:
+                incrementCoreSystemStatsMetric(
+                    "methods_executed",
+                    1,
+                    description="Total method calls (event-driven)",
+                    source=SYSTEM_STATS_SOURCE,
+                )
 
             end = time.perf_counter()
             self.methods[name].exec_time = int((end - start) * 1000)  # в миллисекунды

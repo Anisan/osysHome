@@ -1,3 +1,4 @@
+{% import 'macros/code_editor.html' as code_editor %}
 <nav class="navbar navbar-expand-xl admin-navbar">
     <div class="container-fluid px-2 px-lg-3 d-flex flex-wrap align-items-center">
     {% if 'admin' in request.path %}
@@ -380,22 +381,25 @@
 {% if 'admin' in request.path %}
       
 <!-- Vertically centered scrollable modal -->
-<div class="modal fade" id="searchModal" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
-  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable modal-fullscreen-sm-down">
+<div class="modal fade" id="searchModal" tabindex="-1" aria-labelledby="searchModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable modal-fullscreen-md-down search-modal-dialog">
       <div class="modal-content">
           <form  method="POST">
           <div class="modal-header">
-              <h5 class="modal-title" id="exampleModalLabel">{{ _('Search')}}</h5>
+              <h5 class="modal-title" id="searchModalLabel">{{ _('Search')}}</h5>
               <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
           </div>
-          <div class="modal-body">
+          <div class="modal-body search-modal-body">
               <!-- Поля формы -->
-              <input class="form-control me-2" type="search" placeholder="{{ _('Search')}}" aria-label="Search" id="filter_search" name="filter_search">
-              <div id="filter_add" class="list-group" style="display:none;overflow-x: hidden;white-space: nowrap;border: 1px solid #ddd;padding: 5px;max-height: 300px;overflow-y: auto;border-radius: 5px;margin-top: 5px;">
+              <div class="search-input-wrap">
+                <input class="form-control me-2" type="search" placeholder="{{ _('Search')}}" aria-label="Search" id="filter_search" name="filter_search">
+              </div>
+              <div id="search_results_meta" class="search-results-meta d-none"></div>
+              <div id="filter_add" class="list-group search-results-container" style="display:none;">
               </div>
           </div>
           <div class="modal-footer">
-              <button type="button" onclick="$('#filter_search').val('');filterSearch();" class="btn btn-secondary" data-bs-dismiss="modal">{{ _('Close')}}</button>
+              <button type="button" onclick="$('#filter_search').val('');$('#search_results_meta').addClass('d-none').empty();$('#filter_add').hide().empty();" class="btn btn-secondary" data-bs-dismiss="modal">{{ _('Close')}}</button>
           </div>
           </form>
       </div>
@@ -406,6 +410,7 @@
 let searchTimeout;  
 let searchCache = new Map();  
 let currentRequest = null;  
+let currentSearchCategory = 'all';
   
 function optimizedFilterSearch() {  
     const searchInput = $('#filter_search');  
@@ -463,10 +468,12 @@ function performSearch(query) {
             currentRequest = null;  
             if (data && data.success) {  
                 // Кэшируем результат на 5 минут  
-                searchCache.set(query, data.result);  
+                const items = Array.isArray(data.items) ? data.items : [];
+                searchCache.set(query, items);  
                 setTimeout(() => searchCache.delete(query), 300000);  
                   
-                displaySearchResults(data.result);  
+                displaySearchResults(items);  
+                renderSearchModuleErrors(data.errors);
             } else {  
                 showNoResults();  
             }  
@@ -479,16 +486,81 @@ function performSearch(query) {
         }  
     });  
 }  
+
+function escapeSearchHtml(value) {
+    return (value || '')
+        .toString()
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
+function buildSearchResultItemsHtml(items) {
+    if (!Array.isArray(items) || items.length === 0) {
+        return '';
+    }
+
+    return items.map(function(item) {
+        const rawTitle = item && item.title ? item.title : '';
+        const title = escapeSearchHtml(rawTitle || '{{ _("Untitled") }}');
+        const urlPath = item && item.url ? item.url.toString() : '';
+        const normalizedHref = urlPath.startsWith('/')
+            ? '/admin' + urlPath
+            : '/admin/' + urlPath.replace(/^\/+/, '');
+        const href = escapeSearchHtml(normalizedHref);
+
+        const tags = Array.isArray(item && item.tags) ? item.tags : [];
+        const primaryTag = tags.length > 0 && tags[0] && tags[0].name ? tags[0].name : 'Other';
+        const primaryTagColor = tags.length > 0 && tags[0] && tags[0].color ? tags[0].color : 'secondary';
+        const primaryTagEscaped = escapeSearchHtml(primaryTag);
+        const primaryTagColorEscaped = escapeSearchHtml(primaryTagColor);
+        const tagsHtml = tags.map(function(tag) {
+            const tagName = escapeSearchHtml(tag && tag.name ? tag.name : '');
+            const tagColor = escapeSearchHtml(tag && tag.color ? tag.color : 'secondary');
+            return `<span class="badge bg-${tagColor} me-1" data-search-category-label="1">${tagName}</span>`;
+        }).join('');
+
+        return `
+            <a class="list-group-item list-group-item-action" href="${href}" data-url="${href}" data-primary-tag="${primaryTagEscaped}" data-primary-tag-color="${primaryTagColorEscaped}">
+                <span class="search-result-tags">${tagsHtml}</span>
+                <span class="search-result-title">${title}</span>
+            </a>
+        `;
+    }).join('');
+}
   
 function displaySearchResults(results) {  
     const resultsContainer = $('#filter_add');  
+    const resultsMeta = $('#search_results_meta');
       
-    if (!results || results.trim() === '') {  
+    if (!Array.isArray(results) || results.length === 0) {  
         showNoResults();  
         return;  
     }  
       
-    resultsContainer.html(results);  
+    resultsContainer.html(buildSearchResultItemsHtml(results));  
+    resultsContainer.show();
+
+    const resultItems = $('#filter_add a[href], #filter_add .list-group-item[onclick], #filter_add [data-url]');
+    resultItems.each(function(index) {
+        const item = $(this);
+        const plainText = item.text().replace(/\s+/g, ' ').trim();
+        item.addClass('search-result-item').attr('data-result-index', index + 1);
+        if (plainText.length > 140) {
+            item.attr('title', plainText);
+        }
+    });
+
+    if (resultItems.length > 0) {
+        const categoryMap = buildSearchCategories(resultItems);
+        currentSearchCategory = 'all';
+        renderSearchMeta(resultsMeta, resultItems.length, categoryMap, currentSearchCategory);
+        applySearchCategoryFilter(currentSearchCategory, resultsContainer, resultsMeta, categoryMap);
+    } else {
+        resultsMeta.addClass('d-none').empty();
+    }
       
     // Сбрасываем индекс при новых результатах  
     currentIndex = -1;  
@@ -497,7 +569,6 @@ function displaySearchResults(results) {
     addKeyboardNavigation();  
       
     // Добавляем обработчики мыши для синхронизации с клавиатурной навигацией  
-    const resultItems = $('#filter_add a[href], #filter_add .list-group-item[onclick], #filter_add [data-url]');  
     resultItems.on('mouseenter', function() {  
         resultItems.removeClass('keyboard-selected');  
         $(this).addClass('keyboard-selected');  
@@ -506,6 +577,8 @@ function displaySearchResults(results) {
 }
   
 function showNoResults() {  
+    currentSearchCategory = 'all';
+    $('#search_results_meta').addClass('d-none').empty();
     $('#filter_add').html(`  
         <div class="search-no-results">  
             <i class="fas fa-search me-2"></i>  
@@ -515,6 +588,8 @@ function showNoResults() {
 }  
   
 function showSearchError(error) {  
+    currentSearchCategory = 'all';
+    $('#search_results_meta').addClass('d-none').empty();
     $('#filter_add').html(`  
         <div class="search-error">  
             <i class="fas fa-exclamation-triangle me-2"></i>  
@@ -523,16 +598,197 @@ function showSearchError(error) {
     `);  
 }
 
+function renderSearchModuleErrors(errors) {
+    const list = Array.isArray(errors) ? errors : [];
+    const container = $('#search_results_meta');
+    container.find('.search-module-errors').remove();
+    if (!list.length) {
+        return;
+    }
+
+    const first = list[0];
+    const moduleName = escapeSearchHtml(first && first.module ? first.module : 'module');
+    const errorText = escapeSearchHtml(first && first.error ? first.error : 'unknown error');
+    const moreText = list.length > 1
+        ? `<span class="ms-2 text-muted">+${list.length - 1}</span>`
+        : '';
+
+    container.append(`
+        <div class="search-module-errors alert alert-warning py-2 px-3 mb-0 mt-2">
+            <i class="fas fa-triangle-exclamation me-2"></i>
+            {{ _('Search warning') }}: <strong>${moduleName}</strong> - ${errorText}${moreText}
+        </div>
+    `);
+}
+
+function normalizeSearchCategoryKey(value) {
+    return (value || 'other').toString().trim().toLowerCase().replace(/[^a-zа-яё0-9]+/gi, '_') || 'other';
+}
+
+function prettifySearchCategoryLabel(value) {
+    if (!value) {
+        return 'Other';
+    }
+    const cleaned = value.toString().trim();
+    if (!cleaned) {
+        return 'Other';
+    }
+    return cleaned
+        .replace(/[_-]+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .replace(/\b\w/g, function(char) { return char.toUpperCase(); });
+}
+
+function detectSearchCategory(item) {
+    const primaryTag = item.attr('data-primary-tag') || item.data('primaryTag');
+    if (primaryTag) {
+        return primaryTag.toString();
+    }
+
+    const explicitCategory = item.attr('data-category') || item.data('category');
+    if (explicitCategory) {
+        return explicitCategory.toString();
+    }
+
+    const rawUrl = item.attr('href') || item.data('url');
+    if (rawUrl) {
+        try {
+            const normalizedUrl = rawUrl.toString().startsWith('http')
+                ? new URL(rawUrl.toString())
+                : new URL(rawUrl.toString(), window.location.origin);
+            const parts = normalizedUrl.pathname.split('/').filter(Boolean);
+            if (parts.length > 0) {
+                return parts[0];
+            }
+        } catch (e) {
+            // ignore invalid URL and fallback to text-based category
+        }
+    }
+
+    const heading = item.find('.badge, .search-category, [data-search-category-label]').first().text().trim();
+    if (heading) {
+        return heading;
+    }
+    return 'Other';
+}
+
+function buildSearchCategories(resultItems) {
+    const categories = {};
+    resultItems.each(function() {
+        const item = $(this);
+        const rawCategory = detectSearchCategory(item);
+        const key = normalizeSearchCategoryKey(rawCategory);
+        const tagColor = (item.attr('data-primary-tag-color') || 'secondary').toString().trim() || 'secondary';
+        item.attr('data-search-category', key);
+        if (!categories[key]) {
+            categories[key] = {
+                key: key,
+                label: prettifySearchCategoryLabel(rawCategory),
+                color: tagColor,
+                count: 0
+            };
+        }
+        categories[key].count += 1;
+    });
+    return categories;
+}
+
+function renderSearchMeta(resultsMeta, totalCount, categories, activeCategory) {
+    const allowedBootstrapColors = new Set([
+        'primary', 'secondary', 'success', 'danger', 'warning',
+        'info', 'light', 'dark'
+    ]);
+
+    function normalizeBadgeColor(rawColor) {
+        const color = (rawColor || 'secondary').toString().trim().toLowerCase();
+        return allowedBootstrapColors.has(color) ? color : 'secondary';
+    }
+
+    function buildCategoryButtonClasses(color, isActive) {
+        const normalizedColor = normalizeBadgeColor(color);
+        if (isActive) {
+            return `btn-${normalizedColor}`;
+        }
+        return `btn-outline-${normalizedColor}`;
+    }
+
+    const categoryBadges = Object.values(categories)
+        .sort(function(a, b) { return b.count - a.count; })
+        .map(function(category) {
+            const isActive = activeCategory === category.key;
+            return `
+                <button type="button"
+                        class="btn btn-sm ${buildCategoryButtonClasses(category.color, isActive)} search-category-filter"
+                        data-category-filter="${category.key}">
+                    ${category.label}
+                    <span class="badge rounded-pill ${isActive ? 'text-bg-light' : 'text-bg-secondary'} ms-1">${category.count}</span>
+                </button>
+            `;
+        })
+        .join('');
+
+    resultsMeta
+        .removeClass('d-none')
+        .html(`
+            <div class="search-meta-content">
+                <span class="search-results-count">
+                    <i class="fas fa-list-ol me-1"></i>
+                    <span id="search_results_visible_count">${totalCount}</span> {{ _('results found')}}
+                </span>
+                <span class="search-results-nav-hint">
+                    <kbd>↑</kbd><kbd>↓</kbd> {{ _('navigate')}} · <kbd>Enter</kbd> {{ _('open')}}
+                </span>
+            </div>
+            <div class="search-category-filters">
+                <button type="button"
+                        class="btn btn-sm ${activeCategory === 'all' ? 'btn-primary' : 'btn-outline-secondary'} search-category-filter"
+                        data-category-filter="all">
+                    {{ _('All') }}
+                    <span class="badge rounded-pill ${activeCategory === 'all' ? 'text-bg-light' : 'text-bg-secondary'} ms-1">${totalCount}</span>
+                </button>
+                ${categoryBadges}
+            </div>
+        `);
+
+    resultsMeta.find('.search-category-filter').off('click').on('click', function() {
+        const filterKey = $(this).attr('data-category-filter') || 'all';
+        currentSearchCategory = filterKey;
+        renderSearchMeta(resultsMeta, totalCount, categories, currentSearchCategory);
+        applySearchCategoryFilter(currentSearchCategory, $('#filter_add'), resultsMeta, categories);
+    });
+}
+
+function applySearchCategoryFilter(categoryKey, resultsContainer, resultsMeta, categories) {
+    const allItems = resultsContainer.find('a[href], .list-group-item[onclick], [data-url]');
+    let visibleCount = 0;
+
+    allItems.each(function() {
+        const item = $(this);
+        const itemCategory = item.attr('data-search-category');
+        const showItem = categoryKey === 'all' || itemCategory === categoryKey;
+        item.toggle(showItem);
+        if (showItem) {
+            visibleCount += 1;
+        }
+    });
+
+    const countElement = resultsMeta.find('#search_results_visible_count');
+    if (countElement.length) {
+        countElement.text(visibleCount);
+    }
+
+    currentIndex = -1;
+}
+
 function addKeyboardNavigation() {  
     const searchInput = $('#filter_search');  
-    let currentIndex = -1;  
       
     // Удаляем предыдущие обработчики  
     searchInput.off('keydown.search');  
       
     searchInput.on('keydown.search', function(e) {  
         // Получаем актуальный список результатов при каждом нажатии клавиши  
-        const results = $('#filter_add a[href], #filter_add .list-group-item[onclick], #filter_add [data-url]');  
+        const results = $('#filter_add a[href]:visible, #filter_add .list-group-item[onclick]:visible, #filter_add [data-url]:visible');  
           
         if (results.length === 0) return;  
           
@@ -627,6 +883,8 @@ $('#searchModal').on('hidden.bs.modal', function() {
         currentRequest = null;  
     }  
     $('#filter_search').val('');  
+    currentSearchCategory = 'all';
+    $('#search_results_meta').addClass('d-none').empty();
     $('#filter_add').hide().empty();  
     searchCache.clear();  
     currentIndex = -1;  
@@ -639,6 +897,100 @@ $('#searchModal').on('hidden.bs.modal', function() {
     border-radius: 5px;  
     margin: 5px 0;  
 }  
+
+.search-modal-dialog {
+    max-width: min(1200px, 96vw);
+}
+
+.search-modal-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    min-height: 60vh;
+    max-height: 78vh;
+}
+
+.search-input-wrap {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: var(--bs-modal-bg);
+    padding-bottom: 0.25rem;
+}
+
+.search-results-meta {
+    position: sticky;
+    top: 3.5rem;
+    z-index: 1;
+    background: var(--bs-body-bg);
+    border: 1px solid var(--bs-border-color);
+    border-radius: 0.5rem;
+    padding: 0.45rem 0.75rem;
+}
+
+.search-meta-content {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.75rem;
+    align-items: center;
+    flex-wrap: wrap;
+    font-size: 0.875rem;
+}
+
+.search-results-count {
+    color: var(--bs-emphasis-color);
+}
+
+.search-results-nav-hint {
+    color: var(--bs-secondary-color);
+}
+
+.search-results-nav-hint kbd {
+    margin-right: 0.2rem;
+}
+
+.search-category-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-top: 0.6rem;
+}
+
+.search-category-filter {
+    border-radius: 999px;
+}
+
+.search-category-filter .badge {
+    border: 1px solid color-mix(in srgb, var(--bs-border-color) 70%, transparent);
+    font-weight: 600;
+    min-width: 1.5rem;
+}
+
+.search-category-filter.btn-outline-secondary .badge {
+    background-color: color-mix(in srgb, var(--bs-secondary-bg-subtle) 70%, var(--bs-body-bg) 30%) !important;
+    color: var(--bs-emphasis-color) !important;
+}
+
+.search-category-filter.btn-primary .badge {
+    background-color: color-mix(in srgb, #ffffff 92%, transparent) !important;
+    color: color-mix(in srgb, var(--bs-primary) 85%, #000000 15%) !important;
+    border-color: color-mix(in srgb, var(--bs-primary) 35%, #ffffff 65%);
+}
+
+.search-results-container .badge {
+    font-weight: 600;
+    border: 1px solid color-mix(in srgb, var(--bs-border-color) 65%, transparent);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--bs-body-bg) 85%, transparent) inset;
+}
+
+[data-bs-theme="light"] .search-results-container .badge {
+    filter: saturate(0.9) contrast(1.08);
+}
+
+[data-bs-theme="dark"] .search-results-container .badge {
+    filter: saturate(0.85) brightness(1.15) contrast(1.08);
+    border-color: color-mix(in srgb, var(--bs-border-color) 45%, #ffffff 20%);
+}
   
 .search-hint {  
     background-color: var(--bs-info-bg-subtle);  
@@ -671,9 +1023,72 @@ $('#searchModal').on('hidden.bs.modal', function() {
 }  
   
 #filter_add {  
-    max-height: 400px;  
     overflow-y: auto;  
 }  
+
+.search-results-container {
+    flex: 1 1 auto;
+    min-height: 320px;
+    max-height: calc(78vh - 190px);
+    overflow-x: hidden;
+    border: 1px solid var(--bs-border-color);
+    border-radius: 0.5rem;
+    padding: 0.35rem;
+    white-space: normal;
+    background: var(--bs-body-bg);
+}
+
+.search-result-item {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    border-radius: 0.45rem;
+    padding-left: 2.4rem !important;
+    padding-top: 0.4rem;
+    padding-bottom: 0.4rem;
+    margin-bottom: 0.3rem;
+    transition: background-color .12s ease, border-color .12s ease;
+    min-height: 2.2rem;
+    line-height: 1.2;
+}
+
+.search-result-item::before {
+    content: attr(data-result-index);
+    position: absolute;
+    left: 0.7rem;
+    top: 50%;
+    transform: translateY(-50%);
+    min-width: 1.2rem;
+    text-align: center;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--bs-secondary-color);
+    border: 1px solid var(--bs-border-color);
+    border-radius: 999px;
+    padding: 0.1rem 0.35rem;
+    background: var(--bs-light-bg-subtle);
+}
+
+.search-result-tags {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    flex-shrink: 0;
+    min-width: 0;
+}
+
+.search-result-tags .badge {
+    margin-right: 0 !important;
+}
+
+.search-result-title {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
   
 /* Улучшенная прокрутка */  
 #filter_add::-webkit-scrollbar {  
@@ -709,35 +1124,137 @@ $('#searchModal').on('hidden.bs.modal', function() {
 #filter_add {  
     scroll-behavior: smooth;  
 }
+
+.console-modal-dialog {
+    max-width: min(1200px, 96vw);
+}
+
+.console-modal-body {
+    min-height: 60vh;
+    max-height: 78vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.console-output {
+    flex: 1 1 auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.console-editor-host .ace-editor-wrapper,
+.console-editor-host .monaco-editor-wrapper {
+    margin-bottom: 0.5rem;
+}
+
+.console-editor-host .ace-editor-container,
+.console-editor-host .monaco-editor-container {
+    min-height: 220px;
+}
 </style>
-<div class="modal fade" id="consoleModal" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
-  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable modal-fullscreen-sm-down">
+<div class="modal fade" id="consoleModal" tabindex="-1" aria-labelledby="consoleModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable modal-fullscreen-md-down console-modal-dialog">
       <div class="modal-content">
           <form  method="POST">
           <div class="modal-header">
-              <h5 class="modal-title" id="exampleModalLabel">{{ _('Console')}}</h5>
+              <h5 class="modal-title" id="consoleModalLabel">{{ _('Console')}}</h5>
           </div>
-          <div class="modal-body">
+          <div class="modal-body console-modal-body">
               <!-- Поля формы -->
-              <div class="d-flex">
-              <input class="form-control me-2" type="search" placeholder="{{ _('Code')}}" aria-label="Code" id="console_code" name="console_code">
-              <button type="button" class="btn btn-primary" aria-label="Run" onclick="run_code()">{{ _('Run')}}</button>
+              {% set console_editor_field = {'name': 'console_code', 'data': ''} %}
+              <div class="console-editor-host">
+                {{ code_editor.render_editor(console_editor_field, 'python') }}
               </div>
-              <div class="mt-2" id="result_code" style="height: 266px; min-height: 150px; overflow: auto; padding: 10px; font-family: Consolas, Verdana; background: rgb(0, 0, 0); color: rgb(130, 245, 95); border-radius: 5px; resize: vertical;">
-                #:...
+              <div class="d-flex justify-content-end">
+                <button type="button" class="btn btn-primary" aria-label="Run" onclick="run_code()">
+                  <i class="fa-solid fa-play me-1"></i>{{ _('Run')}}
+                </button>
+              </div>
+              <div class="mt-2 console-output" id="result_code" style="height: 50vh; min-height: 260px; overflow: auto; padding: 10px; font-family: Consolas, Verdana; background: rgb(0, 0, 0); color: rgb(130, 245, 95); border-radius: 5px; resize: vertical;">
               </div>
           </div>
           <div class="modal-footer">
-              <button type="button" onclick="$('#console_code').val('');$('#result_code').html('#:...');" class="btn btn-secondary" data-bs-dismiss="modal">{{ _('Close')}}</button>
+              <button type="button" onclick="persistConsoleCode();$('#result_code').empty();" class="btn btn-secondary" data-bs-dismiss="modal">{{ _('Close')}}</button>
           </div>
           </form>
       </div>
   </div>
 </div>
 <script>
+  const CONSOLE_CODE_STORAGE_KEY = 'console_modal_code_v1';
+  let consoleMonacoStorageBound = false;
+  let consoleAceStorageBound = false;
+
+  function getConsoleEditorValue() {
+        if (window.__monacoEditors && window.__monacoEditors.console_code) {
+          return window.__monacoEditors.console_code.getValue();
+        }
+        if (typeof ace !== 'undefined' && document.getElementById('editor-console_code')) {
+          return ace.edit('editor-console_code').getValue();
+        }
+        return $('#console_code').val() || '';
+  }
+
+  function setConsoleEditorValue(code) {
+        const value = code || '';
+        $('#console_code').val(value);
+
+        if (window.__monacoEditors && window.__monacoEditors.console_code) {
+          const editor = window.__monacoEditors.console_code;
+          if (editor.getValue() !== value) {
+            editor.setValue(value);
+          }
+          return;
+        }
+
+        if (typeof ace !== 'undefined' && document.getElementById('editor-console_code')) {
+          const aceEditor = ace.edit('editor-console_code');
+          if (aceEditor.getValue() !== value) {
+            aceEditor.setValue(value, -1);
+          }
+        }
+  }
+
+  function persistConsoleCode() {
+        try {
+          localStorage.setItem(CONSOLE_CODE_STORAGE_KEY, getConsoleEditorValue());
+        } catch (e) {
+          // ignore storage failures (private mode / quota)
+        }
+  }
+
+  function restoreConsoleCode() {
+        try {
+          const saved = localStorage.getItem(CONSOLE_CODE_STORAGE_KEY);
+          if (saved !== null) {
+            setConsoleEditorValue(saved);
+          }
+        } catch (e) {
+          // ignore storage failures
+        }
+  }
+
+  function bindConsoleEditorPersistence() {
+        if (!consoleMonacoStorageBound && window.__monacoEditors && window.__monacoEditors.console_code) {
+          window.__monacoEditors.console_code.onDidChangeModelContent(persistConsoleCode);
+          consoleMonacoStorageBound = true;
+        }
+        if (!consoleAceStorageBound && typeof ace !== 'undefined' && document.getElementById('editor-console_code')) {
+          ace.edit('editor-console_code').session.on('change', persistConsoleCode);
+          consoleAceStorageBound = true;
+        }
+  }
+
   function run_code() {
         
         var code = $('#console_code').val();
+        if (window.__monacoEditors && window.__monacoEditors.console_code) {
+          code = window.__monacoEditors.console_code.getValue();
+          $('#console_code').val(code);
+        } else if (typeof ace !== 'undefined' && document.getElementById('editor-console_code')) {
+          code = ace.edit('editor-console_code').getValue();
+          $('#console_code').val(code);
+        }
         var url="/api/utils/run";
         var reqBody = { 'code' : code }
         $.ajax({
@@ -748,11 +1265,11 @@ $('#searchModal').on('hidden.bs.modal', function() {
           dataType: 'json', // Ожидаемый тип данных в ответе
           success: function(data){
                 $('#result_code').show();
-                $('#console_code').val('');
+                persistConsoleCode();
                 if(data.success) {
-                  $('#result_code').html("#:"+code+"<br>&gt;:"+data.result);
+                  $('#result_code').html("&gt;:"+data.result);
                 }else{
-                  $('#result_code').html("#:"+code+"<br><span style='color:red;'>&gt;:"+data.result+"</span>");
+                  $('#result_code').html("<span style='color:red;'>&gt;:"+data.result+"</span>");
                 }
           },
             error: function(data){
@@ -762,6 +1279,16 @@ $('#searchModal').on('hidden.bs.modal', function() {
         });
         return false;
     }
+
+  $('#consoleModal').on('shown.bs.modal', function() {
+    $('#result_code').empty();
+    restoreConsoleCode();
+    bindConsoleEditorPersistence();
+    setTimeout(function() {
+      bindConsoleEditorPersistence();
+      restoreConsoleCode();
+    }, 250);
+  });
 
 // Функция обновления индикаторов уведомлений (обертка для обратной совместимости)
 function updateNotificationIndicators() {

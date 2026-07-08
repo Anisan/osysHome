@@ -138,7 +138,8 @@ Main resources:
 - `GET /api/utils/search`:
   - global search across plugins that declare `"search"` in their `actions`,
   - for each plugin, calls `plugin.search(query)` and accumulates results (up to `limit`),
-  - results are rendered via `search_result.html` and cached using `cache` extension.
+  - returns JSON payload with `items` (`url`, `title`, `tags`) and `count`,
+  - results are cached using `cache` extension.
 - `GET /api/utils/readnotify/<id>`:
   - marks single notification as read using `readNotify`.
 - `GET /api/utils/readnotify/all`:
@@ -265,4 +266,83 @@ Async paths (`setPropertyThread`, linked plugins, proxy) are not wrapped.
 - `ObjectsStorage.start_background_preload()` — daemon-поток после `start_plugins()`; лог `Preloaded N/M objects`.
 
 Для более глубокого понимания объекта‑ориентированного ядра смотрите также `ARCHITECTURE.md`, `PARAMS_DOCUMENTATION.md` и примеры в `tests/test_object_manager.py`.
+
+### 8. SystemStats (локальная аналитика)
+
+Включение: `SystemVar.system_stats` = `true` (по умолчанию `false`). Отдельно от `SystemVar.analytics_enabled` (отправка на osysHome.ru).
+
+Объект **`SystemStats`** — внутренний singleton (`initSystemStats()` в `app/utils.py`). Свойства с `params.internal=true` и `history=30` (дни хранения history).
+
+**Режим:** только **event-driven** (без cron/collector). Метрики пишутся в точке события в ядре или в плагинах.
+
+#### Защита от искажения аналитики (anti-loop)
+
+Записи в `SystemStats` не раздувают сами счётчики активности:
+
+- `track_stats=False` при записи метрик;
+- `source=osysHome:system_stats` (или `osysHome:system_stats:<plugin>`);
+- `ValueUpdate.internal` в BatchWriter;
+- объект `SystemStats` в `SYSTEM_STATS_EXCLUDED_OBJECTS` — не участвует в агрегатах `ObjectsStorage.getStats()`.
+
+Proxy/linked fan-out для записей `SystemStats` отключён; WebSocket — через debounce (`scheduleSystemStatsWsNotify`, 0.5 с).
+
+#### Метрики ядра (`SystemStats.<name>`)
+
+Регистрируются при старте в `initSystemStats()`. Пишутся через `writeCoreSystemStatsMetric` / `incrementCoreSystemStatsMetric` (`app/core/lib/common.py`).
+
+| Свойство | Тип | Когда обновляется |
+|----------|-----|-------------------|
+| `property_reads` | int | каждое `getValue(track_stats=True)` вне internal-свойств |
+| `property_writes` | int | каждое `setValue` вне internal-свойств |
+| `methods_executed` | int | каждый `callMethod` (кроме объекта `SystemStats`) |
+| `reactive_loops` | int | срабатывание reactive loop (`_record_reactive_loop`) |
+| `batch_queue_size` | int | после flush BatchWriter (текущая очередь, обычно 0) |
+| `batch_avg_flush_ms` | float | длительность последнего flush BatchWriter, мс |
+| `batch_values_updated` | int | +N внешних обновлений Value за flush |
+| `batch_history_inserted` | int | +N внешних вставок History за flush |
+| `batch_total_errors` | int | +1 при ошибке внешнего batch flush |
+
+**Буферизация горячих счётчиков:** `property_reads`, `property_writes`, `methods_executed`, `reactive_loops` накапливают дельты в памяти и сбрасываются на каждом тике BatchWriter (~0.5 с). Flush делает **атомарный инкремент в БД** (`SELECT … FOR UPDATE` + `+delta`), затем синхронизирует runtime-кэш — счётчики монотонно растут даже при нескольких worker-процессах.
+
+Остальные core-метрики (`batch_*`) пишутся сразу при событии flush.
+
+**Производительность:** флаг `SystemVar.system_stats` кэшируется на 2 с (`_is_system_stats_enabled`). При `false` инкременты не выполняются.
+
+#### Метрики плагинов (`SystemStats.plugin_<Plugin>_<metric>`)
+
+API в `app/core/lib/common.py`. Имена свойств: префикс `plugin_` + имя плагина + `_` + имя метрики (небезопасные символы → `_`).
+
+```python
+from app.core.lib.common import (
+    registerSystemStatsMetric,
+    writeSystemStatsMetric,
+    incrementSystemStatsMetric,
+)
+
+# Схема метрики (создаёт свойство при первой записи)
+registerSystemStatsMetric(
+    "MyPlugin", "temperature",
+    description="Sensor temperature",
+    history=30,
+)
+
+# Запись в точке события (всегда track_stats=False)
+writeSystemStatsMetric("MyPlugin", "temperature", 23.5)
+incrementSystemStatsMetric("MyPlugin", "errors_total", 1)
+```
+
+`unregisterSystemStatsPlugin` — no-op (свойства остаются в объекте).
+
+**Примеры в репозитории:** `plugins/Scheduler` (пул задач, цикл, dispatch), `plugins/xray` (пул БД, API latency).
+
+#### Права доступа
+
+`_merge_system_stats_permissions()` в `initPermissions()` задаёт `_permissions.object:SystemStats`: чтение для admin, запись/вызов методов запрещены (merge без перезаписи настроек администратора).
+
+#### Инициализация
+
+- `initSystemVar()` → `initSystemStats()` + `SystemVar.system_stats` (default `false`);
+- при наличии пользователей → `initPermissions()` (в т.ч. права на `SystemStats`).
+
+Тесты: `tests/test_system_stats.py`, `tests/test_object_manager.py`.
 

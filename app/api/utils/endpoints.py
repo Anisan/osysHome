@@ -1,4 +1,4 @@
-from flask import request, render_template, jsonify, current_app
+from flask import request, jsonify, current_app
 import ast
 from flask_restx import Namespace, Resource, fields
 from sqlalchemy import func, case
@@ -33,20 +33,46 @@ class GlobalSearch(Resource):
             return {"success": False, "msg": "Query too short"}, 400
 
         # Кэширование результатов поиска
-        cache_key = f"search:{query}:{limit}"
+        cache_key = f"search:v2:{query}:{limit}"
         cached_result = cache.get(cache_key)
 
         if cached_result:
-            return {"success": True, "result": cached_result}, 200
+            if isinstance(cached_result, dict):
+                items = cached_result.get("items", [])
+                errors = cached_result.get("errors", [])
+                return {
+                    "success": True,
+                    "items": items,
+                    "count": len(items),
+                    "errors": errors,
+                }, 200
+            if isinstance(cached_result, list):
+                # Backward compatibility with earlier JSON-only cache.
+                return {"success": True, "items": cached_result, "count": len(cached_result), "errors": []}, 200
+            # Backward compatibility for short-lived cache entries created by older HTML response format.
+            cache.delete(cache_key)
 
         result = []
+        module_errors = []
         from app.core.lib.common import getModulesByAction
 
         plugins = getModulesByAction("search")
         for plugin in plugins:
+            plugin_name = getattr(plugin, "title", None) or getattr(plugin, "name", None)
+            if not plugin_name:
+                try:
+                    plugin_name = plugin["name"]
+                except Exception:
+                    plugin_name = plugin.__class__.__name__
             try:
                 res = plugin.search(query)
-                result.extend(res[:limit])  # Ограничиваем результаты
+                if res is None:
+                    continue
+                if not isinstance(res, list):
+                    raise TypeError("search() must return list")
+
+                valid_items = [item for item in res if isinstance(item, dict)]
+                result.extend(valid_items[:limit])  # Ограничиваем результаты
 
                 if len(result) >= limit:
                     result = result[:limit]
@@ -54,21 +80,36 @@ class GlobalSearch(Resource):
 
             except Exception as ex:
                 _logger.exception(ex)
-                name = plugin["name"]
-                result.append(
+                module_errors.append(
                     {
-                        "url": "Logs",
-                        "title": f"{ex}",
-                        "tags": [{"name": name, "color": "danger"}],
+                        "module": plugin_name,
+                        "error": str(ex),
                     }
                 )
 
-        render = render_template("search_result.html", result=result)
+        normalized_items = []
+        for item in result[:limit]:
+            if not isinstance(item, dict):
+                continue
+            normalized_items.append(
+                {
+                    "url": item.get("url", ""),
+                    "title": item.get("title", ""),
+                    "tags": item.get("tags", []),
+                }
+            )
+
+        payload = {"items": normalized_items, "errors": module_errors}
 
         # Кэшируем на 2 минуты
-        cache.set(cache_key, render, timeout=120)
+        cache.set(cache_key, payload, timeout=120)
 
-        return {"success": True, "result": render}, 200
+        return {
+            "success": True,
+            "items": normalized_items,
+            "count": len(normalized_items),
+            "errors": module_errors,
+        }, 200
 
 
 @utils_ns.route("/readnotify/<id>")

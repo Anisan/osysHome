@@ -21,4 +21,11 @@ class PropertyType(Enum):
     Bool = 'bool'
     Enum = 'enum'
     Color = 'color'
-    
+
+
+# Internal SystemStats object — source marker for anti-loop analytics
+SYSTEM_STATS_OBJECT = "SystemStats"
+SYSTEM_STATS_SOURCE = "osysHome:system_stats"
+SYSTEM_STATS_EXCLUDED_OBJECTS = frozenset({SYSTEM_STATS_OBJECT, "_permissions"})
+SYSTEM_STATS_PLUGIN_METRIC_PREFIX = "plugin_"
+

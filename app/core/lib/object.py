@@ -356,6 +356,34 @@ def deleteObjectProperty(object_property: str) -> bool:
         objects_storage.reload_object(obj.id)
         return True
 
+
+def deleteClassProperty(class_property: str) -> bool:
+    """
+    Delete a class property from the database using the format 'class_name.property_name'
+
+    Args:
+        class_property (str): String in the format 'class_name.property_name'
+
+    Returns:
+        bool: Success of deleting the property
+    """
+    try:
+        class_name, property_name = class_property.split('.', 1)
+    except ValueError:
+        return False
+
+    with session_scope() as session:
+        cls = session.query(Class).filter(Class.name == class_name).one_or_none()
+        if not cls:
+            return False
+        prop = session.query(Property).filter(Property.name == property_name, Property.class_id == cls.id).one_or_none()
+        if not prop:
+            return False
+        session.delete(prop)
+        session.commit()
+        objects_storage.reload_objects_by_class(cls.id)
+        return True
+
 def addObjectMethod(
     name:str,
     object_name:str,
@@ -449,6 +477,33 @@ def deleteObjectMethod(object_method: str) -> bool:
         objects_storage.reload_object(obj.id)
         return True
 
+
+def deleteClassMethod(class_method: str) -> bool:
+    """
+    Delete a class method from the database using the format 'class_name.method_name'
+
+    Args:
+        class_method (str): String in the format 'class_name.method_name'
+
+    Returns:
+        bool: Success of deleting the method
+    """
+    try:
+        class_name, method_name = class_method.split('.', 1)
+    except ValueError:
+        return False
+    with session_scope() as session:
+        cls = session.query(Class).filter(Class.name == class_name).one_or_none()
+        if not cls:
+            return False
+        method = session.query(Method).filter(Method.name == method_name, Method.class_id == cls.id).one_or_none()
+        if not method:
+            return False
+        session.delete(method)
+        session.commit()
+        objects_storage.reload_objects_by_class(cls.id)
+        return True
+
 def getObject(name:str) -> ObjectManager:
     """Get an object by its name
 
@@ -527,7 +582,7 @@ def getProperty(name:str, data:str = 'value'):
         logger.exception('getProperty %s: %s',name,e)
     return None
 
-def setProperty(name:str, value, source:str='', save_history:bool=None, changed:datetime.datetime=None) -> bool:
+def setProperty(name:str, value, source:str='', save_history:bool=None, changed:datetime.datetime=None, track_stats:bool=True) -> bool:
     """Set value property by its name.
 
     Args:
@@ -536,6 +591,7 @@ def setProperty(name:str, value, source:str='', save_history:bool=None, changed:
         source (str, optional): Source changing value. Defaults to ''.
         save_history (bool, optional): Save history of changing value. Defaults to None.
         changed (datetime.datetime, optional): Date/time for the value. Used when saving history. Defaults to None (current time).
+        track_stats (bool, optional): Increment count_write/count_read counters. Defaults to True.
 
     Returns:
         bool: Success set value
@@ -551,7 +607,7 @@ def setProperty(name:str, value, source:str='', save_history:bool=None, changed:
         prop = name.split(".")[1]
         obj = objects_storage.getObjectByName(obj)
         if obj:
-            obj.setProperty(prop, value, source, save_history, changed)
+            obj.setProperty(prop, value, source, save_history, changed, track_stats=track_stats)
             return True
         else:
             logger.error('Object %s not found', name)
@@ -628,13 +684,14 @@ def setPropertyTimeout(name: str, value, timeout: int, source:str=""):
         logger.exception('setPropertyTimeout %s: %s',name,e)
     return False
 
-def updateProperty(name:str, value, source:str='') -> bool:
+def updateProperty(name:str, value, source:str='', track_stats:bool=True) -> bool:
     """Update property by its name if value changed.
 
     Args:
         name (str): Name property. Syntax: Object.Property
         value (Any): Value
         source (str, optional): Source changing value. Defaults to ''.
+        track_stats (bool, optional): Increment count_write/count_read counters. Defaults to True.
 
     Returns:
         bool: Success set value
@@ -650,7 +707,7 @@ def updateProperty(name:str, value, source:str='') -> bool:
         prop = name.split(".")[1]
         obj = objects_storage.getObjectByName(obj)
         if obj:
-            return obj.updateProperty(prop, value, source)
+            return obj.updateProperty(prop, value, source, track_stats=track_stats)
         else:
             logger.error('Object %s not found', name)
             return False
