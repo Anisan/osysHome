@@ -587,19 +587,42 @@
         button.classList.toggle('active', !!state);
     }
 
+    // Monaco's AMD loader installs global define/require. UMD libs (Highcharts etc.)
+    // then take the AMD path and never set window.Highcharts. Keep the loader private
+    // and clear define.amd after Monaco is ready so later scripts stay global.
+    function neutralizeMonacoAmdLeak() {
+        if (typeof window.require === 'function' && window.require.config) {
+            window.__monacoAmdRequire = window.__monacoAmdRequire || window.require;
+        }
+        if (typeof window.define === 'function' && window.define.amd) {
+            try {
+                delete window.define.amd;
+            } catch (e) {
+                window.define.amd = undefined;
+            }
+        }
+    }
+
     function loadMonaco() {
         if (window.__monacoLoadPromise) return window.__monacoLoadPromise;
 
         function loadFromBase(baseUrl, onFail) {
             function configureAndLoad() {
                 if (window.monaco && window.monaco.editor) {
+                    neutralizeMonacoAmdLeak();
                     return Promise.resolve(window.monaco);
                 }
 
-                if (typeof require !== 'undefined' && require.config) {
-                    require.config({ paths: { 'vs': baseUrl } });
+                var amdRequire = window.__monacoAmdRequire
+                    || (typeof require !== 'undefined' && require.config ? require : null);
+
+                if (amdRequire) {
+                    amdRequire.config({ paths: { 'vs': baseUrl } });
                     return new Promise(function(resolve, reject) {
-                        require(['vs/editor/editor.main'], function(monaco) { resolve(monaco); }, function(err) {
+                        amdRequire(['vs/editor/editor.main'], function(monaco) {
+                            neutralizeMonacoAmdLeak();
+                            resolve(monaco || window.monaco);
+                        }, function(err) {
                             if (onFail) { onFail(err); } else { reject(err); }
                         });
                     });
@@ -613,8 +636,12 @@
                             if (onFail) return onFail(new Error('Require not available after loader'));
                             return reject(new Error('Require not available after loader'));
                         }
+                        window.__monacoAmdRequire = require;
                         require.config({ paths: { 'vs': baseUrl } });
-                        require(['vs/editor/editor.main'], function(monaco) { resolve(monaco); }, function(err) {
+                        require(['vs/editor/editor.main'], function(monaco) {
+                            neutralizeMonacoAmdLeak();
+                            resolve(monaco || window.monaco);
+                        }, function(err) {
                             if (onFail) { onFail(err); } else { reject(err); }
                         });
                     };
@@ -638,6 +665,31 @@
         });
 
         return window.__monacoLoadPromise;
+    }
+
+    // Do not load Monaco while the editor sits in a hidden Bootstrap modal
+    // (admin console). Eager AMD loader breaks Highcharts widgets on the same page.
+    function whenEditorHostVisible(callback) {
+        if (!container) {
+            callback();
+            return;
+        }
+        var modal = container.closest('.modal');
+        if (!modal || modal.classList.contains('show')) {
+            callback();
+            return;
+        }
+        var started = false;
+        function start() {
+            if (started) return;
+            started = true;
+            callback();
+        }
+        modal.addEventListener('shown.bs.modal', start);
+        // Fallback if Bootstrap event was missed / modal already opened
+        if (modal.classList.contains('show')) {
+            start();
+        }
     }
 
     function languageForSyntax(value) {
@@ -674,6 +726,7 @@
         document.body.removeChild(tmp);
     }
 
+    whenEditorHostVisible(function() {
     loadMonaco().then(function(monaco) {
         if (!container) return;
 
@@ -1388,6 +1441,7 @@
         }
     }).catch(function(err) {
         console.error('Monaco init failed', err);
+    });
     });
 })();
 </script>

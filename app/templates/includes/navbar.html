@@ -1284,10 +1284,21 @@ $('#searchModal').on('hidden.bs.modal', function() {
     $('#result_code').empty();
     restoreConsoleCode();
     bindConsoleEditorPersistence();
-    setTimeout(function() {
+
+    // Monaco may load lazily on first open (deferred to avoid AMD/Highcharts clash)
+    var attempts = 0;
+    var maxAttempts = 40;
+    (function waitForConsoleEditor() {
       bindConsoleEditorPersistence();
       restoreConsoleCode();
-    }, 250);
+      var ready = (window.__monacoEditors && window.__monacoEditors.console_code)
+        || (typeof ace !== 'undefined' && document.getElementById('editor-console_code'));
+      if (ready || attempts >= maxAttempts) {
+        return;
+      }
+      attempts += 1;
+      setTimeout(waitForConsoleEditor, 100);
+    })();
   });
 
 // Функция обновления индикаторов уведомлений (обертка для обратной совместимости)
