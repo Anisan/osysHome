@@ -2,10 +2,18 @@
 import logging
 import logging.handlers
 import os
+import sys
+import traceback
 from app.configuration import Config
 
 # Глобальный error handler (чтобы не дублировался для каждого модуля)
 _global_error_handler = None
+
+_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+def _default_log_directory():
+    return os.path.join(_PROJECT_ROOT, 'logs')
 
 
 def getLogger(moduleName, level=None, logDirectory='logs'):
@@ -160,3 +168,132 @@ def security_audit_log(event_type, ip=None, url='', endpoint='', reason='', user
         logger.info(message)
     else:
         logger.warning(message)
+
+
+# === Application Exception Logger (необработанные ошибки 500) ===
+_app_exception_handler = None
+
+
+def get_app_exception_logger(logDirectory=None):
+    """Логгер для необработанных исключений приложения (Internal Server Error)."""
+    global _app_exception_handler
+
+    if logDirectory is None:
+        logDirectory = _default_log_directory()
+
+    logger = logging.getLogger('app_exceptions')
+    if logger.handlers:
+        return logger
+
+    if not os.path.exists(logDirectory):
+        os.makedirs(logDirectory)
+
+    log_file = os.path.join(logDirectory, '500.log')
+    formatter = logging.Formatter(
+        '%(asctime)s.%(msecs)03d[%(levelname)s]%(message)s',
+        datefmt='%H:%M:%S'
+    )
+
+    _app_exception_handler = logging.handlers.TimedRotatingFileHandler(
+        log_file,
+        when='midnight',
+        interval=1,
+        backupCount=30,
+        encoding='utf-8',
+        utc=False
+    )
+    _app_exception_handler.setFormatter(formatter)
+
+    logger.setLevel(logging.ERROR)
+    logger.addHandler(_app_exception_handler)
+    logger.propagate = False
+    return logger
+
+
+def _should_log_app_exception(exc):
+    """Не логируем ожидаемые HTTP-ошибки клиента (4xx)."""
+    from werkzeug.exceptions import HTTPException
+
+    if isinstance(exc, HTTPException):
+        code = exc.code or 500
+        return code >= 500
+    return True
+
+
+def _resolve_exception(exc):
+    """Возвращает исходное исключение (Flask 3 оборачивает его в InternalServerError)."""
+    original = getattr(exc, 'original_exception', None)
+    if original is not None:
+        return original
+    return exc
+
+
+def log_app_exception(exc, exc_info=None, **extra):
+    """
+    Запись необработанного исключения в 500.log с traceback.
+
+    Работает в production и debug; вызывать из Flask error handler.
+    """
+    exc = _resolve_exception(exc)
+    if not _should_log_app_exception(exc):
+        return
+
+    try:
+        from flask import g, has_request_context
+
+        if has_request_context():
+            if getattr(g, '_app_exception_logged', False):
+                return
+            g._app_exception_logged = True
+    except Exception:
+        pass
+
+    logger = get_app_exception_logger()
+    parts = []
+
+    try:
+        from flask import has_request_context, request
+        from flask_login import current_user
+
+        if has_request_context():
+            ip = '?'
+            if request.headers.getlist('X-Forwarded-For'):
+                ip = request.headers.getlist('X-Forwarded-For')[0]
+            else:
+                ip = request.remote_addr or '?'
+
+            parts.extend([
+                f"resource={request.full_path.rstrip('?') or request.path or request.url}",
+                f"endpoint={request.endpoint or '?'}",
+                f"method={request.method}",
+                f"source_ip={ip}",
+                f"user={getattr(current_user, 'username', '') or 'anonymous'}",
+            ])
+    except Exception:
+        pass
+
+    parts.append(f"error={exc!r}")
+
+    for key, value in extra.items():
+        if value is not None and value != '':
+            parts.append(f"{key}={value}")
+
+    message = " | ".join(str(p) for p in parts)
+
+    if exc_info is None:
+        exc_info = sys.exc_info()
+    if exc_info[0] is None:
+        exc_info = (type(exc), exc, getattr(exc, '__traceback__', None))
+
+    try:
+        if exc_info[0] is not None:
+            tb = ''.join(traceback.format_exception(*exc_info))
+            logger.error(f"{message}\n{tb}")
+        else:
+            logger.error(message)
+        for handler in logger.handlers:
+            handler.flush()
+    except Exception as log_err:
+        logging.getLogger('flask').error(
+            "Failed to write 500.log: %s", log_err, exc_info=True
+        )

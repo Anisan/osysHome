@@ -1,33 +1,14 @@
-{% extends "layouts/base-fullscreen.html" %}
+{% extends "errors/layout.html" %}
 
 {% block title %} 404 Page {% endblock %}
 
-{% block content %}   
+{% block error_icon %}search{% endblock %}
 
-    <div class="auth-wrapper">
-        <div class="auth-content">
-            <div class="auth-bg">
-                <span class="r"></span>
-                <span class="r s"></span>
-                <span class="r s"></span>
-                <span class="r"></span>
-            </div>
-            <div class="card">
-                <div class="card-body text-center">
-                    <div class="mb-4">
-                        <i class="feather x-circle"></i>
-                    </div>
-                    <h3 class="mb-4">{{ _('Error')}} 404</h3>
+{% block error_code %}404{% endblock %}
 
-                    <br />
+{% block error_subtitle %}{{ _('Page not found') }}{% endblock %}
 
-                    <span class="mb-0 text-muted">
-                        {{ _('Page not found')}} - <a href="/">{{ _('Home')}}</a> 
-                    </span>
-
-                </div>
-            </div>
-        </div>
-    </div>
-
-{% endblock content %}
+{% block error_actions %}
+<a href="/" class="btn btn-primary">{{ _('Home') }}</a>
+<a href="/admin" class="btn btn-outline-secondary">{{ _('Control panel') }}</a>
+{% endblock %}

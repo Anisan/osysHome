@@ -15,7 +15,7 @@ from app.core.models.Users import User
 from app.core.lib.object import getObject, getObjectsByClass, addObject, setProperty
 from app import safe_translate as _
 
-from app.logging_config import security_audit_log
+from app.logging_config import security_audit_log, log_app_exception
 from app.authentication.handlers import public_endpoint
 
 
@@ -193,6 +193,11 @@ def unauthorized_handler():
     return render_template('errors/page-403.html'), 403
 
 
+@blueprint.errorhandler(401)
+def unauthorized(error):
+    return render_template('errors/page-401.html'), 401
+
+
 @blueprint.errorhandler(403)
 def access_forbidden(error):
     return render_template('errors/page-403.html'), 403
@@ -203,6 +208,12 @@ def not_found_error(error):
     return render_template('errors/page-404.html'), 404
 
 
+@blueprint.errorhandler(429)
+def too_many_requests(error):
+    return render_template('errors/page-429.html'), 429
+
+
 @blueprint.errorhandler(500)
 def internal_error(error):
+    log_app_exception(error)
     return render_template('errors/page-500.html'), 500
