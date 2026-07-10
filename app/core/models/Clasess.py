@@ -57,6 +57,7 @@ class Method(SurrogatePK, db.Model):
     object_id = Column(db.Integer)
     code = Column(db.Text)
     call_parent = Column(db.Integer)
+    params = Column(db.Text)  # JSON display parameters (icon, color, sort_order, etc.)
 
 class Value(SurrogatePK, db.Model):
     __tablename__ = 'values'
