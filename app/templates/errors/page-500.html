@@ -1,33 +1,25 @@
-{% extends "layouts/base-fullscreen.html" %}
+{% extends "errors/layout.html" %}
 
 {% block title %} 500 Page {% endblock %}
 
-{% block content %}   
+{% block error_icon %}alert-triangle{% endblock %}
 
-    <div class="auth-wrapper">
-        <div class="auth-content">
-            <div class="auth-bg">
-                <span class="r"></span>
-                <span class="r s"></span>
-                <span class="r s"></span>
-                <span class="r"></span>
-            </div>
-            <div class="card">
-                <div class="card-body text-center">
-                    <div class="mb-4">
-                        <i class="feather x-circle"></i>
-                    </div>
-                    <h3 class="mb-4">{{ _('Error')}} 500</h3>
+{% block error_code %}500{% endblock %}
 
-                    <br />
+{% block error_subtitle %}{{ _('Server Error') }}{% endblock %}
 
-                    <span class="mb-0 text-muted">
-                        {{ _('Server Error')}} - <a href="/">{{ _('Home')}}</a> 
-                    </span>
+{% block error_content %}
+<p class="mb-3">{{ _('An unexpected error occurred while processing your request. The operation could not be completed.') }}</p>
 
-                </div>
-            </div>
-        </div>
-    </div>
+<p class="mb-1 fw-semibold text-body">{{ _('Where to find error details') }}</p>
+<p class="mb-2">{{ _('A detailed description of the error with a stack trace is saved in the server log file:') }}</p>
+<p class="mb-3"><code>logs/500.log</code></p>
 
-{% endblock content %}
+<p class="mb-1 fw-semibold text-body">{{ _('Contact the developer') }}</p>
+<p class="mb-0">{{ _('If the error occurs repeatedly, please contact the system developer or administrator. Attach the relevant fragment from the log file and describe the steps that led to the error.') }}</p>
+{% endblock %}
+
+{% block error_actions %}
+<a href="/" class="btn btn-primary">{{ _('Home') }}</a>
+<a href="/admin" class="btn btn-outline-secondary">{{ _('Control panel') }}</a>
+{% endblock %}

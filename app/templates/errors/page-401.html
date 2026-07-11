@@ -1,0 +1,18 @@
+{% extends "errors/layout.html" %}
+
+{% block title %} 401 Page {% endblock %}
+
+{% block error_icon %}lock{% endblock %}
+
+{% block error_code %}401{% endblock %}
+
+{% block error_subtitle %}{{ _('Authentication required') }}{% endblock %}
+
+{% block error_content %}
+<p class="mb-0">{{ _('You need to log in to access this page.') }}</p>
+{% endblock %}
+
+{% block error_actions %}
+<a href="{{ url_for('auth.login') }}" class="btn btn-primary">{{ _('Login') }}</a>
+<a href="/" class="btn btn-outline-secondary">{{ _('Home') }}</a>
+{% endblock %}

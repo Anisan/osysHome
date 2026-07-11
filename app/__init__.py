@@ -3,10 +3,10 @@ import os
 import json
 from collections import OrderedDict
 from importlib import import_module
-from flask import Flask, request, render_template, current_app, session, has_app_context, jsonify
+from flask import Flask, request, render_template, current_app, session, has_app_context, jsonify, got_request_exception, abort, redirect, url_for
+from werkzeug.exceptions import HTTPException
 # import flask_monitoringdashboard as dashboard
 from flask_login import current_user
-from flask import flash, redirect, url_for, abort
 from app.core.lib.object import getProperty
 from app import commands
 from app.exceptions import InvalidUsage
@@ -16,7 +16,7 @@ from app.core.utilities.json_encoding import CustomJSONEncoder, CustomJSONProvid
 from app.core.intelli import build_intelli_cache
 from app.utils import get_current_version
 
-from .logging_config import getLogger, security_audit_log
+from .logging_config import getLogger, security_audit_log, log_app_exception
 from app.authentication.handlers import public_endpoint
 _logger = getLogger('flask')
 _logger_error_http = getLogger('http_errors')
@@ -468,13 +468,8 @@ def registerErrorHandlers(app):
 
         # Неавторизованный доступ
         if access is None:
-            # Для API возвращаем JSON 401 вместо HTML-редиректа
             if request.blueprint == 'api':
-                return jsonify({
-                    'success': False,
-                    'error': 'Authentication required'
-                }), 401
-            flash('You need to log in first.', 'error')
+                abort(401)
             return redirect(url_for('auth.login'))
 
         # Доступ запрещён (недостаточно прав)
@@ -494,6 +489,26 @@ def registerErrorHandlers(app):
         return response
 
     app.errorhandler(InvalidUsage)(errorhandler)
+
+    @app.errorhandler(401)
+    def unauthorized_error(error):
+        _log_http_error('warning', "401 Unauthorized", error)
+        if request.blueprint == 'api':
+            return jsonify({
+                'success': False,
+                'error': 'Authentication required',
+            }), 401
+        return render_template('errors/page-401.html'), 401
+
+    @app.errorhandler(429)
+    def too_many_requests_error(error):
+        _log_http_error('warning', "429 Too Many Requests", error)
+        if request.blueprint == 'api':
+            return jsonify({
+                'success': False,
+                'error': 'Too many requests',
+            }), 429
+        return render_template('errors/page-429.html'), 429
 
     # Обработчик ошибки 404
     @app.errorhandler(404)
@@ -519,6 +534,37 @@ def registerErrorHandlers(app):
     @public_endpoint
     def access_forbidden():
         return render_template('errors/page-403.html'), 403
+
+    @got_request_exception.connect_via(app)
+    def _log_unhandled_request_exception(sender, exception, **_extra):
+        # Flask 3.1+: сигнал срабатывает только если нет подходящего error handler.
+        log_app_exception(exception)
+
+    @app.errorhandler(500)
+    def internal_server_error(error):
+        log_app_exception(error)
+        if current_app.config.get('DEBUG'):
+            raise error
+        return _render_server_error_response()
+
+    @app.errorhandler(Exception)
+    def unhandled_exception(error):
+        if isinstance(error, HTTPException):
+            return error
+        log_app_exception(error)
+        if current_app.config.get('DEBUG'):
+            raise error
+        return _render_server_error_response()
+
+
+def _render_server_error_response():
+    """Ответ 500 для HTML-страниц и API."""
+    if request.blueprint == 'api':
+        return jsonify({
+            'success': False,
+            'error': 'Internal server error',
+        }), 500
+    return render_template('errors/page-500.html'), 500
 
 
 def registerShellcontext(app):

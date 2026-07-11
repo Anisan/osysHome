@@ -928,6 +928,9 @@ class PropertyManager():
             if new_changed.tzinfo is not None:
                 from zoneinfo import ZoneInfo
                 new_changed = new_changed.astimezone(ZoneInfo("UTC")).replace(tzinfo=None)
+            else:
+                # Наивную дату считаем локальной (пользователь/система) и приводим к UTC
+                new_changed = convert_local_to_utc(new_changed)
         else:
             new_changed = get_now_to_utc()
         

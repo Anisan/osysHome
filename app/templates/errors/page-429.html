@@ -1,0 +1,18 @@
+{% extends "errors/layout.html" %}
+
+{% block title %} 429 Page {% endblock %}
+
+{% block error_icon %}clock{% endblock %}
+
+{% block error_code %}429{% endblock %}
+
+{% block error_subtitle %}{{ _('Too many requests') }}{% endblock %}
+
+{% block error_content %}
+<p class="mb-0">{{ _('You have sent too many requests. Please wait a moment and try again.') }}</p>
+{% endblock %}
+
+{% block error_actions %}
+<a href="/" class="btn btn-primary">{{ _('Home') }}</a>
+<a href="javascript:history.back()" class="btn btn-outline-secondary">{{ _('Back') }}</a>
+{% endblock %}

@@ -163,6 +163,7 @@ def addClassMethod(
     description:str=_UNSET,
     code:str=_UNSET,
     call_parent:int=_UNSET,
+    params:dict=_UNSET,
     update:bool=False,
 ) -> Method:
     """Add a method class to the database
@@ -173,6 +174,7 @@ def addClassMethod(
         description (str, optional): Description method. Defaults to ''.
         code (str, optional): Python code. Defaults to ''.
         call_parent (int, optional): Call parent. Defaults to 0.
+        params (dict, optional): Display params JSON (icon, color, sort_order). Defaults to None.
         update (bool, optional): Update existing method if it exists. Defaults to False.
 
     Returns:
@@ -192,6 +194,8 @@ def addClassMethod(
             if code is not _UNSET:
                 method.code = code
             method.call_parent = 0 if call_parent is _UNSET else call_parent
+            if params is not _UNSET:
+                method.params = json.dumps(params)
             session.add(method)
             session.commit()
             objects_storage.reload_objects_by_class(cls.id)
@@ -202,6 +206,8 @@ def addClassMethod(
                 method.code = code
             if call_parent is not _UNSET:
                 method.call_parent = call_parent
+            if params is not _UNSET:
+                method.params = json.dumps(params)
             session.commit()
             objects_storage.reload_objects_by_class(cls.id)
         return method
@@ -390,6 +396,7 @@ def addObjectMethod(
     description:str=_UNSET,
     code:str=_UNSET,
     call_parent:int=_UNSET,
+    params:dict=_UNSET,
     update:bool=False,
 ) -> bool:
     """Add a method object to the database
@@ -400,6 +407,7 @@ def addObjectMethod(
         description (str, optional): Description method. Defaults to ''.
         code (str, optional): Python code. Defaults to ''.
         call_parent (int, optional): Call parent. Defaults to 0.
+        params (dict, optional): Display params JSON (icon, color, sort_order). Defaults to None.
         update (bool, optional): Update existing method if it exists. Defaults to False.
 
     Returns:
@@ -423,6 +431,8 @@ def addObjectMethod(
             if code is not _UNSET:
                 method.code = code
             method.call_parent = 0 if call_parent is _UNSET else call_parent
+            if params is not _UNSET:
+                method.params = json.dumps(params)
             session.add(method)
             session.commit()
             objects_storage.reload_object(obj.id)
@@ -434,6 +444,8 @@ def addObjectMethod(
                 obj_method.code = code
             if call_parent is not _UNSET:
                 obj_method.call_parent = call_parent
+            if params is not _UNSET:
+                obj_method.params = json.dumps(params)
             session.commit()
             objects_storage.reload_object(obj.id)
         elif not obj_method and class_method and update:
@@ -446,6 +458,10 @@ def addObjectMethod(
             if code is not _UNSET:
                 method.code = code
             method.call_parent = class_method.call_parent if call_parent is _UNSET else call_parent
+            if params is not _UNSET:
+                method.params = json.dumps(params)
+            elif class_method.params:
+                method.params = class_method.params
             session.add(method)
             session.commit()
             objects_storage.reload_object(obj.id)

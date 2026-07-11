@@ -1,0 +1,883 @@
+{% macro icon_picker_field(input_id, label=None, placeholder=None, hint=None, value=None, modal_id='iconPickerModal', wrapper_class='mb-3', input_class='form-control', show_label=True) %}
+{% set preview_id = input_id ~ '-preview' %}
+{% set picker_btn_id = input_id ~ '-picker-btn' %}
+{% set placeholder_text = placeholder or gettext('fas fa-icon or mdi:home') %}
+{% set hint_text = hint or gettext('FontAwesome class or Iconify name (e.g. mdi:home)') %}
+<div class="{{ wrapper_class }} icon-picker-field" data-icon-picker-field="{{ input_id }}">
+    {% if show_label and label %}
+    <label class="form-label" for="{{ input_id }}">{{ label }}</label>
+    {% endif %}
+    <div class="input-group">
+        <span class="input-group-text icon-preview-box" id="{{ preview_id }}" title="{{ gettext('Preview') }}">
+            <span class="icon-preview-empty">—</span>
+        </span>
+        <input type="text"
+               class="{{ input_class }}"
+               id="{{ input_id }}"
+               value="{{ value or '' }}"
+               placeholder="{{ placeholder_text }}"
+               autocomplete="off"
+               data-icon-picker-input="{{ input_id }}">
+        <button type="button"
+                class="btn btn-outline-secondary"
+                id="{{ picker_btn_id }}"
+                data-icon-picker-open="{{ input_id }}"
+                data-bs-toggle="modal"
+                data-bs-target="#{{ modal_id }}"
+                title="{{ gettext('Choose icon') }}"
+                aria-label="{{ gettext('Choose icon') }}">
+            <i class="fas fa-icons"></i>
+        </button>
+    </div>
+    {% if hint_text %}
+    <small class="form-text text-muted">{{ hint_text }}</small>
+    {% endif %}
+</div>
+{% endmacro %}
+
+
+{% macro icon_picker_modal(modal_id='iconPickerModal') %}
+<div class="modal fade icon-picker-modal" id="{{ modal_id }}" tabindex="-1" aria-labelledby="{{ modal_id }}-label" aria-hidden="true" data-icon-picker-modal="{{ modal_id }}">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="{{ modal_id }}-label">{{ gettext('Choose icon') }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ gettext('Close') }}"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label visually-hidden" for="{{ modal_id }}-search">{{ gettext('Search icons') }}</label>
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="fas fa-search"></i></span>
+                        <input type="search" class="form-control" id="{{ modal_id }}-search" placeholder="{{ gettext('Search icons...') }}" autocomplete="off">
+                    </div>
+                </div>
+                <ul class="nav nav-tabs mb-3" id="{{ modal_id }}-tabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="{{ modal_id }}-tab-fa-btn" data-bs-toggle="tab" data-bs-target="#{{ modal_id }}-tab-fa" type="button" role="tab" aria-controls="{{ modal_id }}-tab-fa" aria-selected="true">FontAwesome</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="{{ modal_id }}-tab-iconify-btn" data-bs-toggle="tab" data-bs-target="#{{ modal_id }}-tab-iconify" type="button" role="tab" aria-controls="{{ modal_id }}-tab-iconify" aria-selected="false">Iconify</button>
+                    </li>
+                </ul>
+                <div class="tab-content" id="{{ modal_id }}-tab-content">
+                    <div class="tab-pane fade show active" id="{{ modal_id }}-tab-fa" role="tabpanel" aria-labelledby="{{ modal_id }}-tab-fa-btn" tabindex="0">
+                        <div class="row g-2 mb-2">
+                            <div class="col-12">
+                                <label class="form-label small mb-1" for="{{ modal_id }}-fa-category">{{ gettext('Category') }}</label>
+                                <select class="form-select form-select-sm" id="{{ modal_id }}-fa-category">
+                                    <option value="">{{ gettext('Loading...') }}</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="icon-picker-status text-muted small mb-2" id="{{ modal_id }}-fa-status"></div>
+                        <div class="icon-picker-grid" id="{{ modal_id }}-fa-grid" role="listbox" aria-label="FontAwesome"></div>
+                    </div>
+                    <div class="tab-pane fade" id="{{ modal_id }}-tab-iconify" role="tabpanel" aria-labelledby="{{ modal_id }}-tab-iconify-btn" tabindex="0">
+                        <div class="row g-2 mb-2">
+                            <div class="col-12">
+                                <label class="form-label small mb-1" for="{{ modal_id }}-iconify-set">{{ gettext('Icon set') }}</label>
+                                <select class="form-select form-select-sm" id="{{ modal_id }}-iconify-set">
+                                    <option value="mdi">{{ gettext('Loading...') }}</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="icon-picker-status text-muted small mb-2" id="{{ modal_id }}-iconify-status"></div>
+                        <div class="icon-picker-grid" id="{{ modal_id }}-iconify-grid" role="listbox" aria-label="Iconify"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-danger me-auto" id="{{ modal_id }}-clear-btn">
+                    <i class="fas fa-eraser me-1"></i>{{ gettext('Clear') }}
+                </button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ gettext('Close') }}</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endmacro %}
+
+
+{% macro icon_picker_assets() %}
+<style>
+    .icon-preview-box {
+        min-width: 2.75rem;
+        justify-content: center;
+        font-size: 1.25rem;
+        padding-inline: 0.5rem;
+    }
+
+    .icon-preview-box .icon-preview-empty {
+        font-size: 0.75rem;
+        opacity: 0.5;
+    }
+
+    .icon-picker-modal .icon-picker-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(2.75rem, 1fr));
+        gap: 0.25rem;
+        max-height: 340px;
+        overflow-y: auto;
+        padding: 0.25rem;
+        border: 1px solid var(--bs-border-color);
+        border-radius: 0.375rem;
+    }
+
+    .icon-picker-modal .icon-picker-item {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 2.75rem;
+        padding: 0.35rem;
+        border: 1px solid transparent;
+        border-radius: 0.375rem;
+        cursor: pointer;
+        font-size: 1.25rem;
+        background: transparent;
+        color: inherit;
+    }
+
+    .icon-picker-modal .icon-picker-item:hover,
+    .icon-picker-modal .icon-picker-item.active {
+        border-color: var(--bs-primary);
+        background-color: rgba(var(--bs-primary-rgb), 0.1);
+    }
+
+    .icon-picker-modal .icon-picker-status {
+        min-height: 1.25rem;
+    }
+</style>
+<script>
+(function() {
+    if (window.IconPicker) return;
+
+    const I18N = {
+        loading: {{ gettext('Loading...') | tojson }},
+        noIconsFound: {{ gettext('No icons found') | tojson }},
+        popularIcons: {{ gettext('Popular icons') | tojson }},
+        allSets: {{ gettext('All sets') | tojson }},
+        allCategories: {{ gettext('All categories') | tojson }},
+        other: {{ gettext('Other') | tojson }}
+    };
+
+    const POPULAR_FA_ICONS = [
+        'fas fa-home', 'fas fa-lightbulb', 'fas fa-thermometer-half', 'fas fa-tint',
+        'fas fa-bolt', 'fas fa-fan', 'fas fa-door-open', 'fas fa-lock', 'fas fa-unlock',
+        'fas fa-battery-full', 'fas fa-battery-half', 'fas fa-plug', 'fas fa-power-off',
+        'fas fa-sun', 'fas fa-moon', 'fas fa-cloud', 'fas fa-wind', 'fas fa-fire',
+        'fas fa-tv', 'fas fa-volume-up', 'fas fa-music', 'fas fa-camera', 'fas fa-video',
+        'fas fa-wifi', 'fas fa-signal', 'fas fa-bell', 'fas fa-clock', 'fas fa-calendar',
+        'fas fa-cog', 'fas fa-sliders-h', 'fas fa-toggle-on', 'fas fa-toggle-off',
+        'fa-solid fa-house', 'fa-solid fa-lightbulb', 'fa-solid fa-temperature-half',
+        'fa-solid fa-droplet', 'fa-solid fa-bolt', 'fa-solid fa-fan', 'fa-solid fa-door-open',
+        'fa-solid fa-lock', 'fa-solid fa-battery-full', 'fa-solid fa-plug', 'fa-solid fa-power-off',
+        'fa-solid fa-sun', 'fa-solid fa-moon', 'fa-solid fa-cloud', 'fa-solid fa-wind',
+        'fa-solid fa-fire', 'fa-solid fa-tv', 'fa-solid fa-volume-high', 'fa-solid fa-music',
+        'fa-solid fa-camera', 'fa-solid fa-wifi', 'fa-solid fa-bell', 'fa-solid fa-clock',
+        'fa-solid fa-gear', 'fa-solid fa-sliders', 'fa-solid fa-toggle-on', 'fa-solid fa-toggle-off',
+        'fa-brands fa-apple', 'fa-brands fa-google', 'fa-brands fa-amazon', 'fa-brands fa-bluetooth'
+    ];
+
+    const POPULAR_ICONIFY_ICONS = [
+        'mdi:home', 'mdi:lightbulb', 'mdi:thermometer', 'mdi:water-percent',
+        'mdi:flash', 'mdi:fan', 'mdi:door-open', 'mdi:lock', 'mdi:lock-open',
+        'mdi:battery', 'mdi:power-plug', 'mdi:power', 'mdi:weather-sunny', 'mdi:weather-night',
+        'mdi:weather-cloudy', 'mdi:weather-windy', 'mdi:fire', 'mdi:television',
+        'mdi:volume-high', 'mdi:music', 'mdi:camera', 'mdi:wifi', 'mdi:bell',
+        'mdi:clock-outline', 'mdi:cog', 'mdi:tune', 'mdi:toggle-switch',
+        'tabler:home', 'tabler:bulb', 'tabler:temperature', 'tabler:droplet',
+        'lucide:home', 'lucide:lightbulb', 'lucide:thermometer', 'lucide:droplets'
+    ];
+
+    const FA_ICONIFY_PREFIXES = ['fa6-solid', 'fa6-regular', 'fa6-brands', 'fa-solid', 'fa-regular', 'fa-brands', 'fas', 'far', 'fab'];
+    const FA_COLLECTION_PREFIXES = ['fa-solid', 'fa6-solid', 'fas'];
+    const FA_PREFIX_MAP = {
+        'fa6-solid': 'fa-solid',
+        'fa6-regular': 'fa-regular',
+        'fa6-brands': 'fa-brands',
+        'fas': 'fa-solid',
+        'far': 'fa-regular',
+        'fab': 'fa-brands'
+    };
+
+    const fields = new Map();
+    const modals = new Map();
+    let iconifyCollectionsPromise = null;
+    let faCollectionPromise = null;
+
+    const FALLBACK_ICONIFY_COLLECTIONS = [
+        { prefix: 'mdi', name: 'Material Design Icons', category: 'Material', total: 0 },
+        { prefix: 'tabler', name: 'Tabler Icons', category: 'UI 24px', total: 0 },
+        { prefix: 'lucide', name: 'Lucide', category: 'UI 24px', total: 0 },
+        { prefix: 'carbon', name: 'Carbon', category: 'UI 16px / 32px', total: 0 },
+        { prefix: 'material-symbols', name: 'Material Symbols', category: 'Material', total: 0 },
+        { prefix: 'heroicons', name: 'HeroIcons', category: 'UI Other / Mixed Grid', total: 0 },
+        { prefix: 'ph', name: 'Phosphor', category: 'UI Other / Mixed Grid', total: 0 },
+        { prefix: 'fluent', name: 'Fluent UI System Icons', category: 'UI Other / Mixed Grid', total: 0 }
+    ];
+
+    function normalizeIconValue(value) {
+        return String(value || '').trim();
+    }
+
+    function isIconifyValue(value) {
+        const raw = normalizeIconValue(value);
+        return raw.includes(':') && !raw.includes(' ');
+    }
+
+    async function fetchFaCollectionData() {
+        if (faCollectionPromise) return faCollectionPromise;
+        faCollectionPromise = (async function() {
+            for (let i = 0; i < FA_COLLECTION_PREFIXES.length; i++) {
+                const prefix = FA_COLLECTION_PREFIXES[i];
+                try {
+                    const response = await fetch(
+                        'https://api.iconify.design/collection?prefix=' + encodeURIComponent(prefix)
+                    );
+                    if (!response.ok) continue;
+                    const data = await response.json();
+                    return {
+                        prefix: data.prefix || prefix,
+                        categories: data.categories || {},
+                        uncategorized: Array.isArray(data.uncategorized) ? data.uncategorized : []
+                    };
+                } catch (e) {
+                    /* try next prefix */
+                }
+            }
+            return null;
+        })();
+        return faCollectionPromise;
+    }
+
+    function populateFaCategorySelect(modalState, collectionData, selectedCategory) {
+        const select = modalState.faCategory;
+        if (!select || !collectionData) return;
+
+        const preferred = selectedCategory || select.value || '';
+        select.innerHTML = '';
+
+        const allOption = document.createElement('option');
+        allOption.value = '';
+        allOption.textContent = I18N.allCategories;
+        select.appendChild(allOption);
+
+        Object.keys(collectionData.categories).sort(function(a, b) {
+            return a.localeCompare(b, undefined, { sensitivity: 'base' });
+        }).forEach(function(name) {
+            const icons = collectionData.categories[name] || [];
+            const option = document.createElement('option');
+            option.value = name;
+            option.textContent = icons.length ? name + ' (' + icons.length + ')' : name;
+            select.appendChild(option);
+        });
+
+        const match = Array.from(select.options).find(function(option) {
+            return option.value === preferred;
+        });
+        select.value = match ? preferred : '';
+    }
+
+    async function ensureFaCategories(modalState) {
+        if (modalState.faCategoriesLoaded) return;
+        const select = modalState.faCategory;
+        if (!select) return;
+
+        select.disabled = true;
+        const collectionData = await fetchFaCollectionData();
+        select.disabled = false;
+
+        if (collectionData) {
+            modalState.faCollectionData = collectionData;
+            populateFaCategorySelect(modalState, collectionData);
+        } else {
+            select.innerHTML = '';
+            const option = document.createElement('option');
+            option.value = '';
+            option.textContent = I18N.allCategories;
+            select.appendChild(option);
+        }
+
+        modalState.faCategoriesLoaded = true;
+    }
+
+    function faIconNamesToClasses(collectionData, names) {
+        const prefix = collectionData.prefix;
+        return (names || []).map(function(name) {
+            return iconifyNameToFaClass(prefix + ':' + name);
+        });
+    }
+
+    function filterFaCategoryIconNames(collectionData, categoryName, query) {
+        const q = normalizeIconValue(query).toLowerCase();
+        let names = categoryName
+            ? (collectionData.categories[categoryName] || []).slice()
+            : [];
+        if (!q) return names;
+        return names.filter(function(name) {
+            const haystack = (name + ' fa-' + name).toLowerCase();
+            return haystack.indexOf(q) !== -1;
+        });
+    }
+
+    async function fetchIconifyCollections() {
+        if (iconifyCollectionsPromise) return iconifyCollectionsPromise;
+        iconifyCollectionsPromise = fetch('https://api.iconify.design/collections')
+            .then(function(response) {
+                if (!response.ok) throw new Error('Iconify collections failed');
+                return response.json();
+            })
+            .then(function(data) {
+                const items = [];
+                Object.keys(data || {}).forEach(function(prefix) {
+                    const meta = data[prefix];
+                    if (!meta || meta.hidden) return;
+                    items.push({
+                        prefix: prefix,
+                        name: meta.name || prefix,
+                        category: meta.category || I18N.other,
+                        total: meta.total || 0
+                    });
+                });
+                items.sort(function(a, b) {
+                    return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+                });
+                return items;
+            })
+            .catch(function() {
+                return null;
+            });
+        return iconifyCollectionsPromise;
+    }
+
+    function formatCollectionLabel(item) {
+        const count = item.total ? ' · ' + item.total : '';
+        return item.name + ' (' + item.prefix + count + ')';
+    }
+
+    function populateIconifySetSelect(modalState, collections, selectedPrefix) {
+        const select = modalState.iconifySet;
+        if (!select || !collections || !collections.length) return;
+
+        const preferred = selectedPrefix || select.value || 'mdi';
+        select.innerHTML = '';
+
+        const allOption = document.createElement('option');
+        allOption.value = '';
+        allOption.textContent = I18N.allSets;
+        select.appendChild(allOption);
+
+        const groups = new Map();
+        collections.forEach(function(item) {
+            const category = item.category || I18N.other;
+            if (!groups.has(category)) groups.set(category, []);
+            groups.get(category).push(item);
+        });
+
+        Array.from(groups.keys()).sort(function(a, b) {
+            return a.localeCompare(b, undefined, { sensitivity: 'base' });
+        }).forEach(function(category) {
+            const optgroup = document.createElement('optgroup');
+            optgroup.label = category;
+            groups.get(category).forEach(function(item) {
+                const option = document.createElement('option');
+                option.value = item.prefix;
+                option.textContent = formatCollectionLabel(item);
+                optgroup.appendChild(option);
+            });
+            select.appendChild(optgroup);
+        });
+
+        const match = Array.from(select.options).find(function(option) {
+            return option.value === preferred;
+        });
+        if (match) {
+            select.value = preferred;
+        } else if (select.querySelector('option[value="mdi"]')) {
+            select.value = 'mdi';
+        } else {
+            select.value = '';
+        }
+    }
+
+    function detectIconifyPrefix(modalState) {
+        const field = modalState.activeInputId ? getField(modalState.activeInputId) : null;
+        const value = field && field.input ? normalizeIconValue(field.input.value) : '';
+        if (isIconifyValue(value)) {
+            return value.split(':')[0];
+        }
+        return 'mdi';
+    }
+
+    async function ensureIconifyCollections(modalState) {
+        if (modalState.iconifyCollectionsLoaded) return;
+        const select = modalState.iconifySet;
+        if (!select) return;
+
+        const selectedPrefix = detectIconifyPrefix(modalState);
+        select.disabled = true;
+        const collections = await fetchIconifyCollections();
+        select.disabled = false;
+
+        populateIconifySetSelect(
+            modalState,
+            collections && collections.length ? collections : FALLBACK_ICONIFY_COLLECTIONS,
+            selectedPrefix
+        );
+        modalState.iconifyCollectionsLoaded = true;
+    }
+
+    function iconifyNameToFaClass(iconifyName) {
+        const idx = iconifyName.indexOf(':');
+        if (idx === -1) return iconifyName;
+        const prefix = iconifyName.slice(0, idx);
+        const name = iconifyName.slice(idx + 1);
+        const faPrefix = FA_PREFIX_MAP[prefix] || prefix;
+        return faPrefix + ' fa-' + name;
+    }
+
+    function renderIconPreviewElement(value) {
+        const raw = normalizeIconValue(value);
+        if (!raw) return null;
+        if (isIconifyValue(raw)) {
+            const iconify = document.createElement('iconify-icon');
+            iconify.setAttribute('icon', raw);
+            iconify.style.fontSize = '1.25rem';
+            return iconify;
+        }
+        const icon = document.createElement('i');
+        icon.className = raw;
+        return icon;
+    }
+
+    function scanIconify(root) {
+        if (typeof Iconify !== 'undefined' && typeof Iconify.scan === 'function') {
+            Iconify.scan(root);
+        }
+    }
+
+    function getField(inputId) {
+        const field = fields.get(inputId);
+        if (!field) return null;
+        if (!field.input) {
+            field.input = document.getElementById(inputId);
+        }
+        if (!field.preview) {
+            field.preview = document.getElementById(inputId + '-preview');
+        }
+        return field;
+    }
+
+    function updatePreview(inputId) {
+        const field = getField(inputId);
+        if (!field || !field.preview) return;
+        field.preview.innerHTML = '';
+        const value = field.input ? field.input.value : '';
+        const preview = renderIconPreviewElement(value);
+        if (preview) {
+            field.preview.appendChild(preview);
+            scanIconify(field.preview);
+            return;
+        }
+        const empty = document.createElement('span');
+        empty.className = 'icon-preview-empty';
+        empty.textContent = '—';
+        field.preview.appendChild(empty);
+    }
+
+    function notifyChange(inputId) {
+        const field = getField(inputId);
+        if (!field) return;
+        if (typeof field.onChange === 'function') {
+            field.onChange(field.input ? field.input.value : '', field.input);
+        }
+        field.input && field.input.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+
+    function setValue(inputId, value, options) {
+        const field = getField(inputId);
+        if (!field || !field.input) return;
+        const opts = options || {};
+        field.input.value = normalizeIconValue(value);
+        updatePreview(inputId);
+        notifyChange(inputId);
+        if (opts.closeModal) {
+            const modalState = modals.get(field.modalId);
+            if (modalState && modalState.element && window.bootstrap) {
+                const modalInstance = bootstrap.Modal.getInstance(modalState.element) || bootstrap.Modal.getOrCreateInstance(modalState.element);
+                modalInstance.hide();
+            }
+        }
+    }
+
+    function uniqueIcons(items) {
+        const seen = new Set();
+        const result = [];
+        items.forEach(function(item) {
+            const value = normalizeIconValue(item);
+            if (!value || seen.has(value)) return;
+            seen.add(value);
+            result.push(value);
+        });
+        return result;
+    }
+
+    function filterPopularFaIcons(query) {
+        const q = normalizeIconValue(query).toLowerCase();
+        if (!q) return POPULAR_FA_ICONS.slice();
+        return POPULAR_FA_ICONS.filter(function(item) {
+            return item.toLowerCase().includes(q);
+        });
+    }
+
+    function filterPopularIconifyIcons(query, prefix) {
+        const q = normalizeIconValue(query).toLowerCase();
+        let source = POPULAR_ICONIFY_ICONS;
+        if (prefix) {
+            const p = prefix + ':';
+            source = source.filter(function(item) { return item.startsWith(p); });
+        }
+        if (!q) return source.slice();
+        return source.filter(function(item) {
+            return item.toLowerCase().includes(q);
+        });
+    }
+
+    async function searchIconifyIcons(query, prefix, limit) {
+        const params = new URLSearchParams();
+        params.set('query', query || 'home');
+        params.set('limit', String(limit || 72));
+        if (prefix) params.set('prefix', prefix);
+        const response = await fetch('https://api.iconify.design/search?' + params.toString());
+        if (!response.ok) throw new Error('Iconify search failed');
+        const data = await response.json();
+        return Array.isArray(data.icons) ? data.icons : [];
+    }
+
+    async function fetchIconifyCollectionIcons(prefix, limit, categoryName) {
+        const max = limit || 96;
+        try {
+            const response = await fetch(
+                'https://api.iconify.design/collection?prefix=' + encodeURIComponent(prefix)
+            );
+            if (!response.ok) throw new Error('Iconify collection failed');
+            const data = await response.json();
+            const collectionPrefix = data.prefix || prefix;
+            const icons = [];
+            const pushName = function(name) {
+                if (!name || icons.length >= max) return;
+                icons.push(collectionPrefix + ':' + name);
+            };
+            if (categoryName && data.categories && data.categories[categoryName]) {
+                data.categories[categoryName].forEach(pushName);
+            } else if (Array.isArray(data.uncategorized)) {
+                data.uncategorized.forEach(pushName);
+            }
+            if (!categoryName && data.categories && icons.length < max) {
+                Object.keys(data.categories).forEach(function(category) {
+                    (data.categories[category] || []).forEach(pushName);
+                });
+            }
+            if (icons.length) return icons.slice(0, max);
+        } catch (e) {
+            throw e;
+        }
+        throw new Error('Iconify collection failed');
+    }
+
+    async function searchFaIcons(query, categoryName, collectionData) {
+        const q = normalizeIconValue(query);
+        if (!q) {
+            if (categoryName && collectionData) {
+                return faIconNamesToClasses(
+                    collectionData,
+                    collectionData.categories[categoryName] || []
+                );
+            }
+            return filterPopularFaIcons('');
+        }
+        if (categoryName && collectionData) {
+            return faIconNamesToClasses(
+                collectionData,
+                filterFaCategoryIconNames(collectionData, categoryName, q)
+            );
+        }
+        const requests = FA_ICONIFY_PREFIXES.map(function(prefix) {
+            return searchIconifyIcons(q, prefix, 24).catch(function() { return []; });
+        });
+        const chunks = await Promise.all(requests);
+        const converted = [];
+        chunks.forEach(function(chunk) {
+            chunk.forEach(function(iconifyName) {
+                converted.push(iconifyNameToFaClass(iconifyName));
+            });
+        });
+        return uniqueIcons(filterPopularFaIcons(q).concat(converted)).slice(0, 96);
+    }
+
+    function setPickerStatus(el, message) {
+        if (el) el.textContent = message || '';
+    }
+
+    function createPickerButton(modalState, value, displayNode, title) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'icon-picker-item';
+        btn.title = title || value;
+        btn.setAttribute('aria-label', title || value);
+        btn.dataset.iconValue = value;
+        if (displayNode) btn.appendChild(displayNode);
+        btn.addEventListener('click', function() {
+            if (!modalState.activeInputId) return;
+            setValue(modalState.activeInputId, value, { closeModal: true });
+            refreshModalGrids(modalState);
+        });
+        return btn;
+    }
+
+    function renderFaPickerGrid(modalState) {
+        if (!modalState.faGrid) return;
+        modalState.faGrid.innerHTML = '';
+        const field = modalState.activeInputId ? getField(modalState.activeInputId) : null;
+        const current = field && field.input ? normalizeIconValue(field.input.value) : '';
+        modalState.faItems.forEach(function(item) {
+            const icon = document.createElement('i');
+            icon.className = item;
+            const btn = createPickerButton(modalState, item, icon, item);
+            if (current === item) btn.classList.add('active');
+            modalState.faGrid.appendChild(btn);
+        });
+    }
+
+    function renderIconifyPickerGrid(modalState) {
+        if (!modalState.iconifyGrid) return;
+        modalState.iconifyGrid.innerHTML = '';
+        const field = modalState.activeInputId ? getField(modalState.activeInputId) : null;
+        const current = field && field.input ? normalizeIconValue(field.input.value) : '';
+        modalState.iconifyItems.forEach(function(item) {
+            const iconify = document.createElement('iconify-icon');
+            iconify.setAttribute('icon', item);
+            const btn = createPickerButton(modalState, item, iconify, item);
+            if (current === item) btn.classList.add('active');
+            modalState.iconifyGrid.appendChild(btn);
+        });
+        scanIconify(modalState.iconifyGrid);
+    }
+
+    async function loadFaPickerIcons(modalState, query) {
+        const requestId = ++modalState.faRequestId;
+        const categoryName = modalState.faCategory ? modalState.faCategory.value : '';
+        const collectionData = modalState.faCollectionData || null;
+        const q = normalizeIconValue(query);
+        setPickerStatus(modalState.faStatus, I18N.loading);
+        try {
+            const icons = await searchFaIcons(q, categoryName, collectionData);
+            if (requestId !== modalState.faRequestId) return;
+            modalState.faItems = icons;
+            if (!icons.length) {
+                renderFaPickerGrid(modalState);
+                setPickerStatus(modalState.faStatus, I18N.noIconsFound);
+                return;
+            }
+            renderFaPickerGrid(modalState);
+            setPickerStatus(modalState.faStatus, String(icons.length));
+        } catch (e) {
+            if (requestId !== modalState.faRequestId) return;
+            modalState.faItems = filterPopularFaIcons(q);
+            renderFaPickerGrid(modalState);
+            setPickerStatus(modalState.faStatus, I18N.popularIcons);
+        }
+    }
+
+    async function loadIconifyPickerIcons(modalState, query) {
+        const requestId = ++modalState.iconifyRequestId;
+        const prefix = modalState.iconifySet ? modalState.iconifySet.value : '';
+        const q = normalizeIconValue(query);
+        setPickerStatus(modalState.iconifyStatus, I18N.loading);
+        try {
+            let icons;
+            if (!q) {
+                if (prefix) {
+                    icons = await fetchIconifyCollectionIcons(prefix, 96);
+                } else {
+                    icons = filterPopularIconifyIcons('', '');
+                }
+            } else {
+                icons = await searchIconifyIcons(q, prefix || '', 96);
+            }
+            icons = uniqueIcons(icons);
+            if (requestId !== modalState.iconifyRequestId) return;
+            modalState.iconifyItems = icons;
+            if (!icons.length) {
+                renderIconifyPickerGrid(modalState);
+                setPickerStatus(modalState.iconifyStatus, I18N.noIconsFound);
+                return;
+            }
+            renderIconifyPickerGrid(modalState);
+            setPickerStatus(modalState.iconifyStatus, String(icons.length));
+        } catch (e) {
+            if (requestId !== modalState.iconifyRequestId) return;
+            modalState.iconifyItems = filterPopularIconifyIcons(q, prefix);
+            renderIconifyPickerGrid(modalState);
+            setPickerStatus(modalState.iconifyStatus, I18N.popularIcons);
+        }
+    }
+
+    function refreshModalGrids(modalState) {
+        const query = modalState.search ? modalState.search.value : '';
+        loadFaPickerIcons(modalState, query);
+        loadIconifyPickerIcons(modalState, query);
+    }
+
+    function scheduleModalSearch(modalState) {
+        clearTimeout(modalState.searchTimer);
+        modalState.searchTimer = setTimeout(function() {
+            refreshModalGrids(modalState);
+        }, 300);
+    }
+
+    function bindModal(modalId) {
+        if (modals.has(modalId)) return modals.get(modalId);
+
+        const element = document.getElementById(modalId);
+        if (!element) return null;
+
+        const modalState = {
+            id: modalId,
+            element: element,
+            search: document.getElementById(modalId + '-search'),
+            faGrid: document.getElementById(modalId + '-fa-grid'),
+            faCategory: document.getElementById(modalId + '-fa-category'),
+            iconifyGrid: document.getElementById(modalId + '-iconify-grid'),
+            faStatus: document.getElementById(modalId + '-fa-status'),
+            iconifyStatus: document.getElementById(modalId + '-iconify-status'),
+            iconifySet: document.getElementById(modalId + '-iconify-set'),
+            clearBtn: document.getElementById(modalId + '-clear-btn'),
+            activeInputId: null,
+            faItems: [],
+            iconifyItems: [],
+            faRequestId: 0,
+            iconifyRequestId: 0,
+            searchTimer: null,
+            faCategoriesLoaded: false,
+            faCollectionData: null,
+            iconifyCollectionsLoaded: false
+        };
+
+        if (modalState.search) {
+            modalState.search.addEventListener('input', function() {
+                scheduleModalSearch(modalState);
+            });
+        }
+        if (modalState.faCategory) {
+            modalState.faCategory.addEventListener('change', function() {
+                refreshModalGrids(modalState);
+            });
+        }
+        if (modalState.iconifySet) {
+            modalState.iconifySet.addEventListener('change', function() {
+                refreshModalGrids(modalState);
+            });
+        }
+        if (modalState.clearBtn) {
+            modalState.clearBtn.addEventListener('click', function() {
+                if (!modalState.activeInputId) return;
+                setValue(modalState.activeInputId, '', { closeModal: false });
+                refreshModalGrids(modalState);
+            });
+        }
+
+        element.addEventListener('show.bs.modal', function(event) {
+            const trigger = event.relatedTarget;
+            if (trigger && trigger.dataset.iconPickerOpen) {
+                modalState.activeInputId = trigger.dataset.iconPickerOpen;
+            }
+        });
+
+        element.addEventListener('shown.bs.modal', function() {
+            Promise.all([
+                ensureFaCategories(modalState),
+                ensureIconifyCollections(modalState)
+            ]).then(function() {
+                refreshModalGrids(modalState);
+            });
+            if (modalState.search) {
+                modalState.search.focus();
+                modalState.search.select();
+            }
+        });
+
+        const tabButtons = element.querySelectorAll('button[data-bs-toggle="tab"]');
+        tabButtons.forEach(function(btn) {
+            btn.addEventListener('shown.bs.tab', function() {
+                Promise.all([
+                    ensureFaCategories(modalState),
+                    ensureIconifyCollections(modalState)
+                ]).then(function() {
+                    refreshModalGrids(modalState);
+                });
+            });
+        });
+
+        modals.set(modalId, modalState);
+        return modalState;
+    }
+
+    function register(inputId, options) {
+        const opts = options || {};
+        const modalId = opts.modalId || 'iconPickerModal';
+        fields.set(inputId, {
+            inputId: inputId,
+            modalId: modalId,
+            onChange: opts.onChange || null,
+            input: null,
+            preview: null
+        });
+
+        bindModal(modalId);
+
+        const input = document.getElementById(inputId);
+        if (input) {
+            input.addEventListener('input', function() {
+                updatePreview(inputId);
+            });
+            input.addEventListener('change', function() {
+                updatePreview(inputId);
+            });
+        }
+
+        updatePreview(inputId);
+        return {
+            updatePreview: function() { updatePreview(inputId); },
+            setValue: function(value, closeModal) { setValue(inputId, value, { closeModal: !!closeModal }); },
+            getValue: function() {
+                const field = getField(inputId);
+                return field && field.input ? field.input.value : '';
+            }
+        };
+    }
+
+    function init() {
+        document.querySelectorAll('[data-icon-picker-modal]').forEach(function(el) {
+            bindModal(el.id);
+        });
+        fetchIconifyCollections();
+        fetchFaCollectionData();
+    }
+
+    window.IconPicker = {
+        register: register,
+        updatePreview: updatePreview,
+        setValue: setValue,
+        init: init
+    };
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+    } else {
+        init();
+    }
+})();
+</script>
+{% endmacro %}

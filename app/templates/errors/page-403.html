@@ -1,38 +1,18 @@
-{% extends "layouts/base-fullscreen.html" %}
+{% extends "errors/layout.html" %}
 
 {% block title %} 403 Page {% endblock %}
 
-{% block content %}   
+{% block error_icon %}shield-off{% endblock %}
 
-    <div class="auth-wrapper">
-        <div class="auth-content">
-            <div class="auth-bg">
-                <span class="r"></span>
-                <span class="r s"></span>
-                <span class="r s"></span>
-                <span class="r"></span>
-            </div>
-            <div class="card">
-                <div class="card-body text-center">
-                    <div class="mb-4">
-                        <i class="feather x-circle"></i>
-                    </div>
-                    <h3 class="mb-4">{{ _('Error')}} 403</h3>
+{% block error_code %}403{% endblock %}
 
-                    <br />
+{% block error_subtitle %}{{ _('Access denied') }}{% endblock %}
 
-                    <span class="mb-0 text-muted">
-                        <h4>{{ _('Access denied')}}</h4>
-                        <a href="/">{{ _('Home')}}</a> <a href="/admin">{{ _('Control panel')}}</a>
-                        <form method="post" action="{{ url_for('auth.logout') }}" class="d-inline">
-                          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                          <button type="submit" class="btn btn-link p-0 align-baseline">{{ _('Logout')}}</button>
-                        </form>
-                    </span>
-
-                </div>
-            </div>
-        </div>
-    </div>
-
-{% endblock content %}
+{% block error_actions %}
+<a href="/" class="btn btn-primary">{{ _('Home') }}</a>
+<a href="/admin" class="btn btn-outline-secondary">{{ _('Control panel') }}</a>
+<form method="post" action="{{ url_for('auth.logout') }}" class="d-inline">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button type="submit" class="btn btn-outline-secondary">{{ _('Logout') }}</button>
+</form>
+{% endblock %}

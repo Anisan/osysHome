@@ -1,0 +1,36 @@
+{% extends "layouts/base-fullscreen.html" %}
+
+{% block content %}
+<section class="vh-100">
+    <div class="container py-5 h-100">
+        <div class="row d-flex justify-content-center align-items-center h-100">
+            <div class="col-12 col-md-8 col-lg-6 col-xl-5">
+                <div class="card shadow-2-strong" style="border-radius: 1rem;">
+                    <div class="card-body p-4 p-md-5 text-center">
+                        <a href="/">
+                            <img src="{{ config.ASSETS_ROOT }}/images/logo.png" class="mb-4" style="max-height: 64px;" alt="osysHome">
+                        </a>
+
+                        <div class="mb-3">
+                            <i class="feather {% block error_icon %}alert-circle{% endblock %} text-danger" style="font-size: 2.5rem;"></i>
+                        </div>
+
+                        <h2 class="fw-bold mb-2">{{ _('Error') }} {% block error_code %}{% endblock %}</h2>
+                        <p class="text-muted mb-4">{% block error_subtitle %}{% endblock %}</p>
+
+                        <div class="text-start text-muted small">
+                            {% block error_content %}{% endblock %}
+                        </div>
+
+                        <div class="d-flex flex-wrap justify-content-center gap-2 mt-4">
+                            {% block error_actions %}
+                            <a href="/" class="btn btn-primary">{{ _('Home') }}</a>
+                            {% endblock %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock content %}
