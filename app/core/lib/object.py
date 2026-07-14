@@ -9,6 +9,7 @@ from app.database import session_scope, row2dict
 from app.core.models.Clasess import Class, Object, Property, Value, Method, History
 from app.core.main.ObjectManager import ObjectManager, PropertyManager, ObjectLoggerAdapter
 from app.core.lib.constants import PropertyType
+from app.core.lib.object_tree import invalidate_objects_tree_cache
 
 _logger = getLogger('object')
 _UNSET = object()
@@ -42,6 +43,7 @@ def addClass(name:str, description:str=_UNSET, parentId:int=_UNSET, update:bool=
             session.add(cls)
             session.commit()
             objects_storage.reload_objects_by_class(cls.id)
+            invalidate_objects_tree_cache()
         elif update:
             if description is not _UNSET:
                 cls.description = description
@@ -49,6 +51,7 @@ def addClass(name:str, description:str=_UNSET, parentId:int=_UNSET, update:bool=
                 cls.parent_id = parentId
             session.commit()
             objects_storage.reload_objects_by_class(cls.id)
+            invalidate_objects_tree_cache()
         return row2dict(cls)
 
 def getClass(name:str) -> dict:
@@ -83,8 +86,9 @@ def updateClass(cls:dict) -> bool:
         rec.description = cls['description']
         rec.parent_id = cls['parent_id']
         rec.template = cls['template']
-        session.commit
+        session.commit()
         objects_storage.reload_objects_by_class(rec.id)
+        invalidate_objects_tree_cache()
         return True
 
 
@@ -238,6 +242,7 @@ def addObject(name:str, class_name:str=_UNSET, description=_UNSET, update:bool=F
             session.add(obj)
             session.commit()
             objects_storage.reload_object(obj.id)
+            invalidate_objects_tree_cache()
         elif update:
             if class_name is not _UNSET:
                 cls = session.query(Class).filter(Class.name == class_name).one_or_none()
@@ -246,6 +251,7 @@ def addObject(name:str, class_name:str=_UNSET, description=_UNSET, update:bool=F
                 obj.description = description
             session.commit()
             objects_storage.reload_object(obj.id)
+            invalidate_objects_tree_cache()
         return objects_storage.getObjectByName(name)
 
 def addObjectProperty(
@@ -896,6 +902,7 @@ def deleteObject(name: str):
     db.session.commit()
     if deleted_name:
         objects_storage.remove_object(deleted_name)
+        invalidate_objects_tree_cache()
         return True
     return False
 
@@ -937,6 +944,7 @@ def renameObject(old_name: str, new_name: str) -> bool:
         deleteObjectProperty(f"_permissions.{perm_key_old}")
 
     objects_storage.rename_object(old_name, new_name, object_id)
+    invalidate_objects_tree_cache()
     return True
 
 def setLinkToObject(object_name:str, property_name:str, link:str) -> bool:
