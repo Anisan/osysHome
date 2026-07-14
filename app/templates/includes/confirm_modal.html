@@ -1,0 +1,23 @@
+<div class="modal fade" id="appConfirmModal" tabindex="-1" aria-labelledby="appConfirmModalTitle" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false" style="--bs-modal-zindex: 1200;">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="appConfirmModalTitle">{{ _('Confirm') }}</h5>
+      </div>
+      <div class="modal-body">
+        <p class="mb-0" id="appConfirmModalMessage" style="white-space: pre-wrap;"></p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" id="appConfirmModalCancel">{{ _('Cancel') }}</button>
+        <button type="button" class="btn btn-primary" id="appConfirmModalConfirm">{{ _('Confirm') }}</button>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+  window.ConfirmModalI18n = {
+    title: {{ _('Confirm')|tojson }},
+    confirm: {{ _('Confirm')|tojson }},
+    cancel: {{ _('Cancel')|tojson }}
+  };
+</script>
