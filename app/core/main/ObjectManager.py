@@ -494,6 +494,7 @@ class PropertyManager():
         name: Name of the property.
         description: Description of the property.
         object_id: ID of the object.
+        object_name: Name of the object (for logging).
         history: History count of the property or 0 if not specified.
         changed: Timestamp when the value was changed, None if no value.
         method: Method associated with the property (initialized to None).
@@ -505,12 +506,13 @@ class PropertyManager():
         count_write: Count of write operations (initialized to 0).
         readed: Timestamp of when the property was last read (UTC).
     """
-    def __init__(self, object_id:int, property: Property, value: Value):
+    def __init__(self, object_id:int, property: Property, value: Value, object_name: str = None):
         self.property_id = property.id
         self.value_id = value.id if value else None
         self.name = property.name
         self.description = property.description
         self.object_id = object_id
+        self.object_name = object_name or 'Unknown'
         self.history = property.history or 0
         self.changed = value.changed if value else None
         self.method = None
@@ -620,7 +622,7 @@ class PropertyManager():
                                 converted_value = int(float(value))
                             except (TypeError, ValueError):
                                 _logger.warning(
-                                    f"Error parsing int during initialization (object_id={self.object_id}, name={self.name}, value={value})",
+                                    f"Error parsing int during initialization ({self.object_name}.{self.name}, value={value})",
                                     exc_info=True,
                                 )
                                 converted_value = value
@@ -768,13 +770,13 @@ class PropertyManager():
                     converted_value = self._ensure_universal_color(value)
                 except Exception as color_ex:
                     _logger.warning(
-                        f"Error parsing color during initialization (object_id={self.object_id}, name={self.name}, value={value}): {color_ex}",
+                        f"Error parsing color during initialization ({self.object_name}.{self.name}, value={value}): {color_ex}",
                         exc_info=True,
                     )
                     converted_value = value
             elif init:
                 _logger.warning(
-                    f"Error parsing value during initialization (object_id={self.object_id}, name={self.name}, type={self.type}, value={value}): {str(ex)}",
+                    f"Error parsing value during initialization ({self.object_name}.{self.name}, type={self.type}, value={value}): {str(ex)}",
                     exc_info=True
                 )
                 # During initialization, return the original value if parsing fails
@@ -782,14 +784,14 @@ class PropertyManager():
             else:
                 # During set operations, raise the exception to prevent invalid values
                 _logger.error(
-                    f"Error parsing value (object_id={self.object_id}, name={self.name}, type={self.type}, value={value}): {str(ex)}",
+                    f"Error parsing value ({self.object_name}.{self.name}, type={self.type}, value={value}): {str(ex)}",
                     exc_info=True
                 )
                 raise ValueError(f"Failed to parse value '{value}' for property '{self.name}': {str(ex)}") from ex
         except ValueError as ex:
             if init:
                 _logger.warning(
-                    f"Error validating value during initialization (object_id={self.object_id}, name={self.name}, type={self.type}, value={value}): {str(ex)}",
+                    f"Error validating value during initialization ({self.object_name}.{self.name}, type={self.type}, value={value}): {str(ex)}",
                     exc_info=True,
                 )
                 converted_value = value
@@ -803,13 +805,13 @@ class PropertyManager():
                     converted_value = self._ensure_universal_color(value)
                 except Exception as color_ex:
                     _logger.warning(
-                        f"Error decoding color during initialization (object_id={self.object_id}, name={self.name}, value={value}): {color_ex}",
+                        f"Error decoding color during initialization ({self.object_name}.{self.name}, value={value}): {color_ex}",
                         exc_info=True,
                     )
                     converted_value = value
             elif init:
                 _logger.warning(
-                    f"Error decoding value during initialization (object_id={self.object_id}, name={self.name}, value={value}): {str(ex)}",
+                    f"Error decoding value during initialization ({self.object_name}.{self.name}, value={value}): {str(ex)}",
                     exc_info=True
                 )
                 # During initialization, return the original value if conversion fails
@@ -817,7 +819,7 @@ class PropertyManager():
             else:
                 # During set operations, raise the exception to prevent invalid values
                 _logger.error(
-                    f"Error decoding value (object_id={self.object_id}, name={self.name}, value={value}): {str(ex)}",
+                    f"Error decoding value ({self.object_name}.{self.name}, value={value}): {str(ex)}",
                     exc_info=True
                 )
                 raise ValueError(f"Failed to decode value '{value}' for property '{self.name}': {str(ex)}") from ex
@@ -1437,7 +1439,7 @@ class ObjectManager:
                     property_db.type = type(value).__name__
                     session.add(property_db)
                     session.commit()
-                    prop = PropertyManager(self.object_id, property_db, None)
+                    prop = PropertyManager(self.object_id, property_db, None, self.name)
                     self._addProperty(prop)
             prop = self.properties[name]
             
