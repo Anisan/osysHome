@@ -6,6 +6,12 @@
   var pendingResolve = null;
   var i18n = global.ConfirmModalI18n || {};
 
+  var alertModalEl = null;
+  var alertModalInstance = null;
+  var alertPendingResolve = null;
+  var alertQueue = [];
+  var alertI18n = global.AlertModalI18n || {};
+
   function getModal() {
     if (!modalEl) {
       modalEl = document.getElementById('appConfirmModal');
@@ -30,6 +36,30 @@
     return modalInstance;
   }
 
+  function getAlertModal() {
+    if (!alertModalEl) {
+      alertModalEl = document.getElementById('appAlertModal');
+    }
+    return alertModalEl;
+  }
+
+  function getAlertInstance() {
+    if (typeof bootstrap === 'undefined') {
+      return null;
+    }
+    var el = getAlertModal();
+    if (!el) {
+      return null;
+    }
+    if (!alertModalInstance) {
+      alertModalInstance = bootstrap.Modal.getOrCreateInstance(el, {
+        backdrop: 'static',
+        keyboard: false
+      });
+    }
+    return alertModalInstance;
+  }
+
   function closeOpenDropdowns(triggerEl) {
     if (typeof bootstrap === 'undefined') {
       return;
@@ -49,6 +79,27 @@
 
   function isDangerMessage(message) {
     return /delete|remove|clear|drop|удал|очист|сброс/i.test(message || '');
+  }
+
+  function setModalHeaderIcon(iconEl, kind, danger) {
+    if (!iconEl) {
+      return;
+    }
+    var icons = {
+      confirm: {
+        normal: ['fa-circle-question', 'text-primary'],
+        danger: ['fa-triangle-exclamation', 'text-danger']
+      },
+      alert: {
+        normal: ['fa-circle-info', 'text-primary'],
+        danger: ['fa-circle-exclamation', 'text-danger']
+      }
+    };
+    var config = icons[kind] && icons[kind][danger ? 'danger' : 'normal'];
+    if (!config) {
+      return;
+    }
+    iconEl.className = 'fas ' + config[0] + ' me-2 ' + config[1];
   }
 
   function decodeJsString(str) {
@@ -119,7 +170,8 @@
       var settled = false;
       var handlers = {};
 
-      var titleEl = document.getElementById('appConfirmModalTitle');
+      var titleEl = document.getElementById('appConfirmModalTitleText');
+      var iconEl = document.getElementById('appConfirmModalIcon');
       var messageEl = document.getElementById('appConfirmModalMessage');
       var confirmBtn = document.getElementById('appConfirmModalConfirm');
       var cancelBtn = document.getElementById('appConfirmModalCancel');
@@ -140,6 +192,7 @@
       if (titleEl) {
         titleEl.textContent = options.title || i18n.title || 'Confirm';
       }
+      setModalHeaderIcon(iconEl, 'confirm', danger);
       if (messageEl) {
         messageEl.textContent = message || '';
       }
@@ -190,6 +243,120 @@
       el.addEventListener('shown.bs.modal', handlers.onShown, { once: true });
 
       instance.show();
+    });
+  }
+
+  function cleanupAlertListeners(el, handlers) {
+    if (!el || !handlers) {
+      return;
+    }
+    if (handlers.onOk && handlers.okBtn) {
+      handlers.okBtn.removeEventListener('click', handlers.onOk);
+    }
+    if (handlers.onHidden) {
+      el.removeEventListener('hidden.bs.modal', handlers.onHidden);
+    }
+    if (handlers.onShown) {
+      el.removeEventListener('shown.bs.modal', handlers.onShown);
+    }
+  }
+
+  function processAlertQueue() {
+    if (alertPendingResolve || !alertQueue.length) {
+      return;
+    }
+
+    var item = alertQueue.shift();
+    var el = getAlertModal();
+    var instance = getAlertInstance();
+    if (!el || !instance) {
+      if (global.nativeAlert) {
+        global.nativeAlert(item.message);
+      }
+      item.resolve();
+      processAlertQueue();
+      return;
+    }
+
+    alertPendingResolve = item.resolve;
+    var settled = false;
+    var handlers = {};
+
+    var titleEl = document.getElementById('appAlertModalTitleText');
+    var iconEl = document.getElementById('appAlertModalIcon');
+    var messageEl = document.getElementById('appAlertModalMessage');
+    var okBtn = document.getElementById('appAlertModalOk');
+    if (!okBtn) {
+      alertPendingResolve = null;
+      if (global.nativeAlert) {
+        global.nativeAlert(item.message);
+      }
+      item.resolve();
+      processAlertQueue();
+      return;
+    }
+
+    handlers.okBtn = okBtn;
+
+    var danger = item.options.danger;
+    if (danger === undefined) {
+      danger = item.options.error || isDangerMessage(item.message);
+    }
+
+    if (titleEl) {
+      titleEl.textContent = item.options.title
+        || (danger ? (alertI18n.errorTitle || 'Error') : (alertI18n.title || 'Message'));
+    }
+    setModalHeaderIcon(iconEl, 'alert', danger);
+    if (messageEl) {
+      messageEl.textContent = item.message || '';
+    }
+    okBtn.textContent = item.options.okText || alertI18n.ok || 'OK';
+    okBtn.className = 'btn ' + (danger ? 'btn-danger' : 'btn-primary');
+
+    function settle() {
+      if (settled || !alertPendingResolve) {
+        return;
+      }
+      settled = true;
+      var done = alertPendingResolve;
+      alertPendingResolve = null;
+      cleanupAlertListeners(el, handlers);
+      done();
+      processAlertQueue();
+    }
+
+    handlers.onOk = function() {
+      instance.hide();
+      settle();
+    };
+
+    handlers.onHidden = function() {
+      if (!settled) {
+        settle();
+      }
+    };
+
+    handlers.onShown = function() {
+      global.setTimeout(function() {
+        if (okBtn) {
+          okBtn.focus();
+        }
+      }, 0);
+    };
+
+    okBtn.addEventListener('click', handlers.onOk);
+    el.addEventListener('hidden.bs.modal', handlers.onHidden);
+    el.addEventListener('shown.bs.modal', handlers.onShown, { once: true });
+
+    instance.show();
+  }
+
+  function showAlert(message, options) {
+    options = options || {};
+    return new Promise(function(resolve) {
+      alertQueue.push({ message: message, options: options, resolve: resolve });
+      processAlertQueue();
     });
   }
 
@@ -309,6 +476,11 @@
   }, true);
 
   global.nativeConfirm = global.confirm.bind(global);
+  global.nativeAlert = global.alert.bind(global);
   global.showConfirm = showConfirm;
+  global.showAlert = showAlert;
+  global.alert = function(message) {
+    showAlert(message == null ? '' : String(message));
+  };
   global.closeOpenDropdowns = closeOpenDropdowns;
 })(window);
