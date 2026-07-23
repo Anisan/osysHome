@@ -352,7 +352,7 @@ class ObjectStorage():
             else:
                 value = None
 
-            pm = PropertyManager(obj.id, prop, value)
+            pm = PropertyManager(obj.id, prop, value, obj.name)
             if prop.method_id:
                 method = session.query(Method).filter(Method.id == prop.method_id).one_or_none()
                 if method:
