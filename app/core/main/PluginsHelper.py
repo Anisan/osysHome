@@ -137,6 +137,7 @@ def registerPlugins(app):
 
         return {
             'sidebar': get_sidebar,
+            'loaded_plugin_names': lambda: sorted(plugins.keys()),
         }
 
 

@@ -627,12 +627,29 @@
   function refreshNotifyBlockIfAvailable(source) {
     // Используем централизованный менеджер уведомлений
     if (typeof NotificationSystem !== 'undefined' && NotificationSystem.isInitialized) {
+      if (NotificationSystem.isControlPanelPage()) {
+        if (NotificationSystem.belongsToControlPanel(source)) {
+          NotificationSystem.refreshNotifyBlock('admin');
+          return true;
+        }
+        return false;
+      }
       if (NotificationSystem.isOnModulePage(source)) {
         NotificationSystem.refreshNotifyBlock(source);
         return true;
       }
     }
     return false;
+  }
+
+  function refreshNotificationsModalIfOpen() {
+    if (typeof NotificationSystem === 'undefined' || !NotificationSystem.isInitialized) {
+      return;
+    }
+    const modal = document.getElementById('notificationsModal');
+    if (modal && modal.classList.contains('show')) {
+      NotificationSystem.refreshNotificationsModal();
+    }
   }
 
   // Обработка событий уведомлений
@@ -655,7 +672,7 @@
           4: 'error'     // Fatal -> error
         };
         const category = notifyData.category !== undefined ? notifyData.category : 1;
-        const level = categoryMap[category] || 'info';
+        let level = categoryMap[category] || 'info';
         
         // Формируем сообщение
         let message = notifyData.name || '';
@@ -677,13 +694,65 @@
           actions: []
         };
         
-        // Добавляем действие для открытия источника, если указан
-        if (notifySource) {
+        // Доп. данные уведомления (params)
+        let notifyParams = {};
+        if (notifyData.params && typeof notifyData.params === 'object') {
+          notifyParams = notifyData.params;
+        } else if (typeof notifyData.params === 'string' && notifyData.params.trim()) {
+          try {
+            const parsed = JSON.parse(notifyData.params);
+            notifyParams = (parsed && typeof parsed === 'object') ? parsed : {};
+          } catch (e) {
+            notifyParams = {};
+          }
+        }
+
+        // Добавляем detail / error прямо в текст toast
+        const detailText = notifyParams.detail || notifyParams.details || '';
+        const errorText = notifyParams.error || notifyParams.error_details || '';
+        const imageUrl = notifyParams.image || notifyParams.image_url || '';
+
+        if (detailText && detailText !== (notifyData.description || '')) {
+          message += (message ? ' - ' : '') + detailText;
+        }
+        if (errorText) {
+          if (level !== 'error') {
+            level = 'error';
+          }
+          message += (message ? ' - ' : '') + errorText;
+        }
+
+        // Кнопка перехода по params.url / params.link (если есть)
+        const eventUrl = notifyParams.url || notifyParams.link || '';
+        if (eventUrl) {
+          options.actions.push({
+            id: 'view_event',
+            label: notifyParams.label || 'Open',
+            callback: function() {
+              if (/^https?:\/\//i.test(eventUrl)) {
+                window.open(eventUrl, '_blank');
+              } else {
+                window.location.href = eventUrl;
+              }
+            }
+          });
+        } else if (notifySource && typeof NotificationSystem !== 'undefined' && NotificationSystem.isRealModuleSource(notifySource)) {
           options.actions.push({
             id: 'view_source',
             label: 'Open',
-            callback: (notifId, actionId) => {
-              window.open(`/admin/${notifySource}`, '_blank');
+            callback: function() {
+              window.open('/admin/' + notifySource, '_blank');
+            }
+          });
+        }
+
+        // Кнопка просмотра картинки (если есть и нет params.url/link)
+        if (imageUrl && !eventUrl) {
+          options.actions.push({
+            id: 'view_image',
+            label: notifyParams.image_label || notifyParams.label || 'Open',
+            callback: function() {
+              window.open(imageUrl, '_blank');
             }
           });
         }
@@ -691,7 +760,8 @@
         showNotification({
           level: level,
           message: message,
-          title: title
+          title: title,
+          image: imageUrl || null
         }, options);
       }
       
@@ -703,6 +773,7 @@
           // Обновляем блок уведомлений с небольшой задержкой для гарантии сохранения в БД
           setTimeout(function() {
             refreshNotifyBlockIfAvailable(notifySource);
+            refreshNotificationsModalIfOpen();
           }, 300);
           return true;
         }
@@ -730,11 +801,13 @@
       if (typeof NotificationSystem !== 'undefined' && NotificationSystem.isInitialized) {
         NotificationSystem.removeNotifyFromDOM(notifyId, function() {
           NotificationSystem.checkAndHideNotifyBlock();
+          NotificationSystem.checkAndHideNotificationsModalList();
         });
         
         // Если элемент не найден, но есть source, обновляем весь блок
         if (!NotificationSystem.findNotifyElement(notifyId).length && notifySource) {
           refreshNotifyBlockIfAvailable(notifySource);
+          refreshNotificationsModalIfOpen();
         }
       }
       
@@ -748,7 +821,9 @@
       
       // Используем централизованный менеджер
       if (typeof NotificationSystem !== 'undefined' && NotificationSystem.isInitialized) {
-        if (NotificationSystem.isOnModulePage(notifySource)) {
+        const onControlPanel = NotificationSystem.isControlPanelPage() &&
+          (notifySource === 'control_panel' || notifySource === 'all' || NotificationSystem.belongsToControlPanel(notifySource));
+        if (onControlPanel || NotificationSystem.isOnModulePage(notifySource) || notifySource === 'all') {
           const notifyBlock = $('#notify_block');
           if (notifyBlock.length) {
             const alerts = notifyBlock.find('.alert');
@@ -769,6 +844,7 @@
       // Обновляем индикаторы уведомлений
       if (typeof NotificationSystem !== 'undefined' && NotificationSystem.isInitialized) {
         NotificationSystem.updateNotificationIndicators();
+        refreshNotificationsModalIfOpen();
       }
     }
   });

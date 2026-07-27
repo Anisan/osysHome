@@ -10,9 +10,9 @@
       <img src="{{ config.ASSETS_ROOT }}/images/logo-dark.png" alt="osysHome">
     </a>
     <div class="navbar-alerts-compact d-xl-none d-flex align-items-center gap-1 flex-shrink-0 order-2 me-1" aria-live="polite">
-      <span class="navbar-alert-pill blink badge bg-warning text-black d-none align-items-center justify-content-center" id="unreadNotifyIndicatorCompact" title="{{ _('Unreaded notify')}}" aria-label="{{ _('Unreaded notify')}}">
+      <button type="button" class="navbar-alert-pill blink badge bg-warning text-black d-none align-items-center justify-content-center border-0" id="unreadNotifyIndicatorCompact" title="{{ _('Unreaded notify')}}" aria-label="{{ _('Unreaded notify')}}" data-action="open-notifications-modal">
         <i class="fas fa-bell" aria-hidden="true"></i>
-      </span>
+      </button>
       <span class="navbar-alert-pill blink badge bg-warning text-black align-items-center justify-content-center" id="needRestartIndicatorCompact" style="display: none;" data-prop-display="SystemVar.NeedRestart" data-prop-display-true="inline-flex" data-prop-display-false="none" title="{{ _('Need restart osysHome')}}" aria-label="{{ _('Need restart osysHome')}}">
         <i class="fas fa-power-off" aria-hidden="true"></i>
       </span>
@@ -52,7 +52,7 @@
       <div class="navbar-admin-tools d-flex flex-wrap align-items-center gap-2 ms-xl-auto">
       <div class="navbar-mobile-badges">
       <div class="navbar-status-badges d-none" id="unreadNotifyIndicator">
-        <span class="blink badge bg-warning text-black w-100 align-items-center justify-content-center gap-1"><i class="fas fa-bell"></i><span class="navbar-badge-text">{{ _('Unreaded notify')}}</span></span>
+        <button type="button" class="blink badge bg-warning text-black w-100 align-items-center justify-content-center gap-1 border-0" title="{{ _('Unreaded notify')}}" aria-label="{{ _('Unreaded notify')}}" data-action="open-notifications-modal"><i class="fas fa-bell"></i><span class="navbar-badge-text">{{ _('Unreaded notify')}}</span></button>
       </div>
       <div class="navbar-status-badges" id="needRestartIndicator" style="display: none;" data-prop-display="SystemVar.NeedRestart" data-prop-display-true="flex" data-prop-display-false="none">
         <span class="blink badge bg-warning text-black w-100 align-items-center justify-content-center gap-1"><i class="fas fa-power-off"></i><span class="navbar-badge-text">{{ _('Need restart osysHome')}}</span></span>
@@ -365,8 +365,19 @@
   })();
 
   document.addEventListener('click', function (event) {
+    var openNotify = event.target.closest('[data-action="open-notifications-modal"]');
+    if (openNotify) {
+      event.preventDefault();
+      if (typeof NotificationSystem !== 'undefined') {
+        NotificationSystem.openNotificationsModal();
+      }
+      return;
+    }
     var pill = event.target.closest('.navbar-alerts-compact .navbar-alert-pill');
     if (!pill || window.getComputedStyle(pill).display === 'none') {
+      return;
+    }
+    if (pill.id === 'unreadNotifyIndicatorCompact') {
       return;
     }
     var collapseEl = document.getElementById('navbarSupportedContent');
@@ -378,6 +389,32 @@
     }
   });
 </script>
+
+<!-- Notifications modal -->
+<div class="modal fade" id="notificationsModal" tabindex="-1" aria-labelledby="notificationsModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable modal-fullscreen-sm-down">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="notificationsModalLabel">
+          <i class="fas fa-bell me-2"></i>{{ _('Notifications')}}
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ _('Close')}}"></button>
+      </div>
+      <div class="modal-body" id="notificationsModalBody">
+        <div class="text-center text-muted py-4">
+          <i class="fa-solid fa-spinner fa-spin me-2"></i>{{ _('Loading...')}}
+        </div>
+      </div>
+      <div class="modal-footer flex-nowrap">
+        <button type="button" class="btn btn-outline-secondary" id="notificationsModalReadAll" onclick="if(typeof NotificationSystem !== 'undefined') NotificationSystem.readNotifyAll()">
+          {{ _('Read all')}}
+        </button>
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ _('Close')}}</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 {% if 'admin' in request.path %}
       
 <!-- Vertically centered scrollable modal -->

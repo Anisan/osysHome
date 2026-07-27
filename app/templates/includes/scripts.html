@@ -20,7 +20,16 @@
     counts: "{{ _('counts')|e }}",
     created: "{{ _('Created')|e }}",
     last_updated: "{{ _('Last updated')|e }}",
-    close: "{{ _('Close')|e }}"
+    close: "{{ _('Close')|e }}",
+    loading: "{{ _('Loading...')|e }}",
+    confirm: "{{ _('Confirm')|e }}",
+    go_to_module: "{{ _('Go to module')|e }}",
+    open_link: "{{ _('Open link')|e }}",
+    error_details: "{{ _('Error details')|e }}",
+    no_unread_notifications: "{{ _('No unread notifications')|e }}",
+    error_loading_notifications: "{{ _('Error loading notifications')|e }}"
   };
+  {# Имена загруженных модулей для фильтра уведомлений на контрольной панели #}
+  window.NotificationSystemModules = {{ (loaded_plugin_names() if loaded_plugin_names is defined else [])|tojson }};
 </script>
 <script src="{{ config.ASSETS_ROOT }}/js/notification-system.js"></script>

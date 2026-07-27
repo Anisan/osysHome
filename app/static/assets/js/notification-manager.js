@@ -40,6 +40,7 @@ class NotificationManager {
             level: data.level || 'info',  
             message: data.message || '',  
             title: data.title || 'Уведомление',  
+            image: data.image || data.image_url || data.imageUrl || null,
             duration: options.duration || this.getDurationByLevel(data.level),  
             position: options.position || this.settings.currentPosition,  
             persistent: options.persistent || false,  
@@ -141,6 +142,13 @@ class NotificationManager {
             second: '2-digit'   
         });  
   
+        const safeImage = config.image ? String(config.image).replace(/"/g, '&quot;') : null;
+        const imageHTML = safeImage
+            ? `<div class="notification-image mt-2">
+                    <img src="${safeImage}" class="img-fluid rounded notification-image-img" alt="" style="max-height: 140px; width: 100%; object-fit: contain;">
+               </div>`
+            : '';
+
         return `  
             <div id="toast-${id}" class="toast notification-toast notification-${config.level}"   
                  role="alert" aria-live="assertive" aria-atomic="true">  
@@ -152,6 +160,7 @@ class NotificationManager {
                 </div>
                 <div class="toast-body">  
                     <div class="notification-message">${config.message}</div>  
+                    ${imageHTML}
                     ${actionsHTML ? `<div class="notification-actions mt-2">${actionsHTML}</div>` : ''}  
                 </div>  
             </div>  
