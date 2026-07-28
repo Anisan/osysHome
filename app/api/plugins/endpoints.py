@@ -1,10 +1,12 @@
 import datetime
 import json
+import logging
 from flask import request
 from flask_restx import Namespace, Resource
 from app.api.decorators import api_key_required
 from app.authentication.handlers import handle_user_required, handle_admin_required
 from app.api.models import model_404, model_result
+from app.configuration import Config
 from app.core.models.Plugins import Plugin
 from app.database import row2dict, session_scope, get_now_to_utc
 from app.core.main.PluginsHelper import plugins
@@ -15,6 +17,31 @@ plugins_ns = Namespace(name="plugins", description="Plugins namespace", validate
 
 response_result = plugins_ns.model("Result", model_result)
 response_404 = plugins_ns.model("Error", model_404)
+
+
+def _config_level_logging(config_raw):
+    if not config_raw:
+        return None
+    try:
+        cfg = json.loads(config_raw) if isinstance(config_raw, str) else config_raw
+        if isinstance(cfg, dict):
+            return cfg.get("level_logging")
+    except (TypeError, ValueError, json.JSONDecodeError):
+        pass
+    return None
+
+
+def _effective_level_logging(config_level, plugin_instance=None):
+    """Resolve real logger level (config Default follows Config.DEBUG)."""
+    logger = getattr(plugin_instance, "logger", None) if plugin_instance is not None else None
+    if logger is not None:
+        name = logging.getLevelName(logger.level)
+        if isinstance(name, str) and not name.startswith("Level "):
+            return name
+    level = config_level
+    if level is None or level == "None":
+        return "DEBUG" if Config.DEBUG else "INFO"
+    return level
 
 @plugins_ns.route("/")
 class GetPlugins(Resource):
@@ -30,25 +57,29 @@ class GetPlugins(Resource):
             ps = session.query(Plugin).order_by(Plugin.name).all()
             result = [row2dict(plugin) for plugin in ps]
             for item in result:
+                config_level = _config_level_logging(item.get("config"))
+                plugin_instance = None
                 if item["active"]:
                     if item["name"] in plugins:
                         module = plugins[item['name']]
+                        plugin_instance = module["instance"]
                         item["installed"] = True
                         if not item['title']:
-                            item["title"] = module["instance"].title
+                            item["title"] = plugin_instance.title
                         if not item['category']:
-                            item["category"] = module["instance"].category
-                        item["description"] = module["instance"].description
-                        item["version"] = module["instance"].version
-                        item["actions"] = module["instance"].actions
-                        item["author"] = module["instance"].author
-                        item["alive"] = module["instance"].is_alive()
+                            item["category"] = plugin_instance.category
+                        item["description"] = plugin_instance.description
+                        item["version"] = plugin_instance.version
+                        item["actions"] = plugin_instance.actions
+                        item["author"] = plugin_instance.author
+                        item["alive"] = plugin_instance.is_alive()
                         if "cycle" in item["actions"]:
-                            item["updatedCycle"] = module["instance"].dtUpdated
+                            item["updatedCycle"] = plugin_instance.dtUpdated
                     else:
                         item["installed"] = False
                 else:
                     item["title"] = item["name"]
+                item["level_logging"] = _effective_level_logging(config_level, plugin_instance)
 
             updated = getProperty("SystemVar.upgraded")
             if updated is None or updated is False:

@@ -1,3 +1,19 @@
+/* Раскрывающийся блок уведомлений на странице */
+.notify-collapse-toggle {
+    cursor: pointer;
+    user-select: none;
+}
+
+.notify-collapse-icon {
+    transition: transform 0.2s ease-in-out;
+    flex-shrink: 0;
+}
+
+.notify-collapse-icon[aria-expanded="false"],
+.notify-collapse-toggle[aria-expanded="false"] .notify-collapse-icon {
+    transform: rotate(-90deg);
+}
+
 /* Стили для улучшенных уведомлений */  
 .notification-toast {  
     min-width: 300px;  

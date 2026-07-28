@@ -13,9 +13,15 @@
       <button type="button" class="navbar-alert-pill blink badge bg-warning text-black d-none align-items-center justify-content-center border-0" id="unreadNotifyIndicatorCompact" title="{{ _('Unreaded notify')}}" aria-label="{{ _('Unreaded notify')}}" data-action="open-notifications-modal">
         <i class="fas fa-bell" aria-hidden="true"></i>
       </button>
+      {% if can_restart_system %}
+      <button type="button" class="navbar-alert-pill blink badge bg-warning text-black align-items-center justify-content-center border-0" id="needRestartIndicatorCompact" style="display: none;" data-prop-display="SystemVar.NeedRestart" data-prop-display-true="inline-flex" data-prop-display-false="none" title="{{ _('Need restart osysHome')}}" aria-label="{{ _('Need restart osysHome')}}" onclick="if(confirm('{{ _('Are you sure you want to restart the system?') }}')) restart_system()">
+        <i class="fas fa-power-off" aria-hidden="true"></i>
+      </button>
+      {% else %}
       <span class="navbar-alert-pill blink badge bg-warning text-black align-items-center justify-content-center" id="needRestartIndicatorCompact" style="display: none;" data-prop-display="SystemVar.NeedRestart" data-prop-display-true="inline-flex" data-prop-display-false="none" title="{{ _('Need restart osysHome')}}" aria-label="{{ _('Need restart osysHome')}}">
         <i class="fas fa-power-off" aria-hidden="true"></i>
       </span>
+      {% endif %}
     </div>
     <button class="navbar-toggler flex-shrink-0 order-3" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
       <span class="navbar-toggler-icon"></span>
@@ -55,7 +61,11 @@
         <button type="button" class="blink badge bg-warning text-black w-100 align-items-center justify-content-center gap-1 border-0" title="{{ _('Unreaded notify')}}" aria-label="{{ _('Unreaded notify')}}" data-action="open-notifications-modal"><i class="fas fa-bell"></i><span class="navbar-badge-text">{{ _('Unreaded notify')}}</span></button>
       </div>
       <div class="navbar-status-badges" id="needRestartIndicator" style="display: none;" data-prop-display="SystemVar.NeedRestart" data-prop-display-true="flex" data-prop-display-false="none">
+        {% if can_restart_system %}
+        <button type="button" class="blink badge bg-warning text-black w-100 align-items-center justify-content-center gap-1 border-0" title="{{ _('Need restart osysHome')}}" aria-label="{{ _('Need restart osysHome')}}" onclick="if(confirm('{{ _('Are you sure you want to restart the system?') }}')) restart_system()"><i class="fas fa-power-off"></i><span class="navbar-badge-text">{{ _('Need restart osysHome')}}</span></button>
+        {% else %}
         <span class="blink badge bg-warning text-black w-100 align-items-center justify-content-center gap-1"><i class="fas fa-power-off"></i><span class="navbar-badge-text">{{ _('Need restart osysHome')}}</span></span>
+        {% endif %}
       </div>
       </div>
       <div class="navbar-mobile-actions">

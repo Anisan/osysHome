@@ -8,10 +8,12 @@ migrations/*
 *.prof
 logs/*
 build/*
-plugins/*
+plugins/
 files/*
 config.yaml
 backups/
 docs_dev/
 *.db-wal
 *.db-shm
+.tmp/
+opencode.json

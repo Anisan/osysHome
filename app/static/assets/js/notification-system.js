@@ -36,6 +36,7 @@
         INDICATOR_DEBOUNCE: 300,
         MAX_RETRIES: 3,
         RETRY_DELAY: 200,
+        NOTIFY_COLLAPSE_STORAGE_KEY: 'osyshome_notify_block_collapsed',
         
         /**
          * Инициализация системы
@@ -46,6 +47,36 @@
             }
             
             this.isInitialized = true;
+        },
+
+        isNotifyBlockCollapsed: function() {
+            try {
+                return localStorage.getItem(this.NOTIFY_COLLAPSE_STORAGE_KEY) === '1';
+            } catch (e) {
+                return false;
+            }
+        },
+
+        saveNotifyBlockCollapsed: function(collapsed) {
+            try {
+                localStorage.setItem(this.NOTIFY_COLLAPSE_STORAGE_KEY, collapsed ? '1' : '0');
+            } catch (e) {
+                // ignore quota / private mode
+            }
+        },
+
+        bindNotifyCollapsePersistence: function() {
+            const collapseEl = document.getElementById('collapse_notify');
+            if (!collapseEl || collapseEl.dataset.collapseBound === '1') {
+                return;
+            }
+            collapseEl.dataset.collapseBound = '1';
+            collapseEl.addEventListener('hidden.bs.collapse', () => {
+                this.saveNotifyBlockCollapsed(true);
+            });
+            collapseEl.addEventListener('shown.bs.collapse', () => {
+                this.saveNotifyBlockCollapsed(false);
+            });
         },
         
         /**
@@ -437,13 +468,11 @@
             const notifyBlock = $('#notify_block');
             if (notifyBlock.length === 0) return;
             
-            const countElement = notifyBlock.find('.px-3.me-auto');
-            const notifyText = notifyBlock.find('.px-3.me-auto').text().split(' - ')[0] || t('notifications', 'Notifications');
+            const countElement = notifyBlock.find('h5 .px-3').first();
+            const notifyText = (countElement.text() || '').split(' - ')[0] || t('notifications', 'Notifications');
             
             if (countElement.length) {
                 countElement.html(notifyText + ' - ' + count);
-            } else {
-                notifyBlock.find('h5 .px-3.me-auto').html(notifyText + ' - ' + count);
             }
         },
         
@@ -656,19 +685,23 @@
             
             if (notifyBlock.length === 0) {
                 // Создаем блок, если его нет
+                const collapsed = this.isNotifyBlockCollapsed();
+                const expandedAttr = collapsed ? 'false' : 'true';
+                const collapseClass = collapsed ? 'collapse' : 'collapse show';
                 const notifyHtml = `
                     <div id="notify_block" data-notify-mode="${isControlPanel ? 'control_panel' : 'module'}">
                         <div class="card mb-2">
-                            <div class="card-header d-flex text-dark bg-warning">
-                                <h5 class="mb-0 d-flex justify-content-between align-items-center w-100" data-bs-toggle="collapse" data-bs-target="#collapse_notify" aria-expanded="true" aria-controls="collapse_notify">
+                            <div class="card-header d-flex align-items-center text-dark bg-warning">
+                                <h5 class="mb-0 d-flex align-items-center flex-grow-1 notify-collapse-toggle" data-bs-toggle="collapse" data-bs-target="#collapse_notify" aria-expanded="${expandedAttr}" aria-controls="collapse_notify" role="button">
                                     <i class="fas fa-info"></i>
-                                    <div class="px-3 me-auto">
+                                    <div class="px-3">
                                         ${t('notifications', 'Notifications')} - ${notifications.length}
                                     </div>
                                 </h5>
                                 <button class="btn btn-outline-secondary text-nowrap" onclick="if(typeof NotificationSystem !== 'undefined') ${readAllCall}">${t('read_all', 'Read all')}</button>
+                                <i class="fas fa-chevron-down notify-collapse-icon ms-2 notify-collapse-toggle" data-bs-toggle="collapse" data-bs-target="#collapse_notify" aria-expanded="${expandedAttr}" aria-controls="collapse_notify" role="button" aria-label="Toggle"></i>
                             </div>
-                            <div class="collapse show" id="collapse_notify">
+                            <div class="${collapseClass}" id="collapse_notify">
                                 <div class="card-body px-2 py-0">
                                     ${alertsHtml}
                                 </div>
@@ -705,6 +738,7 @@
                         }
                     }
                 }
+                this.bindNotifyCollapsePersistence();
             } else {
                 // Обновляем существующий блок
                 const cardBody = notifyBlock.find('.card-body');
