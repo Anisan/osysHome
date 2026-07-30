@@ -482,5 +482,14 @@
   global.alert = function(message) {
     showAlert(message == null ? '' : String(message));
   };
+  /**
+   * Programmatic confirm — returns Promise<boolean> (same as showConfirm).
+   * Use: `if (!(await confirm(msg))) return` or `confirm(msg).then(...)`.
+   * Sync `if (confirm(msg))` is NOT supported (Promise is always truthy).
+   * Inline onclick/onsubmit with confirm(...) are still intercepted separately.
+   */
+  global.confirm = function(message, options) {
+    return showConfirm(message == null ? '' : String(message), options);
+  };
   global.closeOpenDropdowns = closeOpenDropdowns;
 })(window);

@@ -314,5 +314,16 @@ def get_default_timezone():
     from app.configuration import Config
     return Config.DEFAULT_TIMEZONE
 
+def get_user_timezone() -> str:
+    """Timezone for UI / oneshot: authenticated user setting, else DEFAULT_TIMEZONE."""
+    try:
+        if current_user is not None:
+            tz = getattr(current_user, "timezone", None)
+            if tz:
+                return str(tz)
+    except Exception:
+        pass
+    return get_default_timezone()
+
 def get_now_to_utc():
     return datetime.now(timezone.utc).replace(tzinfo=None)

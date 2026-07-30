@@ -11,7 +11,7 @@ from sqlalchemy import update, delete
 import xml.etree.ElementTree as ET
 from app.core.lib.execute import execute_and_capture_output
 from app.logging_config import getLogger
-from app.database import session_scope, row2dict, convert_local_to_utc, convert_utc_to_local, get_now_to_utc
+from app.database import session_scope, row2dict, convert_local_to_utc, convert_utc_to_local, get_now_to_utc, get_default_timezone
 from .crontab import nextStartCronJob
 from .constants import (
     CategoryNotify,
@@ -103,7 +103,8 @@ def addCronJob(name: str, code: str, crontab: str = "* * * * *") -> int:
                     task.name = name
                     session.add(task)
                 task.code = code
-                utc_dt = convert_local_to_utc(dt)
+                # Cron wall time is server DEFAULT_TIMEZONE; store UTC in DB.
+                utc_dt = convert_local_to_utc(dt, timezone=get_default_timezone())
                 task.runtime = utc_dt
                 task.expire = utc_dt + datetime.timedelta(1800)
                 task.crontab = crontab
