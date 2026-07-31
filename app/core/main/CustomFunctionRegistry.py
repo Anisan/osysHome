@@ -260,6 +260,9 @@ class CustomFunctionRegistry:
     def _rebuild_lsp_prelude_unlocked(self) -> None:
         from app.core.models.CustomFunctions import CustomFunction
 
+        # Be resilient: if session_scope internally suppresses errors,
+        # `rows` may not be assigned and `snapshot` must still exist.
+        snapshot: List[dict] = []
         with session_scope() as session:
             rows = (
                 session.query(CustomFunction)
@@ -267,10 +270,7 @@ class CustomFunctionRegistry:
                 .order_by(CustomFunction.order.asc(), CustomFunction.name.asc())
                 .all()
             )
-            snapshot = [
-                {'name': r.name, 'code': r.code or ''}
-                for r in rows
-            ]
+            snapshot = [{'name': r.name, 'code': r.code or ''} for r in rows]
         self._lsp_prelude_lines = self._build_lsp_prelude_lines(snapshot)
 
     @staticmethod

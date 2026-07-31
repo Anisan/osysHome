@@ -301,6 +301,16 @@
     line-height: 1;
 }
 
+#unreadNotifyIndicator button.badge,
+button.navbar-alert-pill {
+    cursor: pointer;
+}
+
+#unreadNotifyIndicator button.badge:hover,
+button.navbar-alert-pill:hover {
+    filter: brightness(0.95);
+}
+
 /* Sidebar toggle only when offcanvas drawer is active (< lg) */
 @media (min-width: 992px) {
     .admin-shell .admin-sidebar-toggle {

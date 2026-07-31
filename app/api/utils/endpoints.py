@@ -133,14 +133,19 @@ class ReadNotifyAll(Resource):
     @handle_admin_required
     @utils_ns.doc(security="apikey")
     @utils_ns.param("source", "Source notify (optional, if not provided marks all notifications as read)")
+    @utils_ns.param(
+        "control_panel",
+        "If true, mark as read all notifications whose source is not a system module",
+    )
     def get(self):
         """
         Mark read all notify for source. If source is not provided, marks all notifications as read.
         """
         source = request.args.get("source", None)
+        control_panel = str(request.args.get("control_panel", "false")).lower() in ("true", "1", "yes")
         from app.core.lib.common import readNotifyAll
 
-        readNotifyAll(source)
+        readNotifyAll(source, control_panel=control_panel)
         return {"success": True}, 200
 
 @utils_ns.route("/validate-python")
@@ -312,16 +317,43 @@ class GetNotifications(Resource):
     @utils_ns.doc(security="apikey")
     @utils_ns.param("source", "Filter by source (optional)")
     @utils_ns.param("unread_only", "Show only unread notifications (default: true)")
+    @utils_ns.param(
+        "control_panel",
+        "If true, return notifications whose source is not a system module "
+        "(admin page: admin/osysHome/orphans). Ignores source filter.",
+    )
     def get(self):
         """
         Get notifications with filtering options
         """
         source = request.args.get("source", None)
         unread_only = request.args.get("unread_only", "true").lower() == "true"
+        control_panel = str(request.args.get("control_panel", "false")).lower() in ("true", "1", "yes")
 
         query = Notify.query
 
-        if source:
+        if control_panel:
+            from app.core.lib.common import getPluginModuleNames
+            from sqlalchemy import or_
+
+            module_names = list(getPluginModuleNames())
+            if module_names:
+                query = query.filter(
+                    or_(
+                        Notify.source.is_(None),
+                        Notify.source == "",
+                        Notify.source.notin_(module_names),
+                    )
+                )
+            else:
+                query = query.filter(
+                    or_(
+                        Notify.source.is_(None),
+                        Notify.source == "",
+                        Notify.source.in_(["admin", "osysHome", "core"]),
+                    )
+                )
+        elif source:
             query = query.filter(Notify.source == source)
 
         if unread_only:
@@ -329,11 +361,11 @@ class GetNotifications(Resource):
 
         notifications = query.order_by(Notify.created.desc()).all()
 
+        from app.core.lib.common import notify_to_dict
+
         result = []
         for item in notifications:
-            item.category = item.category.name if item.category else "Info"
-            notification = row2dict(item)
-            result.append(notification)
+            result.append(notify_to_dict(item))
 
         return {"success": True, "notifications": result}, 200
 

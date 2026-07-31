@@ -1,4 +1,5 @@
 """ Common library """
+import json
 import threading
 import time
 from contextlib import contextmanager
@@ -10,7 +11,7 @@ from sqlalchemy import update, delete
 import xml.etree.ElementTree as ET
 from app.core.lib.execute import execute_and_capture_output
 from app.logging_config import getLogger
-from app.database import session_scope, row2dict, convert_local_to_utc, convert_utc_to_local, get_now_to_utc
+from app.database import session_scope, row2dict, convert_local_to_utc, convert_utc_to_local, get_now_to_utc, get_default_timezone
 from .crontab import nextStartCronJob
 from .constants import (
     CategoryNotify,
@@ -102,7 +103,8 @@ def addCronJob(name: str, code: str, crontab: str = "* * * * *") -> int:
                     task.name = name
                     session.add(task)
                 task.code = code
-                utc_dt = convert_local_to_utc(dt)
+                # Cron wall time is server DEFAULT_TIMEZONE; store UTC in DB.
+                utc_dt = convert_local_to_utc(dt, timezone=get_default_timezone())
                 task.runtime = utc_dt
                 task.expire = utc_dt + datetime.timedelta(1800)
                 task.crontab = crontab
@@ -319,11 +321,42 @@ def playSound(file_name: str, level: int = 0, args: dict = None):
             _logger.exception(ex)
 
 
+def _normalize_notify_params(params: Any) -> Optional[dict]:
+    """Привести params уведомления к dict или None."""
+    if params is None:
+        return None
+    if isinstance(params, dict):
+        return params
+    if isinstance(params, str) and params.strip():
+        try:
+            parsed = json.loads(params)
+            return parsed if isinstance(parsed, dict) else None
+        except (json.JSONDecodeError, TypeError):
+            return None
+    return None
+
+
+def _serialize_notify_params(params: Any) -> Optional[str]:
+    normalized = _normalize_notify_params(params)
+    if not normalized:
+        return None
+    return json.dumps(normalized, ensure_ascii=False)
+
+
+def notify_to_dict(notify: Notify) -> dict:
+    """Сериализация Notify в dict для API/WS."""
+    data = row2dict(notify)
+    data["category"] = notify.category.name if notify.category else "Info"
+    data["params"] = _normalize_notify_params(data.get("params")) or {}
+    return data
+
+
 def addNotify(
     name: str,
     description: str = "",
     category: CategoryNotify = CategoryNotify.Info,
     source="",
+    params: Optional[dict] = None,
 ):
     """Add notify
 
@@ -332,14 +365,18 @@ def addNotify(
         description (str, optional): Description notify. Defaults to "".
         category (CategoryNotify, optional): Category. Defaults to CategoryNotify.Info.
         source (str, optional): Source notify (use name plugins). Defaults to "".
+        params (dict, optional): Extra data (url, detail, error, image, ...). Defaults to None.
     """
     notify_id = None
     notify_count = 1
+    params_json = _serialize_notify_params(params)
     with session_scope() as session:
         notify = session.query(Notify).filter(Notify.name == name, Notify.description == description, Notify.read == False).first() # noqa
         if notify:
             notify.count = (notify.count if notify.count else 0) + 1
             notify.last_updated = get_now_to_utc()
+            if params_json is not None:
+                notify.params = params_json
             notify_id = notify.id
             notify_count = notify.count
             session.commit()
@@ -349,6 +386,7 @@ def addNotify(
             notify.description = description
             notify.category = category
             notify.source = source
+            notify.params = params_json
             notify.created = get_now_to_utc()
             notify.last_updated = get_now_to_utc()
             notify.count = 1
@@ -357,12 +395,14 @@ def addNotify(
             notify_id = notify.id
             notify_count = 1
 
+    notify_params = _normalize_notify_params(params) or {}
     from .object import setProperty
     data = {
         "name": name,
         "description": description,
         "category": category.value,
         "source": source,
+        "params": notify_params,
     }
     setProperty("SystemVar.LastNotify", data, source)
     setProperty("SystemVar.UnreadNotify", True, source)
@@ -377,6 +417,7 @@ def addNotify(
             "category": category.value,
             "source": source,
             "count": notify_count,
+            "params": notify_params,
         }
     }
     callPluginFunction("wsServer","notify", {"data":notify_data})
@@ -421,18 +462,57 @@ def readNotify(notify_id: int):
 
     return True
 
-def readNotifyAll(source: Optional[str] = None):
+def getPluginModuleNames() -> set:
+    """Имена реально загруженных модулей (плагинов) в текущем процессе."""
+    return {name for name in plugins.keys() if name}
+
+
+def readNotifyAll(source: Optional[str] = None, control_panel: bool = False):
     """Set read all notify for source
 
     Args:
         source (str, optional): Source notify. If None or empty, marks all notifications as read.
+        control_panel (bool): If True, marks notifications whose source is not a system module
+            (admin / osysHome / orphans), ignoring ``source``.
     """
     with session_scope() as session:
-        if source:
+        if control_panel:
+            from sqlalchemy import or_
+
+            module_names = getPluginModuleNames()
+            if module_names:
+                sql = (
+                    update(Notify)
+                    .where(
+                        or_(
+                            Notify.source.is_(None),
+                            Notify.source == "",
+                            Notify.source.notin_(list(module_names)),
+                        )
+                    )
+                    .values(read=True, read_date=get_now_to_utc())
+                )
+            else:
+                # Нет известных модулей — не трогаем module-like, отмечаем только «системные»
+                sql = (
+                    update(Notify)
+                    .where(
+                        or_(
+                            Notify.source.is_(None),
+                            Notify.source == "",
+                            Notify.source.in_(["admin", "osysHome", "core"]),
+                        )
+                    )
+                    .values(read=True, read_date=get_now_to_utc())
+                )
+            event_source = "control_panel"
+        elif source:
             sql = update(Notify).where(Notify.source == source).values(read=True, read_date=get_now_to_utc())
+            event_source = source
         else:
             # Если source не указан, отмечаем все уведомления
             sql = update(Notify).values(read=True, read_date=get_now_to_utc())
+            event_source = "all"
         session.execute(sql)
         session.commit()
 
@@ -448,7 +528,7 @@ def readNotifyAll(source: Optional[str] = None):
         "operation": "read_notify_all", 
         "data": 
         {
-            "source": source or "all",
+            "source": event_source,
         }
     }
     callPluginFunction("wsServer","notify", {"data":notify_data})

@@ -114,8 +114,14 @@ class BatchWriter:
             while not self._stop_event.is_set():
                 self._stop_event.wait(timeout=self.flush_interval)
                 if not self._stop_event.is_set():
-                    # Выполняем запись напрямую в этом потоке
-                    self._flush_internal()
+                    # Avoid empty flush entries from background worker.
+                    # Tests expect flush_history only when _flush_internal() is called explicitly
+                    # or when there is at least one pending batch item.
+                    with self._lock:
+                        should_flush = bool(self._batch)
+                    if should_flush:
+                        # Выполняем запись напрямую в этом потоке
+                        self._flush_internal()
 
         self._worker_thread = threading.Thread(target=worker, daemon=True, name="BatchWriter")
         self._worker_thread.start()
@@ -880,6 +886,17 @@ class PropertyManager():
         if (self.history > 0 and (save_history is None or save_history)) or \
            (self.history < 0 and save_history is not None and save_history):
             should_save_history = True
+
+        # Proxy fan-out is an internal "mirror" of a real source change.
+        # Do not create History records for proxy-origin updates unless
+        # explicitly requested by the caller.
+        if (
+            should_save_history
+            and save_history is None
+            and isinstance(source_str, str)
+            and source_str.startswith("proxy:")
+        ):
+            should_save_history = False
 
         is_internal = (source_str == SYSTEM_STATS_SOURCE)
 

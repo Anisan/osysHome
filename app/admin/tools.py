@@ -45,7 +45,15 @@ def _is_running_under_systemd():
 
 
 def can_restart_system():
-    """Возвращает True, если доступен хотя бы один способ перезапуска."""
+    """True, если текущий админ в панели может перезапустить систему."""
+    from flask import request
+    from flask_login import current_user
+
+    if not getattr(current_user, "is_authenticated", False):
+        return False
+    if getattr(current_user, "role", None) != "admin":
+        return False
+
     service_restart = getattr(Config, "SERVICE_AUTORESTART", False)
     docker_container = getattr(Config, "SERVICE_DOCKER_CONTAINER", None)
     service_name = getattr(Config, "SERVICE_NAME", None)

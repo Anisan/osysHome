@@ -26,3 +26,4 @@ class Notify(SurrogatePK, db.Model):
     count = Column(db.Integer(), default=1)
     last_updated = Column(db.DateTime)
     read_date = Column(db.DateTime)
+    params = Column(db.Text)  # JSON dict: url, detail, error, image, ...

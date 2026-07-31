@@ -100,9 +100,10 @@ Notifications are stored in the database and mirrored in:
 
 Key helpers:
 
-- `addNotify(name, description="", category=CategoryNotify.Info, source="")`:
+- `addNotify(name, description="", category=CategoryNotify.Info, source="", params=None)`:
   - finds or creates `Notify` record with the same `name`/`description` and `read == False`,
   - increments counter, updates timestamps,
+  - stores optional `params` dict in `Notify.params` (JSON text),
   - updates object properties:
     - `SystemVar.LastNotify` — last notification payload,
     - `SystemVar.UnreadNotify` — boolean flag,
@@ -115,6 +116,72 @@ Key helpers:
   - marks all notifications as read, optionally filtered by `source`,
   - updates `SystemVar.UnreadNotify`,
   - emits `"read_notify_all"` WebSocket event.
+
+`Notify.params` is intended for structured metadata attached to a notification. Typical keys:
+
+- `url` / `link` — navigation target,
+- `label` — button text for the link,
+- `detail` / `details` — extended description,
+- `error` / `error_details` — error text,
+- `image` / `image_url` — preview image URL.
+
+The UI also preserves arbitrary custom keys in `params`, so plugins may attach extra context such as `camera_id`, `event_id`, `object_name`, etc.
+
+Examples:
+
+```python
+from app.core.lib.common import addNotify, CategoryNotify
+
+addNotify(
+    "Low battery",
+    "Sensor in living room",
+    CategoryNotify.Warning,
+    "Zigbee",
+)
+```
+
+```python
+addNotify(
+    "Camera offline",
+    "Front door camera is unavailable",
+    CategoryNotify.Error,
+    "ONVIF",
+    params={
+        "url": "/admin/ONVIF?camera=front-door",
+        "label": "Open camera",
+    },
+)
+```
+
+```python
+addNotify(
+    "Backup failed",
+    "Night backup was not completed",
+    CategoryNotify.Error,
+    "Backup",
+    params={
+        "detail": "Backup stopped on step 3/7 while archiving media files.",
+        "error": "PermissionError: [Errno 13] Permission denied",
+    },
+)
+```
+
+```python
+addNotify(
+    "Motion detected",
+    "Front yard",
+    CategoryNotify.Warning,
+    "ONVIF",
+    params={
+        "url": "/admin/ONVIF?camera=front-yard&event=motion",
+        "label": "View event",
+        "detail": "Motion detected at 14:32:11",
+        "image": "/api/camera/snapshot/front-yard",
+        "camera_id": "front-yard",
+        "event_id": "evt_20260727_143211",
+    },
+)
+```
 
 WebSocket helpers:
 
