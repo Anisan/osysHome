@@ -33,3 +33,15 @@ function formatTimeDiff(diff) {
     }
     return text.trim()
 }
+
+/** Reveal async-loading wrapper (remove data-async-loading attribute). */
+window.AsyncLoading = {
+  reveal: function (el) {
+    if (el) el.removeAttribute("data-async-loading");
+  },
+  revealClosest: function (node, selector) {
+    var wrap = node && node.closest(selector || "[data-async-loading]");
+    if (wrap) wrap.removeAttribute("data-async-loading");
+    return wrap;
+  },
+};
