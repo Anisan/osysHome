@@ -1,6 +1,7 @@
-{% macro icon_picker_field(input_id, label=None, placeholder=None, hint=None, value=None, modal_id='iconPickerModal', wrapper_class='mb-3', input_class='form-control', show_label=True) %}
+{% macro icon_picker_field(input_id, label=None, placeholder=None, hint=None, value=None, modal_id='iconPickerModal', wrapper_class='mb-3', input_class='form-control', show_label=True, name=None) %}
 {% set preview_id = input_id ~ '-preview' %}
 {% set picker_btn_id = input_id ~ '-picker-btn' %}
+{% set field_name = name or input_id %}
 {% set placeholder_text = placeholder or gettext('fas fa-icon or mdi:home') %}
 {% set hint_text = hint or gettext('FontAwesome class or Iconify name (e.g. mdi:home)') %}
 <div class="{{ wrapper_class }} icon-picker-field" data-icon-picker-field="{{ input_id }}">
@@ -14,6 +15,7 @@
         <input type="text"
                class="{{ input_class }}"
                id="{{ input_id }}"
+               name="{{ field_name }}"
                value="{{ value or '' }}"
                placeholder="{{ placeholder_text }}"
                autocomplete="off"
@@ -791,7 +793,11 @@
         element.addEventListener('show.bs.modal', function(event) {
             const trigger = event.relatedTarget;
             if (trigger && trigger.dataset.iconPickerOpen) {
-                modalState.activeInputId = trigger.dataset.iconPickerOpen;
+                const inputId = trigger.dataset.iconPickerOpen;
+                modalState.activeInputId = inputId;
+                if (!fields.has(inputId)) {
+                    register(inputId, { modalId: modalId });
+                }
             }
         });
 
@@ -825,6 +831,17 @@
     }
 
     function register(inputId, options) {
+        if (fields.has(inputId)) {
+            updatePreview(inputId);
+            return {
+                updatePreview: function() { updatePreview(inputId); },
+                setValue: function(value, closeModal) { setValue(inputId, value, { closeModal: !!closeModal }); },
+                getValue: function() {
+                    const field = getField(inputId);
+                    return field && field.input ? field.input.value : '';
+                }
+            };
+        }
         const opts = options || {};
         const modalId = opts.modalId || 'iconPickerModal';
         fields.set(inputId, {
@@ -861,6 +878,19 @@
     function init() {
         document.querySelectorAll('[data-icon-picker-modal]').forEach(function(el) {
             bindModal(el.id);
+        });
+        document.querySelectorAll('[data-icon-picker-field]').forEach(function(el) {
+            const inputId = el.getAttribute('data-icon-picker-field');
+            if (!inputId) return;
+            let modalId = 'iconPickerModal';
+            const openBtn = el.querySelector('[data-icon-picker-open]');
+            if (openBtn) {
+                const target = openBtn.getAttribute('data-bs-target') || '';
+                if (target.indexOf('#') === 0 && target.length > 1) {
+                    modalId = target.slice(1);
+                }
+            }
+            register(inputId, { modalId: modalId });
         });
         fetchIconifyCollections();
         fetchFaCollectionData();

@@ -22,14 +22,11 @@
     100% {opacity: 0;}
 }
 
-/* Global Vue cloak behavior: hide content and show loading spinner until mounted */
+/* Async loading: spinner until content is ready (Vue v-cloak, DataTables, etc.) */
+[data-async-loading],
 [v-cloak] {
     position: relative;
-    min-height: var(--v-cloak-min-height, 120px);
-}
-
-[v-cloak] > * {
-    display: none !important;
+    min-height: var(--async-loading-min-height, var(--v-cloak-min-height, 120px));
 }
 
 [v-cloak]::before {
@@ -38,12 +35,29 @@
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    width: var(--v-cloak-spinner-size, 3rem);
-    height: var(--v-cloak-spinner-size, 3rem);
-    border: 4px solid var(--v-cloak-spinner-track, var(--bs-border-color, #f3f3f3));
-    border-top: 4px solid var(--v-cloak-spinner-color, var(--bs-primary, #0d6efd));
+    width: var(--async-loading-spinner-size, var(--v-cloak-spinner-size, 3rem));
+    height: var(--async-loading-spinner-size, var(--v-cloak-spinner-size, 3rem));
+    border: 4px solid var(--async-loading-spinner-track, var(--v-cloak-spinner-track, var(--bs-border-color, #f3f3f3)));
+    border-top: 4px solid var(--async-loading-spinner-color, var(--v-cloak-spinner-color, var(--bs-primary, #0d6efd)));
     border-radius: 50%;
     animation: v-cloak-spin 1s linear infinite;
+    display: block;
+    z-index: 1000;
+}
+
+/* Top-aligned spinner: visible even when hidden table content is very tall */
+[data-async-loading]::before {
+    content: '';
+    position: absolute;
+    top: 1.5rem;
+    left: 50%;
+    transform: translateX(-50%);
+    width: var(--async-loading-spinner-size, var(--v-cloak-spinner-size, 3rem));
+    height: var(--async-loading-spinner-size, var(--v-cloak-spinner-size, 3rem));
+    border: 4px solid var(--async-loading-spinner-track, var(--v-cloak-spinner-track, var(--bs-border-color, #f3f3f3)));
+    border-top: 4px solid var(--async-loading-spinner-color, var(--v-cloak-spinner-color, var(--bs-primary, #0d6efd)));
+    border-radius: 50%;
+    animation: async-loading-spin 1s linear infinite;
     display: block;
     z-index: 1000;
 }
@@ -51,6 +65,21 @@
 @keyframes v-cloak-spin {
     0% { transform: translate(-50%, -50%) rotate(0deg); }
     100% { transform: translate(-50%, -50%) rotate(360deg); }
+}
+
+@keyframes async-loading-spin {
+    0% { transform: translateX(-50%) rotate(0deg); }
+    100% { transform: translateX(-50%) rotate(360deg); }
+}
+
+/* Vue: hide children until mounted */
+[v-cloak] > * {
+    display: none !important;
+}
+
+/* Non-Vue async init: keep layout for measurement (DataTables, etc.) */
+[data-async-loading] > * {
+    visibility: hidden;
 }
 
 /* Admin responsive shell */

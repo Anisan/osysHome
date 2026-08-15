@@ -365,8 +365,10 @@ def deleteObjectProperty(object_property: str) -> bool:
             session.delete(value)
         session.delete(prop)
         session.commit()
-        objects_storage.reload_object(obj.id)
-        return True
+        object_id = obj.id
+    objects_storage.changeObject("delete", object_name, property_name, None, None)
+    objects_storage.reload_object(object_id)
+    return True
 
 
 def deleteClassProperty(class_property: str) -> bool:
@@ -391,10 +393,16 @@ def deleteClassProperty(class_property: str) -> bool:
         prop = session.query(Property).filter(Property.name == property_name, Property.class_id == cls.id).one_or_none()
         if not prop:
             return False
+        object_names = [
+            name for (name,) in session.query(Object.name).filter(Object.class_id == cls.id).all()
+        ]
+        class_id = cls.id
         session.delete(prop)
         session.commit()
-        objects_storage.reload_objects_by_class(cls.id)
-        return True
+    for obj_name in object_names:
+        objects_storage.changeObject("delete", obj_name, property_name, None, None)
+    objects_storage.reload_objects_by_class(class_id)
+    return True
 
 def addObjectMethod(
     name:str,
@@ -494,10 +502,12 @@ def deleteObjectMethod(object_method: str) -> bool:
         method = session.query(Method).filter(Method.name == method_name, Method.object_id == obj.id).one_or_none()
         if not method:
             return False
+        object_id = obj.id
         session.delete(method)
         session.commit()
-        objects_storage.reload_object(obj.id)
-        return True
+    objects_storage.changeObject("delete", object_name, None, method_name, None)
+    objects_storage.reload_object(object_id)
+    return True
 
 
 def deleteClassMethod(class_method: str) -> bool:
@@ -521,10 +531,16 @@ def deleteClassMethod(class_method: str) -> bool:
         method = session.query(Method).filter(Method.name == method_name, Method.class_id == cls.id).one_or_none()
         if not method:
             return False
+        object_names = [
+            name for (name,) in session.query(Object.name).filter(Object.class_id == cls.id).all()
+        ]
+        class_id = cls.id
         session.delete(method)
         session.commit()
-        objects_storage.reload_objects_by_class(cls.id)
-        return True
+    for obj_name in object_names:
+        objects_storage.changeObject("delete", obj_name, None, method_name, None)
+    objects_storage.reload_objects_by_class(class_id)
+    return True
 
 def getObject(name:str) -> ObjectManager:
     """Get an object by its name
@@ -901,6 +917,7 @@ def deleteObject(name: str):
     deleted_name = delete_object_from_db(obj.id)
     db.session.commit()
     if deleted_name:
+        objects_storage.changeObject("delete", deleted_name, None, None, None)
         objects_storage.remove_object(deleted_name)
         invalidate_objects_tree_cache()
         return True
