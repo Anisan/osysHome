@@ -117,7 +117,9 @@ def initSystemVar():
         params={'icon': 'fas fa-clock'}, update=True,
     )
     addClassProperty(
-        'timezone', 'Users', 'Timezone user', 0, type=PropertyType.String,
+        'timezone', 'Users',
+        'IANA timezone (e.g. Europe/Moscow) or auto for browser',
+        0, type=PropertyType.String,
         params={'icon': 'fas fa-globe'}, update=True,
     )
 

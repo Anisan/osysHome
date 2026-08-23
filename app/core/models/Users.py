@@ -14,7 +14,8 @@ class User(UserMixin):
     timezone: str = None
 
     def __init__(self, objectUser):
-        self.timezone = "UTC"
+        # auto = use browser cookie/header (osys_tz / X-Timezone), else DEFAULT_TIMEZONE
+        self.timezone = "auto"
         self.username = object.__getattribute__(objectUser, 'name')
         if 'password' in objectUser.__dict__['properties']:
             self.password = objectUser.__dict__['properties']["password"]._PropertyManager__value
@@ -28,9 +29,15 @@ class User(UserMixin):
             self.apikey = objectUser.__dict__['properties']["apikey"]._PropertyManager__value
         if 'timezone' in objectUser.__dict__['properties']:
             timezone = objectUser.__dict__['properties']["timezone"]._PropertyManager__value
-            from zoneinfo import available_timezones
-            if timezone in available_timezones():
-                self.timezone = timezone
+            if timezone is None or str(timezone).strip() == "" or str(timezone).strip().lower() == "auto":
+                self.timezone = "auto"
+            else:
+                from zoneinfo import ZoneInfo
+                try:
+                    ZoneInfo(str(timezone).strip())
+                    self.timezone = str(timezone).strip()
+                except Exception:
+                    self.timezone = "auto"
 
     def set_password(self, password):
         """Set password."""

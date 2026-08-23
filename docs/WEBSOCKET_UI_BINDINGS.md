@@ -59,6 +59,21 @@ The global handler updates `textContent` on elements with this exact id.
 <span id="prop_changed:My.Object.Temp"></span>
 ```
 
+WS payload `changed` is already converted to the user/browser local zone for display.
+
+#### 2.2.1. Relative “time ago” (`.time-component`)
+
+```html
+<span class="time-component"
+      data-time-property="MyObject.value"
+      data-start-time="{{ object.getProperty('value', 'changed') }}"></span>
+```
+
+Uses **local** `changed` (same as WS `changeProperty.changed`). The client parses naive
+datetimes in the browser zone, keeps relative text via `Date.now()`, and sets `title` with
+`Intl`. Link with `data-time-property` / `id="time:…"` / `id="prop_changed:…"` so property
+updates refresh `data-start-time` without flashing wall-clock into the label.
+
 #### 2.3. Property source (id-based): `id="prop_source:<PropertyName>"`
 
 ```html
@@ -263,6 +278,21 @@ It is still used to:
 ```html
 <span id="prop_changed:My.Object.Temp"></span>
 ```
+
+В WS-событии `changed` уже в локальной зоне пользователя/браузера для отображения.
+
+#### 2.2.1. Относительное «N назад» (`.time-component`)
+
+```html
+<span class="time-component"
+      data-time-property="MyObject.value"
+      data-start-time="{{ object.getProperty('value', 'changed') }}"></span>
+```
+
+Берёт **локальный** `changed` (как в WS `changeProperty.changed`). Клиент парсит naive
+datetime в зоне браузера, считает «назад» через `Date.now()`, `title` — через `Intl`.
+Связь: `data-time-property` / `id="time:…"` / `id="prop_changed:…"`, чтобы обновление
+свойства меняло `data-start-time`, не подставляя абсолютное время в текст метки.
 
 #### 2.3. Источник значения (id-based): `id="prop_source:<ИмяСвойства>"`
 

@@ -1,5 +1,4 @@
 """Safe property reads for API endpoints (respect ObjectManager permissions)."""
-from app.database import convert_utc_to_local
 
 
 def read_property_value(obj, property_name):
@@ -20,8 +19,6 @@ def read_property_details(obj, property_name):
     if property_name not in obj.properties:
         raise KeyError(property_name)
     changed = obj.getProperty(property_name, 'changed')
-    if changed is not None:
-        changed = convert_utc_to_local(changed)
     return {
         'value': obj.getProperty(property_name),
         'source': obj.getProperty(property_name, 'source'),

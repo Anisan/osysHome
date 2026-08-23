@@ -265,15 +265,14 @@ def row2dict(row):
     :param row: any object
     :return: dict
     """
-    timezone = getattr(current_user, 'timezone', None)
+    user_tz = get_user_timezone()
     d = {}
     for column in row.__table__.columns:
         value = getattr(row, column.name)
-        # Если значение - это datetime и указан часовой пояс пользователя
-        if isinstance(value, datetime) and timezone:
-            # Преобразуем время из UTC в локальное время пользователя
-            utc_time = value.replace(tzinfo=ZoneInfo("UTC"))  # Добавляем временную зону UTC
-            local_time = utc_time.astimezone(ZoneInfo(timezone))  # Конвертируем в локальное время
+        # UTC → local for datetime columns (same resolver as convert_*)
+        if isinstance(value, datetime):
+            utc_time = value.replace(tzinfo=ZoneInfo("UTC"))
+            local_time = utc_time.astimezone(ZoneInfo(user_tz))
             d[column.name] = local_time.replace(tzinfo=None)
         else:
             d[column.name] = value
@@ -285,12 +284,9 @@ def convert_utc_to_local(utc_time, timezone:str=None):
     """
     if utc_time is None:
         return None
-    if timezone is None:
-        timezone = getattr(current_user, 'timezone', None)
+    timezone = resolve_timezone(timezone)
     if utc_time.tzinfo is None:
         utc_time = utc_time.replace(tzinfo=ZoneInfo("UTC"))
-    if timezone is None:
-        timezone = get_default_timezone()
     local_timezone = ZoneInfo(timezone)
     local_time = utc_time.astimezone(local_timezone)
     return local_time.replace(tzinfo=None)
@@ -301,10 +297,7 @@ def convert_local_to_utc(local_time, timezone:str=None):
     """
     if local_time is None:
         return None
-    if timezone is None:
-        timezone = getattr(current_user, 'timezone', None)
-    if timezone is None:
-        timezone = get_default_timezone()
+    timezone = resolve_timezone(timezone)
     local_timezone = ZoneInfo(timezone)
     aware_local_time = local_time.replace(tzinfo=local_timezone)
     utc_time = aware_local_time.astimezone(ZoneInfo("UTC"))
@@ -314,15 +307,62 @@ def get_default_timezone():
     from app.configuration import Config
     return Config.DEFAULT_TIMEZONE
 
+def _is_valid_iana_timezone(name: str) -> bool:
+    if not name:
+        return False
+    try:
+        ZoneInfo(str(name))
+        return True
+    except Exception:
+        return False
+
+def _timezone_from_browser():
+    """IANA zone from X-Timezone header or osys_tz cookie (web UI)."""
+    try:
+        from flask import has_request_context, request
+        from urllib.parse import unquote
+        if not has_request_context():
+            return None
+        raw = request.headers.get("X-Timezone") or request.cookies.get("osys_tz")
+        if not raw:
+            return None
+        tz = unquote(str(raw).strip())
+        if _is_valid_iana_timezone(tz):
+            return tz
+    except Exception:
+        pass
+    return None
+
+def resolve_timezone(timezone: str = None) -> str:
+    """Normalize to a valid IANA name (never ``auto`` / invalid).
+
+    Explicit valid IANA is kept; ``None`` / empty / ``auto`` / garbage
+    fall through to get_user_timezone().
+    """
+    if timezone is not None:
+        tz_str = str(timezone).strip()
+        if tz_str and tz_str.lower() != "auto" and _is_valid_iana_timezone(tz_str):
+            return tz_str
+    return get_user_timezone()
+
 def get_user_timezone() -> str:
-    """Timezone for UI / oneshot: authenticated user setting, else DEFAULT_TIMEZONE."""
+    """Resolve UI timezone: explicit user IANA → browser → DEFAULT_TIMEZONE.
+
+    User property ``auto`` (or empty) means prefer browser cookie/header.
+    Cron/scheduler must keep using get_default_timezone(), not this helper.
+    """
     try:
         if current_user is not None:
             tz = getattr(current_user, "timezone", None)
             if tz:
-                return str(tz)
+                tz_str = str(tz).strip()
+                if tz_str.lower() != "auto" and _is_valid_iana_timezone(tz_str):
+                    return tz_str
     except Exception:
         pass
+    browser_tz = _timezone_from_browser()
+    if browser_tz:
+        return browser_tz
     return get_default_timezone()
 
 def get_now_to_utc():
