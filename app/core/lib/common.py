@@ -30,6 +30,7 @@ _logger = getLogger("common")
 # Глобальный пул потоков
 _poolSay = MonitoredThreadPool(thread_name_prefix="say")
 _poolPlaysound = MonitoredThreadPool(thread_name_prefix="playsound")
+_poolNotify = MonitoredThreadPool(thread_name_prefix="notify")
 
 # Словарь для хранения блокировок, по одной на каждое имя задачи
 _task_locks = {}
@@ -407,20 +408,27 @@ def addNotify(
     setProperty("SystemVar.LastNotify", data, source)
     setProperty("SystemVar.UnreadNotify", True, source)
 
-    # Отправляем событие через WebSocket
-    notify_data = {
+    _dispatchNotify({
         "operation": "new_notify",
         "data": {
             "id": notify_id,
             "name": name,
             "description": description,
-            "category": category.value,
+            "category": category.value if hasattr(category, "value") else category,
             "source": source,
             "count": notify_count,
             "params": notify_params,
-        }
-    }
-    callPluginFunction("wsServer","notify", {"data":notify_data})
+        },
+    })
+
+
+def _dispatchNotify(data: dict):
+    """Вызов plugin.notify() у модулей с action="notify"."""
+    for plugin in getModulesByAction("notify"):
+        try:
+            _poolNotify.submit(plugin.notify, f"notify_{plugin.name}", data)
+        except Exception as ex:
+            _logger.exception(ex)
 
 
 def readNotify(notify_id: int):
@@ -450,15 +458,13 @@ def readNotify(notify_id: int):
         else:
             updateProperty("SystemVar.UnreadNotify", False)
 
-    # Отправляем событие через WebSocket (даже если уведомление не найдено, чтобы обновить интерфейс)
-    notify_data = {\
+    _dispatchNotify({
         "operation": "read_notify",
         "data": {
             "id": notify_id,
             "source": notify_source or "",
-        }
-    }
-    callPluginFunction("wsServer","notify", {"data":notify_data})
+        },
+    })
 
     return True
 
@@ -523,15 +529,12 @@ def readNotifyAll(source: Optional[str] = None, control_panel: bool = False):
         else:
             updateProperty("SystemVar.UnreadNotify", False)
 
-    # Отправляем событие через WebSocket
-    notify_data = {
-        "operation": "read_notify_all", 
-        "data": 
-        {
+    _dispatchNotify({
+        "operation": "read_notify_all",
+        "data": {
             "source": event_source,
-        }
-    }
-    callPluginFunction("wsServer","notify", {"data":notify_data})
+        },
+    })
 
 
 def requestUrl(
