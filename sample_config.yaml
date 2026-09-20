@@ -149,8 +149,8 @@ cache:
   file_path: 'cache'
 
   # Cache backend type.
-  # 'simple' stores data in process memory.
-  type: 'simple'
+  # 'SimpleCache' stores data in process memory.
+  type: 'SimpleCache'
 
   # Cache entry lifetime in seconds.
   timeout: 300
