@@ -1596,7 +1596,9 @@ class ObjectManager:
 
         Args:
             name (str): Name property
-            data (str, optional): Data type. Defaults to 'value'. (changed, source, text, icon, color, sort_order, read_only)
+            data (str, optional): Data type. Defaults to 'value'.
+                (changed, changed_utc, source, text, icon, color, sort_order, read_only).
+                ``changed`` is user/browser local; ``changed_utc`` is naive UTC as stored.
 
         Returns:
             any: Value
@@ -1629,7 +1631,10 @@ class ObjectManager:
                     return prop.getColorValue(read_format=data)
                 if data == 'value':
                     return prop.getValue()
-            
+
+            if data == 'changed_utc':
+                return getattr(prop, 'changed', None)
+
             value = getattr(prop, data, None)
             if data == 'changed' and value:
                 try:
@@ -1640,7 +1645,7 @@ class ObjectManager:
         return None
 
     def getChanged(self, name:str):
-        """Get datetime changing property
+        """Get datetime changing property (user/browser local).
 
         Args:
             name (str): name property

@@ -99,6 +99,9 @@ class BasePlugin:
         # "playsound": Audio playback
         #     - Handler: playSound(file_name: str, level: int=0)
         #     - Manages sound effects output
+        # "notify": System notification handling
+        #     - Handler: notify(data: dict)
+        #     - Receives addNotify / readNotify / readNotifyAll ({operation, data})
         self.actions = []  # list support actions
 
         self.event = None
@@ -255,6 +258,19 @@ class BasePlugin:
             - The function typically blocks until output is complete
             - For async operation, use separate threading
 
+        """
+        pass
+
+    def notify(self, data: dict) -> None:
+        """Handles a system notification when the module has `action="notify"`.
+
+        Called from ``addNotify()`` / ``readNotify()`` / ``readNotifyAll()`` for plugins
+        that list ``"notify"`` in ``self.actions``.
+
+        Args:
+            data (dict): Event payload:
+                - ``operation``: ``new_notify`` | ``read_notify`` | ``read_notify_all``
+                - ``data``: event fields (id, name, description, category, source, count, params)
         """
         pass
 

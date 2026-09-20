@@ -230,9 +230,16 @@
 
     elements = document.querySelectorAll(`[id^="prop_changed:${msg.property}"]`);
     elements.forEach(element => {
-      if (element.id === `prop_changed:${msg.property}`)
-        element.textContent = msg.changed;
+      if (element.id !== `prop_changed:${msg.property}`) return;
+      // time-component: keep relative text; refresh start from local msg.changed
+      if (element.classList && element.classList.contains('time-component')) {
+        return;
+      }
+      element.textContent = msg.changed;
     });
+    if (typeof applyTimeComponentsForProperty === 'function') {
+      applyTimeComponentsForProperty(msg.property, msg.changed || null);
+    }
     elements = document.querySelectorAll(`[id^="prop_source:${msg.property}"]`);
     elements.forEach(element => {
       if (element.id === `prop_source:${msg.property}`)
@@ -348,8 +355,29 @@
               fromEl.classList.contains('time-component') &&
               toEl.classList.contains('time-component')) {
             var nextStartTime = toEl.getAttribute('data-start-time');
-            if (nextStartTime !== null && fromEl.getAttribute('data-start-time') !== nextStartTime) {
-              fromEl.setAttribute('data-start-time', nextStartTime);
+            var prevStartTime = fromEl.getAttribute('data-start-time');
+            if (nextStartTime !== null && nextStartTime !== prevStartTime) {
+              var synced = fromEl.getAttribute('data-time-synced') === '1';
+              var applyNext = true;
+              // changeProperty owns the timestamp after first sync; ignore
+              // changeObject HTML that would regress the value briefly.
+              if (synced && typeof parseTimeComponentStart === 'function') {
+                var nextMs = parseTimeComponentStart(nextStartTime);
+                var prevMs = parseTimeComponentStart(prevStartTime || '');
+                if (!Number.isNaN(prevMs) && (Number.isNaN(nextMs) || nextMs <= prevMs + 500)) {
+                  applyNext = false;
+                }
+              }
+              if (applyNext) {
+                if (typeof updateTimeComponentElement === 'function') {
+                  updateTimeComponentElement(fromEl, nextStartTime);
+                } else {
+                  fromEl.setAttribute('data-start-time', nextStartTime);
+                  if (typeof updateAllTimeComponents === 'function') {
+                    updateAllTimeComponents();
+                  }
+                }
+              }
             }
             return false;
           }
@@ -508,6 +536,9 @@
         element.appendChild(script);
       });
       restoreDomContentLoadedShim();
+      if (typeof updateAllTimeComponents === 'function') {
+        updateAllTimeComponents();
+      }
       return true;
   };
 

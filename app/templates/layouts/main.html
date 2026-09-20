@@ -31,6 +31,15 @@
 <body data-tag="body" data-bs-theme="light" data-ui-theme="light">
     <script>
         (function () {
+            try {
+                var tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+                if (tz) {
+                    document.cookie = 'osys_tz=' + encodeURIComponent(tz)
+                        + ';path=/;max-age=31536000;SameSite=Lax';
+                }
+            } catch (e) {}
+        })();
+        (function () {
             var THEMES = {
                 light: 'light', dark: 'dark', 'dark-blue': 'dark', sepia: 'light', midnight: 'dark',
                 vue: 'light', 'vue-dark': 'dark', nord: 'dark', dracula: 'dark',
