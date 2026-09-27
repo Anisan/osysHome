@@ -258,22 +258,26 @@ def session_scope():
         session.close()
 
 
-def row2dict(row):
+def row2dict(row, timezone: str = None):
     """Converts a database-object to a python dict.
     This function can be used to serialize an object into JSON, as this cannot be
     directly done (but a dict can).
     :param row: any object
+    :param timezone: (optional) IANA timezone to convert datetime columns from UTC.
+        Defaults to None - timezone of the current user/browser is used (as before).
+        Pass 'UTC' when the payload is converted later per client (WebSocket).
     :return: dict
     """
-    user_tz = get_user_timezone()
+    # None / empty / 'auto' / invalid → get_user_timezone() (same resolver as convert_*)
+    utc_tz = ZoneInfo("UTC")
+    target_tz = ZoneInfo(resolve_timezone(timezone))
     d = {}
     for column in row.__table__.columns:
         value = getattr(row, column.name)
-        # UTC → local for datetime columns (same resolver as convert_*)
+        # UTC → target timezone for datetime columns
         if isinstance(value, datetime):
-            utc_time = value.replace(tzinfo=ZoneInfo("UTC"))
-            local_time = utc_time.astimezone(ZoneInfo(user_tz))
-            d[column.name] = local_time.replace(tzinfo=None)
+            utc_time = value.replace(tzinfo=utc_tz)
+            d[column.name] = utc_time.astimezone(target_tz).replace(tzinfo=None)
         else:
             d[column.name] = value
     return d
