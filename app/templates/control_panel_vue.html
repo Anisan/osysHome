@@ -1,4 +1,5 @@
 {% extends "layouts/module_admin.html" %}
+{% from "macros/icon_picker.html" import icon_picker_field, icon_picker_modal, icon_picker_assets %}
 
 {% block title %} {{ _('Control panel')}} {% endblock %}
 
@@ -121,6 +122,57 @@
     background: rgba(13, 110, 253, 1);
     transform: scale(1.1);
   }
+  .panel-tabs {
+    flex: 1 1 auto;
+    min-width: 0;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    border-bottom: none;
+    margin-bottom: 0 !important;
+  }
+  .panel-tabs .nav-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    cursor: pointer;
+    white-space: nowrap;
+    border: none;
+    border-bottom: 2px solid transparent;
+    padding: 0.35rem 0.75rem;
+    margin-bottom: 0;
+  }
+  .panel-tabs .nav-link.active {
+    border-bottom-color: var(--bs-primary, #0d6efd);
+    background: transparent;
+    color: var(--bs-primary, #0d6efd);
+  }
+  .panel-tabs .tab-action-btn {
+    border: none;
+    background: transparent;
+    padding: 0;
+    line-height: 1;
+    opacity: 0.55;
+    font-size: 0.75rem;
+  }
+  .panel-tabs .tab-action-btn:hover {
+    opacity: 1;
+  }
+  .panel-tabs .nav-item-add .nav-link {
+    color: var(--bs-secondary, #6c757d);
+  }
+  .panel-header-row {
+    gap: 0.75rem;
+    flex-wrap: wrap;
+  }
+  .panel-tabs .tab-icon {
+    display: inline-flex;
+    align-items: center;
+    font-size: 1rem;
+    line-height: 1;
+  }
+  .panel-tabs .tab-icon iconify-icon {
+    font-size: 1rem;
+  }
 </style>
 <main id="app" v-cloak>
   <!-- Индикатор режима редактирования -->
@@ -128,10 +180,58 @@
     <i class="feather icon-edit-2"></i> {{ _('Edit Mode') }}
   </div>
   
-  <div class="d-flex align-items-center justify-content-between mb-1">
-    <h1 v-if="!showWelcome" class="ms-2">{{ _('Welcome!')}}</h1>
-    <span v-if="info" class="ms-3 text-muted" v-text="info"></span>
-    <div class="d-flex align-items-center gap-2">
+  <div class="d-flex align-items-center panel-header-row mb-1">
+    <h1 v-if="!hideWelcomeTitle && !showWelcome" class="ms-2 mb-0">{{ _('Welcome!')}}</h1>
+
+    <!-- Вкладки между надписью и кнопками -->
+    <ul v-if="showTabsBar" class="nav nav-tabs panel-tabs mx-2" role="tablist">
+      <li
+        v-for="tab in tabs"
+        :key="tab.id"
+        class="nav-item"
+        role="presentation">
+        <div
+          class="nav-link d-inline-flex align-items-center gap-1"
+          :class="{ active: tab.id === activeTabId }"
+          role="tab"
+          @click="switchTab(tab.id)">
+          <span v-if="tab.icon" class="tab-icon" aria-hidden="true">
+            <iconify-icon v-if="isIconifyIcon(tab.icon)" :icon="tab.icon"></iconify-icon>
+            <i v-else :class="tab.icon"></i>
+          </span>
+          <span>[[ tab.name ]]</span>
+          <template v-if="editMode">
+            <button
+              type="button"
+              class="tab-action-btn"
+              :title="'{{ _('Rename Tab') }}'"
+              @click.stop="showRenameTabModal(tab)">
+              <i class="feather icon-edit-2"></i>
+            </button>
+            <button
+              type="button"
+              class="tab-action-btn text-danger"
+              :title="'{{ _('Delete Tab') }}'"
+              :disabled="tabs.length <= 1"
+              @click.stop="deleteTab(tab.id)">
+              <i class="feather icon-x"></i>
+            </button>
+          </template>
+        </div>
+      </li>
+      <li v-if="editMode" class="nav-item nav-item-add" role="presentation">
+        <button
+          type="button"
+          class="nav-link"
+          @click="addTab()"
+          :title="'{{ _('Add Tab') }}'">
+          <i class="feather icon-plus"></i>
+        </button>
+      </li>
+    </ul>
+
+    <div class="d-flex align-items-center gap-2 ms-auto flex-shrink-0">
+      <span v-if="info" class="text-muted text-nowrap" v-text="info"></span>
       <!-- Кнопка переключения режима редактирования -->
       <button 
         type="button" 
@@ -144,6 +244,13 @@
       
       <!-- Кнопки редактирования (только в режиме редактирования) -->
       <template v-if="editMode">
+        <button 
+          type="button" 
+          class="btn btn-outline-secondary" 
+          @click="showPanelSettings()"
+          title="{{ _('Panel Settings') }}">
+          <i class="feather icon-settings"></i>
+        </button>
         <button 
           type="button" 
           class="btn btn-primary" 
@@ -518,6 +625,7 @@
       </div>
     </div>
   </div>
+
   <div class="grid-stack"></div>
     <!-- Модальное окно для добавления виджета -->
     <div class="modal fade" id="addWidgetModal" tabindex="-1" aria-labelledby="addWidgetModalLabel" aria-hidden="true" ref="addWidgetModal">
@@ -644,11 +752,78 @@
         </div>
       </div>
   </div>
+
+  <!-- Настройки панели -->
+  <div class="modal fade" id="panelSettingsModal" tabindex="-1" aria-labelledby="panelSettingsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="panelSettingsModalLabel">{{ _('Panel Settings') }}</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div class="form-check form-switch">
+            <input
+              class="form-check-input"
+              type="checkbox"
+              id="hideWelcomeTitleSwitch"
+              v-model="hideWelcomeTitle">
+            <label class="form-check-label" for="hideWelcomeTitleSwitch">
+              {{ _('Hide welcome title') }}
+            </label>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-primary" data-bs-dismiss="modal" @click="savePanelSettings()">
+            {{ _('Save') }}
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Переименование вкладки -->
+  <div class="modal fade" id="renameTabModal" tabindex="-1" aria-labelledby="renameTabModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="renameTabModalLabel">{{ _('Rename Tab') }}</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label" for="renameTabInput">{{ _('Tab name') }}</label>
+            <input
+              id="renameTabInput"
+              type="text"
+              class="form-control"
+              v-model="renameTabName"
+              @keyup.enter="confirmRenameTab()">
+          </div>
+          {{ icon_picker_field(
+              'renameTabIconInput',
+              label=_('Icon'),
+              modal_id='controlPanelIconPickerModal',
+              wrapper_class='mb-0',
+              hint=_('FontAwesome class or Iconify name (e.g. mdi:home)')
+          ) }}
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ _('Close') }}</button>
+          <button type="button" class="btn btn-primary" @click="confirmRenameTab()">{{ _('Save') }}</button>
+        </div>
+      </div>
+    </div>
+  </div>
 </main>
+
+{{ icon_picker_modal('controlPanelIconPickerModal') }}
+{{ icon_picker_assets() }}
 
   <script src="{{ config.ASSETS_ROOT }}/plugins/vue/vue@2.js"></script>
   <script type="module">
     //import Vue from "{{ config.ASSETS_ROOT }}/plugins/vue/vue@2.js";
+    Vue.config.ignoredElements = ['iconify-icon'];
 
     let app = new Vue({
       el: "#app",
@@ -660,6 +835,8 @@
         info: "",
         timerId: undefined,
         addWidgetModal: undefined,
+        panelSettingsModal: undefined,
+        renameTabModal: undefined,
         activeTab: 'modules',
         loadingWidgets: false,
         availableModules: [],
@@ -667,6 +844,7 @@
         savingLayout: false,
         columns: {{ columns|default(12) }},
         showWelcome: {{ show_welcome|default(false)|tojson }},
+        hideWelcomeTitle: false,
         showAnalyticsAsk: {{ show_analytics_ask|default(false)|tojson }},
         analyticsSaving: false,
         hasDocs: {{ has_docs|default(false)|tojson }},
@@ -677,6 +855,12 @@
         items: [],
         widgetFilter: '',
         windowWidth: window.innerWidth,
+        tabs: [],
+        activeTabId: null,
+        renameTabId: null,
+        renameTabName: '',
+        renameTabIcon: '',
+        tabCounter: 1,
       },
       computed: {
         /**
@@ -684,6 +868,12 @@
          */
         isMobile: function() {
           return this.windowWidth <= 768;
+        },
+        /**
+         * Показывать панель вкладок (в режиме редактирования всегда, иначе если вкладок > 1)
+         */
+        showTabsBar: function() {
+          return this.editMode || (this.tabs && this.tabs.length > 1);
         },
         /**
          * Проверяет, нужно ли показывать список модулей
@@ -813,6 +1003,38 @@
         if (modalElement) {
           this.addWidgetModal = new bootstrap.Modal(modalElement);
         }
+        const settingsModalEl = document.getElementById('panelSettingsModal');
+        if (settingsModalEl) {
+          this.panelSettingsModal = new bootstrap.Modal(settingsModalEl);
+        }
+        const renameTabModalEl = document.getElementById('renameTabModal');
+        if (renameTabModalEl) {
+          this.renameTabModal = new bootstrap.Modal(renameTabModalEl);
+        }
+
+        // После закрытия icon picker восстановить backdrop родительской модалки
+        const iconPickerEl = document.getElementById('controlPanelIconPickerModal');
+        if (iconPickerEl) {
+          const selfVue = this;
+          iconPickerEl.addEventListener('hidden.bs.modal', function () {
+            const renameEl = document.getElementById('renameTabModal');
+            if (!renameEl) return;
+            if (renameEl.classList.contains('show')) {
+              document.body.classList.add('modal-open');
+              if (!document.querySelector('.modal-backdrop')) {
+                const backdrop = document.createElement('div');
+                backdrop.className = 'modal-backdrop fade show';
+                document.body.appendChild(backdrop);
+              }
+            } else if (selfVue.renameTabId && selfVue.renameTabModal) {
+              // Родительская модалка закрылась вместе с picker — открыть снова
+              selfVue.renameTabModal.show();
+              selfVue.$nextTick(function () {
+                selfVue.setRenameTabIconInput(selfVue.renameTabIcon);
+              });
+            }
+          });
+        }
         
         // Сохраняем ссылку на Vue-экземпляр для функции удаления
         const self = this;
@@ -925,17 +1147,9 @@
           runNext(0);
         };
         
-        // Загружаем сохраненный layout
-        this.loadLayout().then(savedLayout => {
-          if (savedLayout && Array.isArray(savedLayout) && savedLayout.length > 0) {
-            // Восстанавливаем виджеты из сохраненного layout
-            this.restoreWidgetsFromLayout(savedLayout);
-          } else {
-            this.$nextTick(() => {
-              this.updateWidgetActionButtons();
-              this.updateWidgetDragHandles();
-            });
-          }
+        // Загружаем сохраненный layout (с поддержкой вкладок)
+        this.loadLayout().then(config => {
+          this.applyLoadedConfig(config);
         });
 
         // Событие при перетаскивании
@@ -983,6 +1197,356 @@
                 self.showWelcome = false;
               }
             });
+        },
+
+        /**
+         * Создаёт объект вкладки по умолчанию
+         */
+        createTab: function (name, layout, columns, icon) {
+          const id = 'tab_' + Date.now() + '_' + this.tabCounter++;
+          return {
+            id: id,
+            name: name || '{{ _('New Tab') }}',
+            icon: icon || '',
+            columns: columns || this.columns || 12,
+            layout: Array.isArray(layout) ? layout : [],
+          };
+        },
+
+        /**
+         * Проверяет формат Iconify (prefix:name)
+         */
+        isIconifyIcon: function (value) {
+          const raw = String(value || '').trim();
+          return raw.indexOf(':') !== -1 && raw.indexOf(' ') === -1;
+        },
+
+        /**
+         * Синхронизирует поле icon picker с текущим значением
+         */
+        setRenameTabIconInput: function (value) {
+          const iconValue = value || '';
+          this.renameTabIcon = iconValue;
+          const self = this;
+          const input = document.getElementById('renameTabIconInput');
+          if (input) {
+            input.value = iconValue;
+          }
+          if (window.IconPicker && typeof window.IconPicker.register === 'function') {
+            window.IconPicker.register('renameTabIconInput', {
+              modalId: 'controlPanelIconPickerModal',
+              onChange: function (newValue) {
+                self.renameTabIcon = newValue || '';
+                const tab = self.tabs.find(t => t.id === self.renameTabId);
+                if (tab) {
+                  // Vue 2: ensure reactivity for new property
+                  self.$set(tab, 'icon', self.renameTabIcon);
+                }
+              }
+            });
+          }
+          if (window.IconPicker && typeof window.IconPicker.setValue === 'function') {
+            window.IconPicker.setValue('renameTabIconInput', iconValue, { closeModal: false });
+          } else if (window.IconPicker && typeof window.IconPicker.updatePreview === 'function') {
+            window.IconPicker.updatePreview('renameTabIconInput');
+          }
+        },
+
+        /**
+         * Читает значение иконки из icon picker
+         */
+        getRenameTabIconInput: function () {
+          const input = document.getElementById('renameTabIconInput');
+          if (input) {
+            return String(input.value || '').trim();
+          }
+          return this.renameTabIcon || '';
+        },
+
+        /**
+         * Нормализует сохранённые данные (старый массив или новый формат с вкладками)
+         */
+        normalizeConfig: function (raw, fallbackColumns) {
+          const columns = fallbackColumns || this.columns || 12;
+          if (raw && typeof raw === 'object' && !Array.isArray(raw) && Array.isArray(raw.tabs)) {
+            const tabs = raw.tabs.map((tab, idx) => ({
+              id: tab.id || ('tab_migrated_' + idx),
+              name: tab.name || ('{{ _('Main') }}'),
+              icon: tab.icon || '',
+              columns: parseInt(tab.columns) || columns,
+              layout: Array.isArray(tab.layout) ? tab.layout : [],
+            }));
+            if (tabs.length === 0) {
+              tabs.push(this.createTab('{{ _('Main') }}', [], columns));
+            }
+            return {
+              version: 2,
+              hideWelcomeTitle: !!raw.hideWelcomeTitle,
+              activeTabId: raw.activeTabId || tabs[0].id,
+              tabs: tabs,
+            };
+          }
+          const layout = Array.isArray(raw) ? raw : [];
+          const mainTab = this.createTab('{{ _('Main') }}', layout, columns);
+          return {
+            version: 2,
+            hideWelcomeTitle: false,
+            activeTabId: mainTab.id,
+            tabs: [mainTab],
+          };
+        },
+
+        /**
+         * Применяет загруженную конфигурацию вкладок и виджетов
+         */
+        applyLoadedConfig: function (config) {
+          if (!config) {
+            const tab = this.createTab('{{ _('Main') }}', [], this.columns || 12);
+            this.tabs = [tab];
+            this.activeTabId = tab.id;
+            this.hideWelcomeTitle = false;
+            this.$nextTick(() => {
+              this.updateWidgetActionButtons();
+              this.updateWidgetDragHandles();
+            });
+            return;
+          }
+          this.hideWelcomeTitle = !!config.hideWelcomeTitle;
+          this.tabs = config.tabs;
+          const active = this.tabs.find(t => t.id === config.activeTabId) || this.tabs[0];
+          this.activeTabId = active.id;
+          this.applyTabColumns(active);
+          if (active.layout && active.layout.length > 0) {
+            this.restoreWidgetsFromLayout(active.layout);
+          } else {
+            this.$nextTick(() => {
+              this.updateWidgetActionButtons();
+              this.updateWidgetDragHandles();
+            });
+          }
+        },
+
+        /**
+         * Применяет число колонок вкладки к GridStack
+         */
+        applyTabColumns: function (tab) {
+          if (!tab) return;
+          const cols = this.isMobile ? 1 : (parseInt(tab.columns) || 12);
+          this.columns = cols;
+          if (this.grid) {
+            this.grid.column(cols, 'noMove');
+          }
+        },
+
+        /**
+         * Собирает текущий layout сетки в enriched-формат
+         */
+        collectCurrentLayout: function () {
+          if (!this.grid) return [];
+
+          const layout = this.grid.save();
+          const allWidgets = this.grid.engine.nodes || [];
+          const widgetsMapById = new Map();
+
+          allWidgets.forEach(node => {
+            if (node.id && node.el) {
+              widgetsMapById.set(String(node.id), node);
+            }
+          });
+
+          return layout.map((item, layoutIndex) => {
+            let gridNode = null;
+
+            if (item.id) {
+              gridNode = widgetsMapById.get(String(item.id));
+            }
+            if (!gridNode && item.x !== undefined && item.y !== undefined) {
+              gridNode = allWidgets.find(node =>
+                node.x === item.x &&
+                node.y === item.y &&
+                node.el
+              );
+            }
+            if (!gridNode && layoutIndex < allWidgets.length) {
+              gridNode = allWidgets[layoutIndex];
+            }
+
+            if (gridNode && gridNode.el) {
+              const widgetElement = gridNode.el;
+              const widgetType = widgetElement.getAttribute('data-widget-type') || null;
+              const widgetKey = widgetElement.getAttribute('data-widget-key') || null;
+              const widgetName = widgetElement.getAttribute('data-widget-name') || null;
+
+              const widgetData = {
+                ...item,
+                id: item.id || (gridNode.id ? String(gridNode.id) : `widget_${layoutIndex}`),
+                type: widgetType,
+                key: widgetKey,
+                settings: {}
+              };
+
+              if (widgetName) {
+                widgetData.settings.widget_name = widgetName;
+              }
+
+              const allAttributes = widgetElement.attributes;
+              for (let i = 0; i < allAttributes.length; i++) {
+                const attr = allAttributes[i];
+                const attrName = attr.name;
+                if (attrName.startsWith('data-') &&
+                    !attrName.startsWith('data-gs-') &&
+                    attrName !== 'data-widget-type' &&
+                    attrName !== 'data-widget-key' &&
+                    attrName !== 'data-widget-name') {
+                  const settingKey = attrName.replace('data-', '');
+                  widgetData.settings[settingKey] = attr.value;
+                }
+              }
+              return widgetData;
+            }
+
+            return {
+              ...item,
+              id: item.id || `unknown_${layoutIndex}`,
+              type: null,
+              key: null,
+              settings: {}
+            };
+          });
+        },
+
+        /**
+         * Сохраняет текущую сетку в активную вкладку (в памяти)
+         */
+        syncActiveTabFromGrid: function () {
+          const tab = this.tabs.find(t => t.id === this.activeTabId);
+          if (!tab) return;
+          tab.layout = this.collectCurrentLayout();
+          if (!this.isMobile) {
+            tab.columns = this.columns || 12;
+          }
+        },
+
+        /**
+         * Очищает все виджеты из GridStack
+         */
+        clearGrid: function () {
+          if (!this.grid) return;
+          this._restoreSeq = (this._restoreSeq || 0) + 1;
+          const nodes = (this.grid.engine.nodes || []).slice();
+          nodes.forEach(node => {
+            if (node.el) {
+              this.grid.removeWidget(node.el, true);
+            }
+          });
+        },
+
+        /**
+         * Переключение вкладки
+         */
+        switchTab: function (tabId) {
+          if (!tabId || tabId === this.activeTabId) return;
+          const nextTab = this.tabs.find(t => t.id === tabId);
+          if (!nextTab) return;
+
+          this.syncActiveTabFromGrid();
+          this.clearGrid();
+          this.activeTabId = tabId;
+          this.applyTabColumns(nextTab);
+          if (nextTab.layout && nextTab.layout.length > 0) {
+            this.restoreWidgetsFromLayout(nextTab.layout);
+          } else {
+            this.$nextTick(() => {
+              this.updateWidgetActionButtons();
+              this.updateWidgetDragHandles();
+            });
+          }
+        },
+
+        /**
+         * Добавить вкладку
+         */
+        addTab: function () {
+          if (!this.editMode) return;
+          this.syncActiveTabFromGrid();
+          const tab = this.createTab('{{ _('New Tab') }}', [], this.columns || 12);
+          this.tabs.push(tab);
+          this.clearGrid();
+          this.activeTabId = tab.id;
+          this.applyTabColumns(tab);
+          this.$nextTick(() => {
+            this.updateWidgetActionButtons();
+            this.updateWidgetDragHandles();
+            this.showRenameTabModal(tab);
+          });
+        },
+
+        /**
+         * Удалить вкладку
+         */
+        deleteTab: function (tabId) {
+          if (!this.editMode) return;
+          if (this.tabs.length <= 1) {
+            this.info = '{{ _('Cannot delete the last tab') }}';
+            return;
+          }
+          const idx = this.tabs.findIndex(t => t.id === tabId);
+          if (idx < 0) return;
+
+          const wasActive = this.activeTabId === tabId;
+          if (wasActive) {
+            this.syncActiveTabFromGrid();
+          }
+
+          this.tabs.splice(idx, 1);
+          if (wasActive) {
+            const next = this.tabs[Math.max(0, idx - 1)];
+            this.clearGrid();
+            this.activeTabId = next.id;
+            this.applyTabColumns(next);
+            if (next.layout && next.layout.length > 0) {
+              this.restoreWidgetsFromLayout(next.layout);
+            }
+          }
+          this.info = '{{ _('Tab deleted') }}';
+        },
+
+        showRenameTabModal: function (tab) {
+          if (!tab) return;
+          this.renameTabId = tab.id;
+          this.renameTabName = tab.name || '';
+          this.renameTabIcon = tab.icon || '';
+          const self = this;
+          if (this.renameTabModal) {
+            this.renameTabModal.show();
+          }
+          this.$nextTick(function () {
+            self.setRenameTabIconInput(self.renameTabIcon);
+          });
+        },
+
+        confirmRenameTab: function () {
+          const name = (this.renameTabName || '').trim();
+          if (!name || !this.renameTabId) return;
+          const tab = this.tabs.find(t => t.id === this.renameTabId);
+          if (tab) {
+            tab.name = name;
+            this.$set(tab, 'icon', this.getRenameTabIconInput());
+          }
+          if (this.renameTabModal) {
+            this.renameTabModal.hide();
+          }
+        },
+
+        showPanelSettings: function () {
+          if (this.panelSettingsModal) {
+            this.panelSettingsModal.show();
+          }
+        },
+
+        savePanelSettings: function () {
+          // hideWelcomeTitle уже связан через v-model; сохраняем вместе с layout
+          this.saveLayout();
         },
 
         setAnalytics: function (level) {
@@ -1391,26 +1955,14 @@
           return fetch('/admin/widgets-layout')
             .then(response => response.json())
             .then(data => {
-              if (data.success) {
-                // Обновляем количество столбцов, если оно сохранено
-                // Но учитываем размер экрана - на мобильных всегда 1 колонка
-                // Обновляем windowWidth перед проверкой
-                this.windowWidth = window.innerWidth;
-                if (data.columns && !this.isMobile) {
-                  const columns = parseInt(data.columns) || 12;
-                  this.columns = columns;
-                  if (this.grid) {
-                    this.grid.column(columns, 'noMove');
-                  }
-                } else if (this.isMobile) {
-                  this.columns = 1;
-                  if (this.grid) {
-                    this.grid.column(1, 'noMove');
-                  }
-                }
-                return data.layout || null;
+              if (!data.success) {
+                return null;
               }
-              return null;
+              this.windowWidth = window.innerWidth;
+              const fallbackColumns = data.columns
+                ? (parseInt(data.columns) || 12)
+                : (this.columns || 12);
+              return this.normalizeConfig(data.layout, fallbackColumns);
             })
             .catch(error => {
               console.error('Error loading layout:', error);
@@ -1423,6 +1975,8 @@
          */
         restoreWidgetsFromLayout: function (savedLayout) {
           const self = this;
+          this._restoreSeq = (this._restoreSeq || 0) + 1;
+          const restoreSeq = this._restoreSeq;
           
           savedLayout.forEach((savedItem, index) => {
             if (!savedItem.type || !savedItem.key) {
@@ -1504,6 +2058,7 @@
             fetch(url)
               .then(response => response.json())
               .then(data => {
+                if (restoreSeq !== self._restoreSeq) return;
                 if (data.success && data.html) {
                   const card = contentDiv.querySelector('.widget-card');
                   if (card) {
@@ -1528,6 +2083,7 @@
                 }
               })
               .catch(error => {
+                if (restoreSeq !== self._restoreSeq) return;
                 console.error('Error loading widget content:', error);
                 const card = contentDiv.querySelector('.widget-card');
                 if (card) {
@@ -1547,7 +2103,7 @@
         },
         
         /**
-         * Сохраняет layout виджетов на сервер
+         * Сохраняет layout виджетов на сервер (все вкладки)
          */
         saveLayout: function () {
           if (!this.grid) {
@@ -1556,102 +2112,31 @@
           }
           
           this.savingLayout = true;
+          this.syncActiveTabFromGrid();
+
+          const tabs_config = {
+            version: 2,
+            hideWelcomeTitle: !!this.hideWelcomeTitle,
+            activeTabId: this.activeTabId,
+            tabs: this.tabs.map(tab => ({
+              id: tab.id,
+              name: tab.name,
+              icon: tab.icon || '',
+              columns: tab.columns || 12,
+              layout: Array.isArray(tab.layout) ? tab.layout : [],
+            })),
+          };
+
+          const activeTab = this.tabs.find(t => t.id === this.activeTabId);
+          const columns = (activeTab && activeTab.columns) || this.columns || 12;
           
-          // Получаем layout из GridStack
-          const layout = this.grid.save();
-          const columns = this.columns || 12;
-          
-          // Обогащаем layout данными о виджетах
-          const allWidgets = this.grid.engine.nodes || [];
-          const widgetsMapById = new Map();
-          
-          allWidgets.forEach(node => {
-            if (node.id && node.el) {
-              widgetsMapById.set(String(node.id), node);
-            }
-          });
-          
-          const enrichedLayout = layout.map((item, layoutIndex) => {
-            let widgetElement = null;
-            let gridNode = null;
-            
-            // Ищем виджет по id
-            if (item.id) {
-              gridNode = widgetsMapById.get(String(item.id));
-            }
-            
-            // Если не нашли по id, пробуем найти по позиции
-            if (!gridNode && item.x !== undefined && item.y !== undefined) {
-              gridNode = allWidgets.find(node => 
-                node.x === item.x && 
-                node.y === item.y && 
-                node.el
-              );
-            }
-            
-            // Если не нашли, используем индекс
-            if (!gridNode && layoutIndex < allWidgets.length) {
-              gridNode = allWidgets[layoutIndex];
-            }
-            
-            if (gridNode && gridNode.el) {
-              widgetElement = gridNode.el;
-              
-              // Получаем данные виджета из атрибутов
-              const widgetType = widgetElement.getAttribute('data-widget-type') || null;
-              const widgetKey = widgetElement.getAttribute('data-widget-key') || null;
-              const widgetName = widgetElement.getAttribute('data-widget-name') || null;
-              
-              const widgetData = {
-                ...item,
-                id: item.id || (gridNode.id ? String(gridNode.id) : `widget_${layoutIndex}`),
-                type: widgetType,
-                key: widgetKey,
-                settings: {}
-              };
-              
-              // Сохраняем имя виджета в settings, если оно есть
-              if (widgetName) {
-                widgetData.settings.widget_name = widgetName;
-              }
-              
-              // Собираем настройки из data-атрибутов
-              const allAttributes = widgetElement.attributes;
-              for (let i = 0; i < allAttributes.length; i++) {
-                const attr = allAttributes[i];
-                const attrName = attr.name;
-                
-                if (attrName.startsWith('data-') && 
-                    !attrName.startsWith('data-gs-') && 
-                    attrName !== 'data-widget-type' && 
-                    attrName !== 'data-widget-key' && 
-                    attrName !== 'data-widget-name') {
-                  const settingKey = attrName.replace('data-', '');
-                  widgetData.settings[settingKey] = attr.value;
-                }
-              }
-              
-              return widgetData;
-            }
-            
-            // Если не нашли элемент, возвращаем базовые данные
-            return {
-              ...item,
-              id: item.id || `unknown_${layoutIndex}`,
-              type: null,
-              key: null,
-              settings: {}
-            };
-          });
-          
-          // Отправляем layout на сервер
           fetch('/admin/widgets-layout', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-              layout: enrichedLayout,
+              tabs_config: tabs_config,
               columns: columns
             })
           })
@@ -1688,6 +2173,8 @@
           if (this.columns > 1 && this.grid) {
             this.columns--;
             this.grid.column(this.columns, 'noMove');
+            const tab = this.tabs.find(t => t.id === this.activeTabId);
+            if (tab) tab.columns = this.columns;
             this.saveLayout();
           }
         },
@@ -1709,6 +2196,8 @@
           if (this.columns < 12 && this.grid) {
             this.columns++;
             this.grid.column(this.columns, 'noMove');
+            const tab = this.tabs.find(t => t.id === this.activeTabId);
+            if (tab) tab.columns = this.columns;
             this.saveLayout();
           }
         },

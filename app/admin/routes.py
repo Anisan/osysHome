@@ -165,14 +165,35 @@ def save_widgets_layout():
         
         layout = data.get("layout")
         columns = data.get("columns", 12)
+        # Optional tabs payload (version 2); when present, layout is the full config object
+        tabs_config = data.get("tabs_config")
         
         # Логируем полученные данные для отладки
-        _logger.debug("Saving widgets layout for user %s: layout items count = %s, columns = %s", 
-                     username, len(layout) if layout else 0, columns)
-        if layout:
-            for item in layout[:3]:  # Логируем первые 3 элемента для отладки
-                _logger.debug("Layout item: id=%s, type=%s, key=%s, settings=%s", 
-                             item.get('id'), item.get('type'), item.get('key'), item.get('settings'))
+        if tabs_config and isinstance(tabs_config, dict):
+            tabs = tabs_config.get("tabs") or []
+            _logger.debug(
+                "Saving widgets tabs for user %s: tabs count = %s, active = %s",
+                username, len(tabs), tabs_config.get("activeTabId"),
+            )
+            layout_to_save = tabs_config
+            # Keep widgets_columns in sync with active tab for initial page render
+            active_id = tabs_config.get("activeTabId")
+            for tab in tabs:
+                if tab.get("id") == active_id:
+                    columns = tab.get("columns", columns)
+                    break
+        else:
+            _logger.debug(
+                "Saving widgets layout for user %s: layout items count = %s, columns = %s",
+                username, len(layout) if layout else 0, columns,
+            )
+            if layout and isinstance(layout, list):
+                for item in layout[:3]:
+                    _logger.debug(
+                        "Layout item: id=%s, type=%s, key=%s, settings=%s",
+                        item.get('id'), item.get('type'), item.get('key'), item.get('settings'),
+                    )
+            layout_to_save = layout
         
         # Ensure property exists
         user_obj = getObject(username)
@@ -182,7 +203,7 @@ def save_widgets_layout():
             addObjectProperty('widgets_columns', username, 'Widgets columns count', 0, PropertyType.String)
         
         # Save layout
-        layout_json = json.dumps(layout) if layout else None
+        layout_json = json.dumps(layout_to_save) if layout_to_save is not None else None
         setProperty(f"{username}.widgets_layout", layout_json, source="control_panel")
         setProperty(f"{username}.widgets_columns", columns, source="control_panel")
         
