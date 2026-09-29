@@ -645,8 +645,12 @@ def setProperty(name:str, value, source:str='', save_history:bool=None, changed:
         prop = name.split(".")[1]
         obj = objects_storage.getObjectByName(obj)
         if obj:
-            obj.setProperty(prop, value, source, save_history, changed, track_stats=track_stats)
-            return True
+            # Propagate ObjectManager result (False on reactive-loop block, etc.)
+            return bool(
+                obj.setProperty(
+                    prop, value, source, save_history, changed, track_stats=track_stats
+                )
+            )
         else:
             logger.error('Object %s not found', name)
             return False
