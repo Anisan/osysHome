@@ -963,7 +963,7 @@
           minRow: 1,
           margin: 2,
           column: this.columns || 12,
-          disableOneColumnMode: false, // Включаем responsive режим для маленьких экранов
+          disableOneColumnMode: true, // колонки на мобильных — через updateColumnsForScreenSize
           draggable: {
             handle: '.widget-drag-handle',
             appendTo: 'parent',
@@ -981,11 +981,17 @@
         const updateColumnsForScreenSize = () => {
           this.windowWidth = window.innerWidth;
           const isMobile = this.windowWidth <= 768;
-          const targetColumns = isMobile ? 1 : (this.columns || 12);
+          const activeTab = this.tabs.find(t => t.id === this.activeTabId);
+          const tabColumns = activeTab && activeTab.columns
+            ? parseInt(activeTab.columns, 10)
+            : null;
+          const targetColumns = isMobile ? 1 : (tabColumns || this.columns || 12);
           
           if (this.grid && this.grid.column() !== targetColumns) {
             this.grid.column(targetColumns, 'noMove');
-            this.columns = targetColumns;
+            if (!isMobile) {
+              this.columns = targetColumns;
+            }
           }
         };
         
@@ -1170,7 +1176,8 @@
          */
         toggleEditMode: function () {
           if (this.editMode) {
-            // Выходим из режима редактирования - сохраняем layout
+            // Сначала фиксируем позиции в активной вкладке, затем сохраняем
+            this.syncActiveTabFromGrid();
             this.saveLayout();
           }
           this.editMode = !this.editMode;
@@ -1288,6 +1295,7 @@
           }
           const layout = Array.isArray(raw) ? raw : [];
           const mainTab = this.createTab('{{ _('Main') }}', layout, columns);
+          mainTab.id = 'tab_main';
           return {
             version: 2,
             hideWelcomeTitle: false,
@@ -1339,79 +1347,51 @@
         },
 
         /**
-         * Собирает текущий layout сетки в enriched-формат
+         * Собирает текущий layout сетки в enriched-формат (координаты из engine.nodes)
          */
         collectCurrentLayout: function () {
           if (!this.grid) return [];
 
-          const layout = this.grid.save();
-          const allWidgets = this.grid.engine.nodes || [];
-          const widgetsMapById = new Map();
+          const allWidgets = (this.grid.engine.nodes || []).filter(node => node.el);
 
-          allWidgets.forEach(node => {
-            if (node.id && node.el) {
-              widgetsMapById.set(String(node.id), node);
-            }
-          });
+          return allWidgets.map((node, layoutIndex) => {
+            const widgetElement = node.el;
+            const widgetType = widgetElement.getAttribute('data-widget-type') || null;
+            const widgetKey = widgetElement.getAttribute('data-widget-key') || null;
+            const widgetName = widgetElement.getAttribute('data-widget-name') || null;
+            const widgetId = node.id != null
+              ? String(node.id)
+              : (widgetElement.getAttribute('gs-id') || `widget_${layoutIndex}`);
 
-          return layout.map((item, layoutIndex) => {
-            let gridNode = null;
-
-            if (item.id) {
-              gridNode = widgetsMapById.get(String(item.id));
-            }
-            if (!gridNode && item.x !== undefined && item.y !== undefined) {
-              gridNode = allWidgets.find(node =>
-                node.x === item.x &&
-                node.y === item.y &&
-                node.el
-              );
-            }
-            if (!gridNode && layoutIndex < allWidgets.length) {
-              gridNode = allWidgets[layoutIndex];
-            }
-
-            if (gridNode && gridNode.el) {
-              const widgetElement = gridNode.el;
-              const widgetType = widgetElement.getAttribute('data-widget-type') || null;
-              const widgetKey = widgetElement.getAttribute('data-widget-key') || null;
-              const widgetName = widgetElement.getAttribute('data-widget-name') || null;
-
-              const widgetData = {
-                ...item,
-                id: item.id || (gridNode.id ? String(gridNode.id) : `widget_${layoutIndex}`),
-                type: widgetType,
-                key: widgetKey,
-                settings: {}
-              };
-
-              if (widgetName) {
-                widgetData.settings.widget_name = widgetName;
-              }
-
-              const allAttributes = widgetElement.attributes;
-              for (let i = 0; i < allAttributes.length; i++) {
-                const attr = allAttributes[i];
-                const attrName = attr.name;
-                if (attrName.startsWith('data-') &&
-                    !attrName.startsWith('data-gs-') &&
-                    attrName !== 'data-widget-type' &&
-                    attrName !== 'data-widget-key' &&
-                    attrName !== 'data-widget-name') {
-                  const settingKey = attrName.replace('data-', '');
-                  widgetData.settings[settingKey] = attr.value;
-                }
-              }
-              return widgetData;
-            }
-
-            return {
-              ...item,
-              id: item.id || `unknown_${layoutIndex}`,
-              type: null,
-              key: null,
+            const widgetData = {
+              x: node.x,
+              y: node.y,
+              w: node.w,
+              h: node.h,
+              id: widgetId,
+              type: widgetType,
+              key: widgetKey,
               settings: {}
             };
+
+            if (widgetName) {
+              widgetData.settings.widget_name = widgetName;
+            }
+
+            const allAttributes = widgetElement.attributes;
+            for (let i = 0; i < allAttributes.length; i++) {
+              const attr = allAttributes[i];
+              const attrName = attr.name;
+              if (attrName.startsWith('data-') &&
+                  !attrName.startsWith('data-gs-') &&
+                  attrName !== 'data-widget-type' &&
+                  attrName !== 'data-widget-key' &&
+                  attrName !== 'data-widget-name') {
+                const settingKey = attrName.replace('data-', '');
+                widgetData.settings[settingKey] = attr.value;
+              }
+            }
+            return widgetData;
           });
         },
 
@@ -1977,13 +1957,20 @@
           const self = this;
           this._restoreSeq = (this._restoreSeq || 0) + 1;
           const restoreSeq = this._restoreSeq;
-          
-          savedLayout.forEach((savedItem, index) => {
-            if (!savedItem.type || !savedItem.key) {
-              console.warn('Skipping widget without type or key:', savedItem);
-              return;
-            }
-            
+
+          const items = (savedLayout || []).filter(item => item.type && item.key);
+          items.sort((a, b) => {
+            const dy = (a.y || 0) - (b.y || 0);
+            if (dy !== 0) return dy;
+            return (a.x || 0) - (b.x || 0);
+          });
+
+          const useBatch = typeof this.grid.batchUpdate === 'function';
+          if (useBatch) {
+            this.grid.batchUpdate();
+          }
+
+          items.forEach((savedItem, index) => {
             const widgetId = savedItem.id || `widget_${savedItem.type}_${savedItem.key}_${index}`;
             
             // Восстанавливаем имя виджета из settings
@@ -2020,17 +2007,22 @@
             const gridContainer = document.querySelector('.grid-stack');
             gridContainer.appendChild(widgetDiv);
             
-            // Преобразуем элемент в виджет GridStack
-            this.grid.makeWidget(widgetDiv);
-            
-            // Устанавливаем позицию и размер
-            this.grid.update(widgetDiv, {
+            const widgetOptions = {
               x: savedItem.x !== undefined ? savedItem.x : 0,
               y: savedItem.y !== undefined ? savedItem.y : 0,
               w: savedItem.w !== undefined ? savedItem.w : 3,
               h: savedItem.h !== undefined ? savedItem.h : 3,
-              id: widgetId
-            });
+              id: widgetId,
+              autoPosition: false
+            };
+
+            // Преобразуем элемент в виджет GridStack с сохранённой позицией
+            if (typeof this.grid.makeWidget === 'function') {
+              this.grid.makeWidget(widgetDiv, widgetOptions);
+            } else {
+              this.grid.makeWidget(widgetDiv);
+              this.grid.update(widgetDiv, widgetOptions);
+            }
 
             if (savedItem.type === 'object'){
               var objectList = [];
@@ -2095,6 +2087,10 @@
                 }
               });
           });
+
+          if (useBatch && typeof this.grid.commit === 'function') {
+            this.grid.commit();
+          }
           
           this.$nextTick(() => {
             this.updateWidgetActionButtons();
