@@ -1,6 +1,7 @@
 import datetime
 import json
 import logging
+from urllib.parse import urlparse
 from flask import request
 from flask_restx import Namespace, Resource
 from app.api.decorators import api_key_required
@@ -84,6 +85,15 @@ class GetPlugins(Resource):
             updated = getProperty("SystemVar.upgraded")
             if updated is None or updated is False:
                 updated = get_now_to_utc() - datetime.timedelta(10000)
+            core_url = (getProperty("SystemVar.core_url") or "").strip() or "https://github.com/Anisan/osysHome"
+            owner, repo = "Anisan", "osysHome"
+            try:
+                path_parts = [p for p in urlparse(core_url).path.strip("/").split("/") if p]
+                if len(path_parts) >= 2:
+                    owner = path_parts[0]
+                    repo = path_parts[1][:-4] if path_parts[1].endswith(".git") else path_parts[1]
+            except Exception:
+                pass
             osysHome = {
                 "title": "osysHome",
                 "name": "osysHome",
@@ -93,10 +103,10 @@ class GetPlugins(Resource):
                 "branch": getProperty("SystemVar.core_branch") or "master",
                 "update": getProperty("SystemVar.update"),
                 "author":"Eraser",
-                "owner": "Anisan",
-                "repo": "osysHome",
+                "owner": owner,
+                "repo": repo,
                 "updated": updated,
-                "url":"https://github.com/Anisan/osysHome",
+                "url": core_url,
             }
             return {"success": True, "result": result, "osysHome":osysHome}, 200
 

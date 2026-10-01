@@ -462,12 +462,9 @@
     function getField(inputId) {
         const field = fields.get(inputId);
         if (!field) return null;
-        if (!field.input) {
-            field.input = document.getElementById(inputId);
-        }
-        if (!field.preview) {
-            field.preview = document.getElementById(inputId + '-preview');
-        }
+        // Always re-resolve from DOM: Vue/framework remounts can detach cached nodes
+        field.input = document.getElementById(inputId);
+        field.preview = document.getElementById(inputId + '-preview');
         return field;
     }
 
@@ -831,7 +828,13 @@
     }
 
     function register(inputId, options) {
+        const opts = options || {};
         if (fields.has(inputId)) {
+            const existing = fields.get(inputId);
+            if (opts.modalId) existing.modalId = opts.modalId;
+            if (Object.prototype.hasOwnProperty.call(opts, 'onChange')) {
+                existing.onChange = opts.onChange || null;
+            }
             updatePreview(inputId);
             return {
                 updatePreview: function() { updatePreview(inputId); },
@@ -842,7 +845,6 @@
                 }
             };
         }
-        const opts = options || {};
         const modalId = opts.modalId || 'iconPickerModal';
         fields.set(inputId, {
             inputId: inputId,
