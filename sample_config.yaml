@@ -116,7 +116,7 @@ database:
   # External database connection string.
   # Usually not needed for SQLite, where db_name is used instead.
   # PostgreSQL example:
-  # connection_string: 'postgresql://osyshome:password@localhost/osyshome'
+  # connection_string: 'postgresql+psycopg2://osyshome:password@localhost/osyshome'
   # MySQL example:
   # connection_string: 'mysql://osyshome:password@localhost/app'
 
