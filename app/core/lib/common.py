@@ -11,7 +11,7 @@ from sqlalchemy import update, delete
 import xml.etree.ElementTree as ET
 from app.core.lib.execute import execute_and_capture_output
 from app.logging_config import getLogger
-from app.database import session_scope, row2dict, convert_local_to_utc, convert_utc_to_local, get_now_to_utc, get_default_timezone
+from app.database import session_scope, row2dict, convert_local_to_utc, convert_utc_to_local, get_now_to_utc, get_default_timezone, parse_int_id
 from .crontab import nextStartCronJob
 from .constants import (
     CategoryNotify,
@@ -437,6 +437,10 @@ def readNotify(notify_id: int):
     Args:
         notify_id (int): ID notify
     """
+    notify_id = parse_int_id(notify_id)
+    if notify_id is None:
+        return
+
     notify_source = None
     notify_found = False
     with session_scope() as session:

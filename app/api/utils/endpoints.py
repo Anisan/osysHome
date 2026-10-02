@@ -112,7 +112,7 @@ class GlobalSearch(Resource):
         }, 200
 
 
-@utils_ns.route("/readnotify/<id>")
+@utils_ns.route("/readnotify/<int:id>")
 class ReadNotify(Resource):
     @api_key_required
     @handle_admin_required

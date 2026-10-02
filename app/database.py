@@ -32,6 +32,28 @@ Model = db.Model
 
 # From Mike Bayer's "Building the app" talk
 # https://speakerdeck.com/zzzeek/building-the-app
+def parse_int_id(value):
+    """Convert request/path id to int or None (psycopg3-safe for Integer columns)."""
+    if value is None or value == '' or value == 'None':
+        return None
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        return int(value)
+    if isinstance(value, (str, bytes)):
+        text = value.decode() if isinstance(value, bytes) else value
+        text = text.strip()
+        if text.isdigit() or (text.startswith('-') and text[1:].isdigit()):
+            return int(text)
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
 class SurrogatePK(object):
     """A mixin that adds a surrogate integer 'primary key' column named ``id`` \
         to any declarative-mapped class.
@@ -44,11 +66,9 @@ class SurrogatePK(object):
     @classmethod
     def get_by_id(cls, record_id):
         """Get record by ID."""
-        if any(
-                (isinstance(record_id, (str, bytes)) and record_id.isdigit(),
-                 isinstance(record_id, (int, float))),
-        ):
-            return cls.query.get(int(record_id))
+        record_id = parse_int_id(record_id)
+        if record_id is not None:
+            return cls.query.get(record_id)
 
 
 def reference_col(tablename, nullable=False, pk_name='id', **kwargs):
