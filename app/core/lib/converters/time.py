@@ -1,15 +1,15 @@
+"""Time and timestamp conversion helpers."""
 from datetime import datetime
 
 
 def seconds_to_mm_ss(seconds):
-    """
-    Преобразует секунды в формат MM:SS.
+    """Convert seconds to an ``MM:SS`` string.
 
     Args:
-        seconds (int): количество секунд
+        seconds (int): Duration in seconds
 
     Returns:
-        str: строка в формате MM:SS
+        str: Formatted ``MM:SS`` string
     """
     minutes = seconds // 60
     seconds = seconds % 60
@@ -17,37 +17,34 @@ def seconds_to_mm_ss(seconds):
 
 
 def mm_ss_to_seconds(mm_ss):
-    """
-    Преобразует MM:SS в секунды.
+    """Convert an ``MM:SS`` string to seconds.
 
     Args:
-        mm_ss (str): время в формате MM:SS
+        mm_ss (str): Time in ``MM:SS`` format
 
     Returns:
-        int: количество секунд
+        int: Duration in seconds
     """
     minutes, seconds = map(int, mm_ss.split(":"))
     return minutes * 60 + seconds
 
 def timestamp_to_iso(timestamp):
-    """
-    Преобразует Unix timestamp в ISO-формат даты.
+    """Convert a Unix timestamp to an ISO datetime string.
 
     Args:
         timestamp (float): Unix timestamp
 
     Returns:
-        str: дата в формате ISO
+        str: ISO-formatted datetime
     """
     return datetime.fromtimestamp(timestamp).isoformat()
 
 
 def iso_to_timestamp(iso_str):
-    """
-    Преобразует ISO-строку в Unix timestamp.
+    """Convert an ISO datetime string to a Unix timestamp.
 
     Args:
-        iso_str (str): дата в формате ISO
+        iso_str (str): ISO datetime (``Z`` suffix allowed)
 
     Returns:
         float: Unix timestamp

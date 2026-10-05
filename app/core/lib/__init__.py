@@ -1,3 +1,4 @@
+"""Public re-exports of core library modules."""
 from .cache import * # noqa
 from .common import * # noqa
 from .converters import * # noqa

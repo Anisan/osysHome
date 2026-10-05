@@ -10,14 +10,26 @@ _TREE_CACHE_LOCK = Lock()
 
 
 def _copy_items(items):
+    """Shallow-copy a list of dict items."""
     return [item.copy() for item in items]
 
 
 def _sort_items_by_name(items):
+    """Sort items in place by lowercased name."""
     items.sort(key=lambda item: (item.get("name") or "").lower())
 
 
 def _build_tree_payload(include_hidden=False):
+    """Build the classes/objects tree payload from the database.
+
+    Args:
+        include_hidden (bool, optional): Include names starting with ``_``.
+            Defaults to False.
+
+    Returns:
+        dict: Tree payload with root classes, standalone objects,
+            children/objects maps, and class index
+    """
     class_query = Class.query
     if not include_hidden:
         class_query = class_query.filter(Class.name.notlike(r'\_%', escape='\\'))
@@ -89,6 +101,15 @@ def _build_tree_payload(include_hidden=False):
 
 
 def get_objects_tree_payload(include_hidden=False):
+    """Get a deep-copied classes/objects tree payload (cached).
+
+    Args:
+        include_hidden (bool, optional): Include names starting with ``_``.
+            Defaults to False.
+
+    Returns:
+        dict: Tree payload safe for callers to mutate
+    """
     cache_key = "all" if include_hidden else "public"
     with _TREE_CACHE_LOCK:
         payload = _TREE_CACHE.get(cache_key)
@@ -115,5 +136,6 @@ def get_objects_tree_payload(include_hidden=False):
 
 
 def invalidate_objects_tree_cache():
+    """Clear the classes/objects tree cache."""
     with _TREE_CACHE_LOCK:
         _TREE_CACHE.clear()

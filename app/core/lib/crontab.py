@@ -1,13 +1,19 @@
-""" Cron module"""
+"""Cron helpers for scheduler (server timezone)."""
 import croniter
 from app.database import convert_utc_to_local, get_default_timezone
 from datetime import datetime, timezone
 
 def nextStartCronJob(cron_string: str) -> datetime:
-    """Next cron fire in server DEFAULT_TIMEZONE (naive local wall time).
+    """Compute the next cron fire time in the server default timezone.
 
-    Scheduler cycle has no HTTP user; cron wall-clock must follow server timezone,
-    not the browser or a random request user.
+    Scheduler has no HTTP user context; wall-clock must follow the server
+    timezone, not the browser or a request user.
+
+    Args:
+        cron_string (str): Cron expression
+
+    Returns:
+        datetime: Next fire time as naive local wall time
     """
     server_tz = get_default_timezone()
     current_datetime = convert_utc_to_local(
@@ -19,7 +25,17 @@ def nextStartCronJob(cron_string: str) -> datetime:
 
 
 def validate_cron_expression(cron_string: str, preview_count: int = 3) -> dict:
-    """Validate cron expression and preview next runs in server timezone."""
+    """Validate a cron expression and preview upcoming runs.
+
+    Args:
+        cron_string (str): Cron expression (empty is treated as valid/no schedule)
+        preview_count (int, optional): Number of next runs to preview (1-10).
+            Defaults to 3.
+
+    Returns:
+        dict: On success: ``ok``, ``crontab``, ``next_runs``, ``timezone``.
+            On failure: ``ok``, ``crontab``, ``errors``, ``next_runs``.
+    """
     text = str(cron_string or "").strip()
     if not text:
         return {"ok": True, "crontab": None, "next_runs": []}

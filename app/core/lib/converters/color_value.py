@@ -1,3 +1,5 @@
+"""Universal color property parsing, normalization, and serialization."""
+
 import json
 import ast
 import re
@@ -43,10 +45,7 @@ SUPPORTED_FORMATS = {
 
 
 def _coerce_universal(univ, scales=None):
-    """
-    Приводит вход к универсальному dict.
-    Поддерживает dict, JSON-строки, python-literal строки и legacy raw color строки.
-    """
+    """Normalize input to a universal color dict from dicts or string forms."""
     scales = scales or {}
 
     if isinstance(univ, dict):
@@ -73,19 +72,22 @@ def _coerce_universal(univ, scales=None):
 
 
 def _clamp(value, min_val, max_val):
+    """Clamp value to [min_val, max_val]."""
     return max(min_val, min(max_val, value))
 
 
 def _round_xy(x, y):
+    """Round xy chromaticity coordinates to six decimal places."""
     return [round(float(x), 6), round(float(y), 6)]
 
 
 def _round_luminance(y_value):
+    """Round xyY luminance Y to six decimal places."""
     return round(float(y_value), 6)
 
 
 def _extract_luminance(source, rgb=None):
-    """Извлекает Y (яркость xyY) из dict или вычисляет из rgb."""
+    """Read Y from a dict or derive it from an RGB triplet."""
     if isinstance(source, dict):
         if "Y" in source:
             return float(source["Y"])
@@ -98,7 +100,7 @@ def _extract_luminance(source, rgb=None):
 
 
 def _rgb_from_xy(x, y, luminance=None):
-    """XY -> RGB с учётом яркости Y (xyY). Без Y результат будет слишком тёмным."""
+    """Convert xy to RGB using xyY luminance Y (required)."""
     if luminance is None:
         raise ValueError("XY to RGB conversion requires luminance (Y)")
     r, g, b = xy_to_rgb(x, y, luminance)
@@ -106,6 +108,14 @@ def _rgb_from_xy(x, y, luminance=None):
 
 
 def is_xy_only_payload(parsed):
+    """Return whether the payload updates xy without an rgb triplet.
+
+    Args:
+        parsed: Parsed color fragment (typically a dict).
+
+    Returns:
+        bool: True if xy is present and rgb is not.
+    """
     if not isinstance(parsed, dict):
         return False
     has_xy = "xy" in parsed or ("x" in parsed and "y" in parsed)
@@ -114,7 +124,15 @@ def is_xy_only_payload(parsed):
 
 
 def merge_xy_luminance(parsed, existing_univ):
-    """При обновлении только xy сохраняет Y из текущего universal-значения."""
+    """Preserve luminance Y when a write updates only xy chromaticity.
+
+    Args:
+        parsed (dict): Incoming color fragment.
+        existing_univ (dict): Current universal color value.
+
+    Returns:
+        dict: ``parsed``, optionally merged with ``Y`` from ``existing_univ``.
+    """
     if not is_xy_only_payload(parsed) or not isinstance(existing_univ, dict):
         return parsed
     merged = dict(parsed)
@@ -129,8 +147,13 @@ def merge_xy_luminance(parsed, existing_univ):
 
 
 def normalize_hex_input(raw):
-    """
-    Нормализует hex-ввод: #RRGGBB или RRGGBB -> (r, g, b).
+    """Parse hex input (#RRGGBB or RRGGBB) into RGB channels.
+
+    Args:
+        raw: Hex string or dict with a ``hex`` key.
+
+    Returns:
+        tuple: ``(r, g, b)`` integers in 0–255.
     """
     if isinstance(raw, dict):
         raw = raw.get("hex")
@@ -143,6 +166,7 @@ def normalize_hex_input(raw):
 
 
 def _to_rgb_triplet(values):
+    """Validate and return a three-channel RGB list."""
     if not isinstance(values, (list, tuple)) or len(values) != 3:
         raise ValueError("RGB value must contain 3 channels")
     r = int(values[0])
@@ -155,9 +179,7 @@ def _to_rgb_triplet(values):
 
 
 def _load_dict_from_string(raw):
-    """
-    Пытается разобрать строку как dict (JSON / python literal).
-    """
+    """Parse a string as a dict via JSON or Python literal syntax."""
     if not isinstance(raw, str):
         raise ValueError("Color dict must be a string")
     text = raw.strip()
@@ -182,6 +204,14 @@ def _load_dict_from_string(raw):
 
 
 def detect_format(raw):
+    """Infer the color wire format from a raw value.
+
+    Args:
+        raw: Dict, string, or other color input.
+
+    Returns:
+        str: Format id (e.g. ``rgb``, ``hex``, ``xy``, ``canonical``).
+    """
     if isinstance(raw, dict):
         if "mode" in raw:
             return str(raw["mode"]).lower()
@@ -223,6 +253,16 @@ def detect_format(raw):
 
 
 def parse(raw, write_format="auto", scales=None):
+    """Parse a color value into a normalized intermediate dict.
+
+    Args:
+        raw: Color in any supported wire format.
+        write_format (str): Target format or ``auto`` to detect.
+        scales (dict, optional): ``hue_scale``, ``sat_scale`` for HS/HSV inputs.
+
+    Returns:
+        dict: Parsed color (e.g. ``rgb``, ``xy``, ``hs`` keys).
+    """
     scales = scales or {}
     fmt = write_format if write_format and write_format != "auto" else detect_format(raw)
     fmt = fmt.lower()
@@ -338,6 +378,14 @@ def parse(raw, write_format="auto", scales=None):
 
 
 def to_universal(parsed):
+    """Expand a parsed color dict into the canonical universal representation.
+
+    Args:
+        parsed (dict or str): Parsed color or JSON string of one.
+
+    Returns:
+        dict: Universal color with ``rgb``, ``xy``, ``Y``, and optional extras.
+    """
     if isinstance(parsed, str):
         parsed = json.loads(parsed)
     if not isinstance(parsed, dict):
@@ -400,6 +448,16 @@ def to_universal(parsed):
 
 
 def from_universal(univ, read_format="canonical", scales=None):
+    """Export a universal color dict to a requested wire format.
+
+    Args:
+        univ: Universal color dict or coercible string.
+        read_format (str): Output format (see ``SUPPORTED_FORMATS``).
+        scales (dict, optional): Hue/saturation and color-temp unit overrides.
+
+    Returns:
+        dict, str, int, or None: Value in the requested format.
+    """
     scales = scales or {}
     fmt = (read_format or "canonical").lower()
     if fmt not in SUPPORTED_FORMATS:
@@ -470,6 +528,14 @@ def from_universal(univ, read_format="canonical", scales=None):
 
 
 def encode(univ):
+    """Serialize a universal color to stable JSON for database storage.
+
+    Args:
+        univ (dict): Color dict (normalized via ``to_universal``).
+
+    Returns:
+        str: Compact JSON string.
+    """
     if not isinstance(univ, dict):
         raise ValueError("Universal color must be dict")
     normalized = to_universal(univ)
@@ -479,6 +545,14 @@ def encode(univ):
 
 
 def decode(value):
+    """Decode a stored or wire value into a universal color dict.
+
+    Args:
+        value: JSON string, dict, or legacy color string; ``None`` allowed.
+
+    Returns:
+        dict or None: Universal color, or ``None`` if ``value`` is ``None``.
+    """
     if value is None:
         return None
     return _coerce_universal(value)

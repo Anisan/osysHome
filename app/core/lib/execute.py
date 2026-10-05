@@ -1,3 +1,4 @@
+"""Runtime helpers for executing method / CustomFunction Python code."""
 import io
 import re
 import sys
@@ -24,7 +25,10 @@ _runtime_cf_revision: int = -1
 
 
 def invalidate_execution_environment_cache() -> None:
-    """Drop merged runtime env; base module imports stay cached."""
+    """Drop the merged runtime environment cache.
+
+    Base module imports stay cached; only CustomFunction bindings are cleared.
+    """
     global _runtime_environment, _runtime_cf_revision
     with _env_lock:
         _runtime_environment = None
@@ -32,7 +36,7 @@ def invalidate_execution_environment_cache() -> None:
 
 
 def _build_base_module_environment() -> Dict[str, Any]:
-    """Build execution environment with standard module imports (no CustomFunction)."""
+    """Build an execution environment with standard module imports only."""
     environment = globals().copy()
     for module_name in MODULE_NAMES:
         import_statement = f'from {module_name} import *'
@@ -41,7 +45,13 @@ def _build_base_module_environment() -> Dict[str, Any]:
 
 
 def get_base_module_environment() -> Dict[str, Any]:
-    """Cached standard imports only — for CustomFunction compile/validate."""
+    """Return a copy of the cached base import environment.
+
+    Used for CustomFunction compile/validate (no CustomFunction bindings).
+
+    Returns:
+        dict: Shallow copy of the base environment
+    """
     global _base_environment
     with _env_lock:
         if _base_environment is None:
@@ -50,12 +60,16 @@ def get_base_module_environment() -> Dict[str, Any]:
 
 
 def build_module_environment() -> Dict[str, Any]:
-    """Backward-compatible alias: base imports only, no CustomFunction bindings."""
+    """Backward-compatible alias for :func:`get_base_module_environment`.
+
+    Returns:
+        dict: Base imports only (no CustomFunction bindings)
+    """
     return get_base_module_environment()
 
 
 def _get_runtime_environment() -> Dict[str, Any]:
-    """Cached base + CustomFunction bindings; refreshed on registry revision change."""
+    """Return cached base environment merged with CustomFunction bindings."""
     global _base_environment, _runtime_environment, _runtime_cf_revision
 
     from app.core.main.CustomFunctionRegistry import custom_function_registry
@@ -76,7 +90,16 @@ def format_runtime_error(
     output: str,
     method_context: Optional[dict] = None,
 ) -> str:
-    """Prepend human-readable CustomFunction / method context to error output."""
+    """Prepend human-readable CustomFunction / method context to error output.
+
+    Args:
+        output (str): Captured traceback / error text
+        method_context (dict, optional): Keys such as ``object``, ``method``,
+            ``owner``, ``source``
+
+    Returns:
+        str: Formatted error text (or original ``output`` if nothing to add)
+    """
     if '<CustomFunction:' not in output:
         if method_context:
             header = ['--- Контекст вызова ---']
@@ -136,13 +159,15 @@ def execute_and_capture_output(
     """Execute Python code with provided variables and capture output/errors.
 
     Args:
-        code: Python source to run.
-        variables: Locals/globals overlay (self, params, etc.).
-        code_filename: Virtual filename for compile/traceback.
-        method_context: Optional dict for format_runtime_error on failure.
+        code (str): Python source to run
+        variables (dict): Locals/globals overlay (``self``, ``params``, etc.)
+        code_filename (str, optional): Virtual filename for compile/traceback.
+            Defaults to ``'<string>'``.
+        method_context (dict, optional): Passed to
+            :func:`format_runtime_error` on failure
 
     Returns:
-        Captured output (possibly formatted) and error flag.
+        tuple[str, bool]: Captured output (possibly formatted) and error flag
     """
     if not code:
         return "", False

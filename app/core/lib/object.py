@@ -1,4 +1,4 @@
-"""Object library"""
+"""Object / class API for osysHome (CRUD, properties, methods, links, history)."""
 import threading
 import datetime
 import json
@@ -16,20 +16,29 @@ _UNSET = object()
 
 
 def _get_object_logger(object_name: str):
-    """Create a logger adapter with object name context"""
+    """Return a logger adapter bound to an object name.
+
+    Args:
+        object_name (str): Object name for log context.
+
+    Returns:
+        ObjectLoggerAdapter: Logger with ``object_name`` in extra context.
+    """
     return ObjectLoggerAdapter(_logger, {'object_name': object_name})
 
 def addClass(name:str, description:str=_UNSET, parentId:int=_UNSET, update:bool=False) -> dict:
-    """Add a class to the database.
+    """Create or update a class in the database.
 
     Args:
-        name (str): Name class
-        description (str, optional): Description class. Defaults to ''.
-        parentId (int, optional): ID parent class. Defaults to None.
-        update (bool, optional): Update existing class if it exists. Defaults to False.
+        name (str): Class name.
+        description (str, optional): Class description. Omitted fields are not
+            set on create. Defaults to sentinel (unchanged / not set).
+        parentId (int, optional): Parent class ID. Defaults to sentinel.
+        update (bool, optional): If True, update an existing class with the
+            same name. Defaults to False.
 
     Returns:
-        dict: Class row in DB
+        dict: Class row as a dict (via ``row2dict``).
     """
     with session_scope() as session:
         cls = session.query(Class).filter(Class.name == name).one_or_none()
@@ -55,13 +64,14 @@ def addClass(name:str, description:str=_UNSET, parentId:int=_UNSET, update:bool=
         return row2dict(cls)
 
 def getClass(name:str) -> dict:
-    """Get class from the database.
+    """Get a class by name from the database.
 
     Args:
-        name (str): Name class
+        name (str): Class name.
 
     Returns:
-        dict: Class row in DB
+        dict: Class row as a dict.
+            None if the class does not exist.
     """
     with session_scope() as session:
         cls = session.query(Class).filter(Class.name == name).one_or_none()
@@ -70,13 +80,14 @@ def getClass(name:str) -> dict:
         return None
 
 def updateClass(cls:dict) -> bool:
-    """Update class in the database.
+    """Update an existing class in the database.
 
     Args:
-        cls (Class): Class
+        cls (dict): Class fields: ``name``, ``description``, ``parent_id``,
+            ``template``.
 
     Returns:
-        bool: Result
+        bool: True if the class was found and updated, False otherwise.
     """
     with session_scope() as session:
         rec = session.query(Class).filter(Class.name == cls['name']).one_or_none()
@@ -92,10 +103,11 @@ def updateClass(cls:dict) -> bool:
         return True
 
 def listClasses() -> list[dict]:
-    """Get all classes from the database.
+    """List all classes from the database.
 
     Returns:
-        list[dict]: List of class rows ordered by name
+        list[dict]: Class rows ordered by name.
+            On error returns None.
     """
     try:
         with session_scope() as session:
@@ -106,14 +118,17 @@ def listClasses() -> list[dict]:
     return None
 
 def getChildClasses(name:str, recursive:bool=False) -> list[dict]:
-    """Get child classes of a class.
+    """Get child classes of the given class.
 
     Args:
-        name (str): Class name
-        recursive (bool, optional): Include all descendants. Defaults to False.
+        name (str): Parent class name
+        recursive (bool, optional): If True, include all descendants
+            (depth-first). If False, only direct children. Defaults to False.
 
     Returns:
-        list[dict]: List of class rows, or None if class not found
+        list[dict]: Child class rows ordered by name at each level.
+            Empty list if the class has no children.
+            None if the class does not exist or on error.
     """
     try:
         result = []
@@ -136,13 +151,15 @@ def getChildClasses(name:str, recursive:bool=False) -> list[dict]:
     return None
 
 def getClassParents(name:str) -> list[dict]:
-    """Get parent classes chain (immediate parent first, then up to root).
+    """Get the parent chain of a class (does not include the class itself).
 
     Args:
         name (str): Class name
 
     Returns:
-        list[dict]: Parent class rows, or None if class not found
+        list[dict]: Parent class rows from immediate parent up to root.
+            Empty list if the class has no parent.
+            None if the class does not exist or on error.
     """
     try:
         result = []
@@ -163,15 +180,21 @@ def getClassParents(name:str) -> list[dict]:
     return None
 
 def deleteClass(name:str) -> bool:
-    """Delete a class when it has no child classes and no objects.
+    """Delete a class from the database.
 
-    Also removes class-level properties and methods.
+    Refuses deletion (returns False) if:
+      - the class does not exist;
+      - the class has child classes;
+      - the class has any objects.
+
+    On success also deletes class-level properties and methods
+    and invalidates the objects tree cache.
 
     Args:
         name (str): Class name
 
     Returns:
-        bool: Success
+        bool: True if deleted, False otherwise
     """
     try:
         with session_scope() as session:
@@ -203,20 +226,27 @@ def addClassProperty(
     params: dict = _UNSET,
     update: bool = False,
 ) -> Property:
-    """Add a property class to the database
+    """Create or update a class-level property in the database.
 
     Args:
-        name (str): Name
-        class_name (str): Class name
-        description (str, optional): Description property. Defaults to ''.
-        history (int, optional): Save history (days). Defaults to 0.
-        type (PropertyType, optional): Type property. Defaults to PropertyType.Empty.
-        method_name (str, optional): Call method on change value property. Defaults to None.
-        params (dict, optional): Property params JSON (icon, color, validation and UI metadata). Defaults to None.
-        update (bool, optional): Update existing property if it exists. Defaults to False.
+        name (str): Property name.
+        class_name (str): Class name.
+        description (str, optional): Property description. Omitted fields use
+            defaults on create. Defaults to sentinel.
+        history (int, optional): History retention in days. Defaults to 0 when
+            omitted on create.
+        type (PropertyType, optional): Property type. Defaults to
+            ``PropertyType.Empty`` when omitted on create.
+        method_name (str, optional): Method to call when the value changes.
+            Defaults to sentinel.
+        params (dict, optional): Property params JSON (icon, color, validation,
+            UI metadata). Defaults to sentinel.
+        update (bool, optional): If True, update an existing property.
+            Defaults to False.
 
     Returns:
-        Property: Property row in DB
+        Property: Property ORM instance.
+            None if the class does not exist.
     """
     with session_scope() as session:
         cls = session.query(Class).filter(Class.name == class_name).one_or_none()
@@ -271,19 +301,23 @@ def addClassMethod(
     params:dict=_UNSET,
     update:bool=False,
 ) -> Method:
-    """Add a method class to the database
+    """Create or update a class-level method in the database.
 
     Args:
-        name (str): Name
-        class_name (str): Class name
-        description (str, optional): Description method. Defaults to ''.
-        code (str, optional): Python code. Defaults to ''.
-        call_parent (int, optional): Call parent. Defaults to 0.
-        params (dict, optional): Display params JSON (icon, color, sort_order). Defaults to None.
-        update (bool, optional): Update existing method if it exists. Defaults to False.
+        name (str): Method name.
+        class_name (str): Class name.
+        description (str, optional): Method description. Defaults to sentinel.
+        code (str, optional): Python method body. Defaults to sentinel.
+        call_parent (int, optional): Whether to invoke the parent method.
+            Defaults to 0 when omitted on create.
+        params (dict, optional): Display params JSON (icon, color, sort_order).
+            Defaults to sentinel.
+        update (bool, optional): If True, update an existing method.
+            Defaults to False.
 
     Returns:
-        Method: Method row in DB
+        Method: Method ORM instance.
+            None if the class does not exist.
     """
     with session_scope() as session:
         cls = session.query(Class).filter(Class.name == class_name).one_or_none()
@@ -318,16 +352,20 @@ def addClassMethod(
         return method
 
 def addObject(name:str, class_name:str=_UNSET, description=_UNSET, update:bool=False) -> ObjectManager:
-    """Add a object to the database
+    """Create or update an object in the database.
+
+    Loads or reloads the object in ``objects_storage`` and returns its
+    ``ObjectManager``.
 
     Args:
-        name (str): Name
-        class_name (str): Class name
-        description (str, optional): Description. Defaults to ''.
-        update (bool, optional): Update existing object if it exists. Defaults to False.
+        name (str): Object name.
+        class_name (str, optional): Class name. Defaults to sentinel.
+        description (str, optional): Object description. Defaults to sentinel.
+        update (bool, optional): If True, update an existing object.
+            Defaults to False.
 
     Returns:
-        ObjectManager: Object
+        ObjectManager: Runtime object wrapper from ``objects_storage``.
     """
     with session_scope() as session:
         obj = session.query(Object).filter(Object.name == name).one_or_none()
@@ -365,20 +403,24 @@ def addObjectProperty(
     params:dict=_UNSET,
     update:bool=False,
 ) -> bool:
-    """Add a property object to the database
+    """Create or update an object-level property in the database.
 
     Args:
-        name (str): Name
-        object_name (str): Object name
-        description (str, optional): Description. Defaults to ''.
-        history (int, optional): Save history (days). Defaults to 0.
-        type (PropertyType, optional): Type property. Defaults to PropertyType.Empty.
-        method_name (str, optional): Call method on change value property. Defaults to None.
-        params (dict, optional): Parameters property. Defaults to None.
-        update (bool, optional): Update existing property if it exists. Defaults to False.
+        name (str): Property name.
+        object_name (str): Object name.
+        description (str, optional): Property description. Defaults to sentinel.
+        history (int, optional): History retention in days. Defaults to 0 when
+            omitted on create.
+        type (PropertyType, optional): Property type. Defaults to
+            ``PropertyType.Empty`` when omitted on create.
+        method_name (str, optional): Method to call on value change; resolves
+            object method first, then class method. Defaults to sentinel.
+        params (dict, optional): Property params JSON. Defaults to sentinel.
+        update (bool, optional): If True, update an existing property.
+            Defaults to False.
 
     Returns:
-        bool: Success add property
+        bool: True on success, False if the object does not exist.
     """
     with session_scope() as session:
         obj = session.query(Object).filter(Object.name == object_name).one_or_none()
@@ -439,14 +481,14 @@ def addObjectProperty(
         return True
 
 def deleteObjectProperty(object_property: str) -> bool:
-    """
-    Delete a property object from the database using the format 'object_name.property_name'
+    """Delete an object-level property and its values/history.
 
     Args:
-        object_property (str): String in the format 'object_name.property_name'
+        object_property (str): Qualified name ``object_name.property_name``.
 
     Returns:
-        bool: Success of deleting the property
+        bool: True if deleted, False if the name is invalid or the property
+            does not exist.
     """
     try:
         object_name, property_name = object_property.split('.', 1)
@@ -473,14 +515,16 @@ def deleteObjectProperty(object_property: str) -> bool:
 
 
 def deleteClassProperty(class_property: str) -> bool:
-    """
-    Delete a class property from the database using the format 'class_name.property_name'
+    """Delete a class-level property definition.
+
+    Reloads all objects of that class and notifies ``objects_storage``.
 
     Args:
-        class_property (str): String in the format 'class_name.property_name'
+        class_property (str): Qualified name ``class_name.property_name``.
 
     Returns:
-        bool: Success of deleting the property
+        bool: True if deleted, False if the name is invalid or the property
+            does not exist.
     """
     try:
         class_name, property_name = class_property.split('.', 1)
@@ -514,19 +558,24 @@ def addObjectMethod(
     params:dict=_UNSET,
     update:bool=False,
 ) -> bool:
-    """Add a method object to the database
+    """Create or update an object-level method in the database.
+
+    If only a class method exists and ``update`` is True, creates an object
+    method that overrides the class definition.
 
     Args:
-        name (str): Name
-        object_name (str): Name object
-        description (str, optional): Description method. Defaults to ''.
-        code (str, optional): Python code. Defaults to ''.
-        call_parent (int, optional): Call parent. Defaults to 0.
-        params (dict, optional): Display params JSON (icon, color, sort_order). Defaults to None.
-        update (bool, optional): Update existing method if it exists. Defaults to False.
+        name (str): Method name.
+        object_name (str): Object name.
+        description (str, optional): Method description. Defaults to sentinel.
+        code (str, optional): Python method body. Defaults to sentinel.
+        call_parent (int, optional): Whether to invoke the parent method.
+            Defaults to sentinel (inherits from class method when overriding).
+        params (dict, optional): Display params JSON. Defaults to sentinel.
+        update (bool, optional): If True, update or override an existing method.
+            Defaults to False.
 
     Returns:
-        bool: Success add method
+        bool: True on success, False if the object does not exist.
     """
     with session_scope() as session:
         obj = session.query(Object).filter(Object.name == object_name).one_or_none()
@@ -583,14 +632,14 @@ def addObjectMethod(
         return True
 
 def deleteObjectMethod(object_method: str) -> bool:
-    """
-    Delete a method object from the database using the format 'object_name.method_name'
+    """Delete an object-level method.
 
     Args:
-        object_method (str): String in the format 'object_name.method_name'
+        object_method (str): Qualified name ``object_name.method_name``.
 
     Returns:
-        bool: Success of deleting the method
+        bool: True if deleted, False if the name is invalid, the object is
+            missing, or the method does not exist.
     """
     try:
         object_name, method_name = object_method.split('.', 1)
@@ -612,14 +661,16 @@ def deleteObjectMethod(object_method: str) -> bool:
 
 
 def deleteClassMethod(class_method: str) -> bool:
-    """
-    Delete a class method from the database using the format 'class_name.method_name'
+    """Delete a class-level method definition.
+
+    Reloads all objects of that class and notifies ``objects_storage``.
 
     Args:
-        class_method (str): String in the format 'class_name.method_name'
+        class_method (str): Qualified name ``class_name.method_name``.
 
     Returns:
-        bool: Success of deleting the method
+        bool: True if deleted, False if the name is invalid or the method
+            does not exist.
     """
     try:
         class_name, method_name = class_method.split('.', 1)
@@ -644,13 +695,14 @@ def deleteClassMethod(class_method: str) -> bool:
     return True
 
 def getObject(name:str) -> ObjectManager:
-    """Get an object by its name
+    """Get an object by name from the runtime cache.
 
     Args:
-        name (str): Name object
+        name (str): Object name.
 
     Returns:
-        ObjectManager: Object
+        ObjectManager: Runtime object wrapper.
+            None if the object is missing or on error.
     """
     logger = _get_object_logger(name)
     try:
@@ -661,12 +713,14 @@ def getObject(name:str) -> ObjectManager:
         return None
 
 def listObjects() -> list[ObjectManager]:
-    """Get all objects from the runtime cache.
+    """List all objects from the runtime cache.
 
-    Enumeration syncs missing objects from DB first.
+    Enumeration via ``objects_storage`` syncs missing objects from DB first,
+    so objects that were not loaded yet are included.
 
     Returns:
-        list[ObjectManager]: List objects
+        list[ObjectManager]: All objects.
+            On error returns None.
     """
     try:
         return list(objects_storage.values())
@@ -675,16 +729,17 @@ def listObjects() -> list[ObjectManager]:
     return None
 
 def objectExists(name:str) -> bool:
-    """Check whether an object exists.
+    """Check whether an object with the given name exists.
 
-    Uses the runtime cache when already loaded; otherwise checks DB
-    without creating an ObjectManager.
+    If the object is already in the runtime cache, returns True without
+    a DB query. Otherwise checks the database and does not create
+    an ObjectManager.
 
     Args:
-        name (str): Name object
+        name (str): Object name
 
     Returns:
-        bool: True if object exists
+        bool: True if the object exists, False otherwise
     """
     try:
         if name in objects_storage.objects:
@@ -696,13 +751,17 @@ def objectExists(name:str) -> bool:
     return False
 
 def getObjectClass(name:str) -> dict:
-    """Get the class of an object.
+    """Get the class row of an object.
+
+    Resolves the object's own class (first entry in ``parents``),
+    not parent classes in the inheritance chain.
 
     Args:
-        name (str): Name object
+        name (str): Object name
 
     Returns:
-        dict: Class row, or None if object/class not found
+        dict: Class row from DB.
+            None if the object is missing, has no class, or on error.
     """
     try:
         obj = getObject(name)
@@ -717,14 +776,16 @@ def getObjectClass(name:str) -> dict:
     return None
 
 def getObjectsByClass(class_name:str, subclasses:bool=True) -> list[ObjectManager]:
-    """get list object by class
+    """List objects assigned to a class.
 
     Args:
-        class_name (str): Class name
-        subclasses (bool, optional): Subclasses. Defaults to True.
+        class_name (str): Class name.
+        subclasses (bool, optional): If True, include objects of descendant
+            classes. Defaults to True.
 
     Returns:
-        list[ObjectManager]: List objects
+        list[ObjectManager]: Matching objects.
+            None if the class does not exist or on error.
     """
     try:
         objects = []
@@ -750,17 +811,19 @@ def getObjectsByClass(class_name:str, subclasses:bool=True) -> list[ObjectManage
     return None
 
 def getObjectsByProperty(property_name:str) -> list[ObjectManager]:
-    """Get list of objects that have a property with the given name.
+    """Get objects that have a property with the given name.
 
     Searches the runtime cache (``objects_storage``). Enumeration syncs
-    missing objects from DB first, so unloaded objects are included.
-    Inherited class properties are already resolved on each ObjectManager.
+    missing objects from DB first. Inherited class properties are already
+    resolved on each ObjectManager, so objects that only inherit the
+    property are included.
 
     Args:
         property_name (str): Property name
 
     Returns:
-        list[ObjectManager]: List objects
+        list[ObjectManager]: Matching objects.
+            On error returns None.
     """
     try:
         return [
@@ -772,17 +835,19 @@ def getObjectsByProperty(property_name:str) -> list[ObjectManager]:
     return None
 
 def getObjectsByMethod(method_name:str) -> list[ObjectManager]:
-    """Get list of objects that have a method with the given name.
+    """Get objects that have a method with the given name.
 
     Searches the runtime cache (``objects_storage``). Enumeration syncs
-    missing objects from DB first, so unloaded objects are included.
-    Inherited class methods are already resolved on each ObjectManager.
+    missing objects from DB first. Inherited class methods are already
+    resolved on each ObjectManager, so objects that only inherit the
+    method are included.
 
     Args:
         method_name (str): Method name
 
     Returns:
-        list[ObjectManager]: List objects
+        list[ObjectManager]: Matching objects.
+            On error returns None.
     """
     try:
         return [
@@ -794,16 +859,19 @@ def getObjectsByMethod(method_name:str) -> list[ObjectManager]:
     return None
 
 def getObjectsByPropertyValue(property_name:str, value) -> list[ObjectManager]:
-    """Get objects whose property equals the given value.
+    """Get objects whose property value equals ``value``.
 
-    Searches the runtime cache. Enumeration syncs missing objects from DB first.
+    Searches the runtime cache (``objects_storage``). Enumeration syncs
+    missing objects from DB first. Comparison uses decoded property values
+    (``getValue(track_stats=False)``) and does not increment read stats.
 
     Args:
         property_name (str): Property name
         value (Any): Expected property value
 
     Returns:
-        list[ObjectManager]: List objects
+        list[ObjectManager]: Matching objects.
+            On error returns None.
     """
     try:
         result = []
@@ -819,14 +887,19 @@ def getObjectsByPropertyValue(property_name:str, value) -> list[ObjectManager]:
     return None
 
 def getClassesByProperty(property_name:str, subclasses:bool=True) -> list[dict]:
-    """Get list of classes that have a property with the given name.
+    """Get classes that define a property with the given name.
+
+    Looks up class-level property definitions in the database.
+    Object-level properties are not considered.
 
     Args:
         property_name (str): Property name
-        subclasses (bool, optional): Include subclasses. Defaults to True.
+        subclasses (bool, optional): If True, also include subclasses of
+            classes that define the property. Defaults to True.
 
     Returns:
-        list[dict]: List of class rows
+        list[dict]: Matching class rows.
+            On error returns None.
     """
     try:
         result = []
@@ -856,14 +929,19 @@ def getClassesByProperty(property_name:str, subclasses:bool=True) -> list[dict]:
     return None
 
 def getClassesByMethod(method_name:str, subclasses:bool=True) -> list[dict]:
-    """Get list of classes that have a method with the given name.
+    """Get classes that define a method with the given name.
+
+    Looks up class-level method definitions in the database.
+    Object-level methods are not considered.
 
     Args:
         method_name (str): Method name
-        subclasses (bool, optional): Include subclasses. Defaults to True.
+        subclasses (bool, optional): If True, also include subclasses of
+            classes that define the method. Defaults to True.
 
     Returns:
-        list[dict]: List of class rows
+        list[dict]: Matching class rows.
+            On error returns None.
     """
     try:
         result = []
@@ -893,14 +971,17 @@ def getClassesByMethod(method_name:str, subclasses:bool=True) -> list[dict]:
     return None
 
 def getProperty(name:str, data:str = 'value'):
-    """Get value property by its name.
+    """Read a property field by qualified name.
 
     Args:
-        name (str): Name property. Syntax: Object.Property
-        data (str): Name data from property (value, changed, source). Default = value
+        name (str): Qualified name ``Object.Property``.
+        data (str, optional): Field to read: ``value``, ``changed``, or
+            ``source``. Defaults to ``value``.
 
     Returns:
-        Any Value property
+        Any: Requested property field.
+            False if ``name`` format is invalid.
+            None if the object is missing or on error.
     """
     object_name = name.split(".")[0] if '.' in name else name
     logger = _get_object_logger(object_name)
@@ -921,18 +1002,24 @@ def getProperty(name:str, data:str = 'value'):
     return None
 
 def setProperty(name:str, value, source:str='', save_history:bool=None, changed:datetime.datetime=None, track_stats:bool=True) -> bool:
-    """Set value property by its name.
+    """Set a property value by qualified name.
 
     Args:
-        name (str): Name property. Syntax: Object.Property
-        value (Any): Value
-        source (str, optional): Source changing value. Defaults to ''.
-        save_history (bool, optional): Save history of changing value. Defaults to None.
-        changed (datetime.datetime, optional): Date/time for the value. Used when saving history. Defaults to None (current time).
-        track_stats (bool, optional): Increment count_write/count_read counters. Defaults to True.
+        name (str): Qualified name ``Object.Property``.
+        value (Any): New value.
+        source (str, optional): Change source label. Defaults to ``''``.
+        save_history (bool, optional): Override history persistence.
+            Defaults to None (property default).
+        changed (datetime.datetime, optional): Timestamp for history.
+            Defaults to None (current time).
+        track_stats (bool, optional): Increment read/write counters.
+            Defaults to True.
 
     Returns:
-        bool: Success set value
+        bool: True if the value was set, False on failure or invalid name.
+
+    Raises:
+        PermissionError: Propagated from ``ObjectManager.setProperty``.
     """
     object_name = name.split(".")[0] if '.' in name else name
     logger = _get_object_logger(object_name)
@@ -961,16 +1048,17 @@ def setProperty(name:str, value, source:str='', save_history:bool=None, changed:
     return False
 
 def setPropertyThread(name:str, value, source:str='', save_history:bool=None):
-    """Set value property by its name in thread.
+    """Set a property value asynchronously in a background thread.
 
     Args:
-        name (str): Name property. Syntax: Object.Property
-        value (Any): Value
-        source (str, optional): Source changing value. Defaults to ''.
-        save_history (bool, optional): Save history of changing value. Defaults to None.
+        name (str): Qualified name ``Object.Property``.
+        value (Any): New value.
+        source (str, optional): Change source label. Defaults to ``''``.
+        save_history (bool, optional): Override history persistence.
+            Defaults to None (property default).
 
     Returns:
-        bool: Success set value
+        bool: True if the thread was started, False on failure or invalid name.
     """
     object_name = name.split(".")[0] if '.' in name else name
     logger = _get_object_logger(object_name)
@@ -998,13 +1086,17 @@ def setPropertyThread(name:str, value, source:str='', save_history:bool=None):
     return False
 
 def setPropertyTimeout(name: str, value, timeout: int, source:str=""):
-    """Set property on timeout
+    """Schedule a property value change after a delay.
 
     Args:
-        name (str): Name property. Syntax: Object.Property
-        value (Any): Value
-        timeout (int): Timeout seconds
-        source (str, optional): Source changing value. Defaults to ''.
+        name (str): Qualified name ``Object.Property``.
+        value (Any): Value to apply after the timeout.
+        timeout (int): Delay in seconds.
+        source (str, optional): Change source label. Defaults to ``''``.
+
+    Returns:
+        bool: True if the timeout was scheduled, False on failure or invalid
+            name.
     """
     object_name = name.split(".")[0] if '.' in name else name
     logger = _get_object_logger(object_name)
@@ -1027,16 +1119,17 @@ def setPropertyTimeout(name: str, value, timeout: int, source:str=""):
     return False
 
 def updateProperty(name:str, value, source:str='', track_stats:bool=True) -> bool:
-    """Update property by its name if value changed.
+    """Set a property value only if it differs from the current value.
 
     Args:
-        name (str): Name property. Syntax: Object.Property
-        value (Any): Value
-        source (str, optional): Source changing value. Defaults to ''.
-        track_stats (bool, optional): Increment count_write/count_read counters. Defaults to True.
+        name (str): Qualified name ``Object.Property``.
+        value (Any): New value.
+        source (str, optional): Change source label. Defaults to ``''``.
+        track_stats (bool, optional): Increment read/write counters.
+            Defaults to True.
 
     Returns:
-        bool: Success set value
+        bool: Result of ``ObjectManager.updateProperty``, or False on failure.
     """
     object_name = name.split(".")[0] if '.' in name else name
     logger = _get_object_logger(object_name)
@@ -1058,15 +1151,15 @@ def updateProperty(name:str, value, source:str='', track_stats:bool=True) -> boo
     return False
 
 def updatePropertyThread(name:str, value, source:str='') -> bool:
-    """Update property by its name if value changed in thread.
+    """Conditionally update a property value in a background thread.
 
     Args:
-        name (str): Name property. Syntax: Object.Property
-        value (Any): Value
-        source (str, optional): Source changing value. Defaults to ''.
+        name (str): Qualified name ``Object.Property``.
+        value (Any): New value.
+        source (str, optional): Change source label. Defaults to ``''``.
 
     Returns:
-        bool: Success set value
+        bool: True if the thread was started, False on failure or invalid name.
     """
     object_name = name.split(".")[0] if '.' in name else name
     logger = _get_object_logger(object_name)
@@ -1094,16 +1187,17 @@ def updatePropertyThread(name:str, value, source:str='') -> bool:
     return False
 
 def updatePropertyTimeout(name:str, value, timeout:int, source:str='') -> bool:
-    """Update property by its name if value changed on timeout.
+    """Schedule a conditional property update after a delay.
 
     Args:
-        name (str): Name property. Syntax: Object.Property
-        value (Any): Value
-        timeout (int): Timeout seconds
-        source (str, optional): Source changing value. Defaults to ''.
+        name (str): Qualified name ``Object.Property``.
+        value (Any): Value to apply if still different after the timeout.
+        timeout (int): Delay in seconds.
+        source (str, optional): Change source label. Defaults to ``''``.
 
     Returns:
-        bool: Success set value
+        bool: True when the call completes without exception (including when
+            the object is missing). False on invalid name or on error.
     """
     object_name = name.split(".")[0] if '.' in name else name
     logger = _get_object_logger(object_name)
@@ -1125,12 +1219,18 @@ def updatePropertyTimeout(name:str, value, timeout:int, source:str='') -> bool:
     return False
 
 def callMethod(name:str, args={}, source:str='') -> str:
-    """Call method by its name
+    """Invoke an object method by qualified name.
 
     Args:
-        name (str): Name method. Syntax: Object.Method
-        args (dict, optional): Args. Defaults to {}.
-        source (str, optional): Source changing value. Defaults to ''.
+        name (str): Qualified name ``Object.Method``.
+        args (dict, optional): Method arguments. Defaults to ``{}``.
+        source (str, optional): Invocation source label. Defaults to ``''``.
+
+    Returns:
+        str: Method return value as a string.
+            False if ``name`` format is invalid.
+            None if the object is missing.
+            Error message string on exception.
     """
     object_name = name.split(".")[0] if '.' in name else name
     logger = _get_object_logger(object_name)
@@ -1152,12 +1252,15 @@ def callMethod(name:str, args={}, source:str='') -> str:
         return str(e)
 
 def callMethodThread(name: str, args={}, source:str=''):
-    """Call method by its name in thread
+    """Invoke an object method asynchronously in a background thread.
 
     Args:
-        name (str): Name method. Syntax: Object.Method
-        args (dict, optional): Args. Defaults to {}.
-        source (str, optional): Source changing value. Defaults to ''.
+        name (str): Qualified name ``Object.Method``.
+        args (dict, optional): Method arguments. Defaults to ``{}``.
+        source (str, optional): Invocation source label. Defaults to ``''``.
+
+    Returns:
+        bool: False if ``name`` format is invalid; otherwise None.
     """
     object_name = name.split(".")[0] if '.' in name else name
     logger = _get_object_logger(object_name)
@@ -1182,12 +1285,15 @@ def callMethodThread(name: str, args={}, source:str=''):
         logger.exception('CallMethodThread %s: %s',name,e)
 
 def callMethodTimeout(name:str, timeout:int, source:str=''):
-    """Call method by its name
+    """Schedule a method invocation after a delay.
 
     Args:
-        name (str): Name method. Syntax: Object.Method
-        timeout (int): Timeout seconds
-        source (str, optional): Source changing value. Defaults to ''.
+        name (str): Qualified name ``Object.Method``.
+        timeout (int): Delay in seconds.
+        source (str, optional): Invocation source label. Defaults to ``''``.
+
+    Returns:
+        bool: False if ``name`` format is invalid; otherwise None.
     """
     object_name = name.split(".")[0] if '.' in name else name
     logger = _get_object_logger(object_name)
@@ -1207,10 +1313,13 @@ def callMethodTimeout(name:str, timeout:int, source:str=''):
         logger.exception('callMethodTimeout %s: %s',name,e)
 
 def deleteObject(name: str):
-    """Delete object from database
+    """Delete an object from the database and runtime cache.
 
     Args:
-        name (str): Name object
+        name (str): Object name.
+
+    Returns:
+        bool: True if deleted, False if the object does not exist.
     """
     from app.database import db
     from app.core.lib.object_db import delete_object_from_db
@@ -1228,17 +1337,20 @@ def deleteObject(name: str):
     return False
 
 def renameObject(old_name: str, new_name: str) -> bool:
-    """Rename object in the database.
+    """Rename an object in the database and runtime cache.
+
+    Migrates ``_permissions`` entries when present.
 
     Args:
-        old_name (str): Current object name
-        new_name (str): New object name
+        old_name (str): Current object name.
+        new_name (str): New object name.
 
     Returns:
-        bool: Success rename
+        bool: True if renamed, False if names are invalid or the object is
+            missing.
 
     Raises:
-        PermissionError: If the new name is already taken
+        PermissionError: If ``new_name`` is already taken.
     """
     old_name = (old_name or "").strip()
     new_name = (new_name or "").strip()
@@ -1269,15 +1381,18 @@ def renameObject(old_name: str, new_name: str) -> bool:
     return True
 
 def setLinkToObject(object_name:str, property_name:str, link:str) -> bool:
-    """Set link for value
+    """Add a plugin/module link to a property's ``linked`` list.
+
+    Persists the comma-separated link list on the ``Value`` row.
 
     Args:
-        object_name (str): Name object
-        property_name (str): Name property
-        link (str): Name module
+        object_name (str): Object name.
+        property_name (str): Property name on that object.
+        link (str): Module or plugin link identifier.
 
     Returns:
-        bool: Success set link
+        bool: True if the link was added or already present, False if the
+            object or property is missing.
     """
     obj = objects_storage.getObjectByName(object_name)
     if obj:
@@ -1299,15 +1414,16 @@ def setLinkToObject(object_name:str, property_name:str, link:str) -> bool:
     return False
 
 def removeLinkFromObject(object_name:str, property_name:str, link:str) -> bool:
-    """Remove link from value
+    """Remove a plugin/module link from a property's ``linked`` list.
 
     Args:
-        object_name (str): Name object
-        property_name (str): Name property
-        link (str): Name module
+        object_name (str): Object name.
+        property_name (str): Property name on that object.
+        link (str): Module or plugin link identifier.
 
     Returns:
-        bool: Success set link
+        bool: True if the link was removed or was not present, False if the
+            object or property is missing.
     """
     obj = objects_storage.getObjectByName(object_name)
     if obj:
@@ -1327,15 +1443,18 @@ def removeLinkFromObject(object_name:str, property_name:str, link:str) -> bool:
     return False
 
 def getObjectsByLink(link:str) -> list[ObjectManager]:
-    """Get objects that have at least one property linked to the module.
+    """Get objects that have at least one property linked to a module.
 
-    Searches the runtime cache. Enumeration syncs missing objects from DB first.
+    Searches the runtime cache (``objects_storage``). Enumeration syncs
+    missing objects from DB first. A match is any property whose
+    ``linked`` list contains ``link`` (see ``setLinkToObject``).
 
     Args:
-        link (str): Name module
+        link (str): Module / plugin link name
 
     Returns:
-        list[ObjectManager]: List objects
+        list[ObjectManager]: Matching objects (each object once).
+            On error returns None.
     """
     try:
         result = []
@@ -1350,10 +1469,16 @@ def getObjectsByLink(link:str) -> list[ObjectManager]:
     return None
 
 def clearLinkedObjects(link:str):
-    """Clear link in all objects
+    """Remove a module link from all object properties.
+
+    Updates both the runtime cache and the Value.linked field in DB.
+    Opposite of ``setLinkToObject`` / pair to ``getObjectsByLink``.
 
     Args:
-        link (str): Name module
+        link (str): Module / plugin link name.
+
+    Returns:
+        None
     """
     with session_scope() as session:
         for obj in objects_storage.values():
@@ -1369,18 +1494,21 @@ def clearLinkedObjects(link:str):
 
 
 def getHistory(name:str, dt_begin:datetime = None, dt_end:datetime = None, limit:int = None, order_desc: bool = False, func=None) -> list:
-    """Get history of a property
+    """Get history records for a property.
 
-        Args:
-            name (str): Name property
-            dt_begin (datetime, optional): Begin local datetime. Defaults to None.
-            dt_end (datetime, optional): End local datetime. Defaults to None.
-            limit (int, optional): Limit. Defaults to None.
-            order_desc (bool, optional): Order desc. Defaults to False.
-            func (function, optional): Function to apply to the data. Defaults to None.
+    Args:
+        name (str): Qualified name ``Object.Property``.
+        dt_begin (datetime, optional): Start of range (local time).
+            Defaults to None.
+        dt_end (datetime, optional): End of range (local time).
+            Defaults to None.
+        limit (int, optional): Maximum number of rows. Defaults to None.
+        order_desc (bool, optional): If True, newest first. Defaults to False.
+        func (callable, optional): Post-process each row. Defaults to None.
 
-        Returns:
-            list: List of history
+    Returns:
+        list: History rows from ``ObjectManager.getHistory``.
+            None if ``name`` is invalid, the object is missing, or on error.
     """
     object_name = name.split(".")[0] if '.' in name else name
     logger = _get_object_logger(object_name)
@@ -1402,16 +1530,20 @@ def getHistory(name:str, dt_begin:datetime = None, dt_end:datetime = None, limit
     return None
 
 def getHistoryAggregate(name:str, dt_begin:datetime = None, dt_end:datetime = None, func:str = None):
-    """Get aggregate history of a property
+    """Aggregate property history over a time range.
 
     Args:
-        name (str): Name property
-        dt_begin (datetime, optional): Begin local datetime. Defaults to None.
-        dt_end (datetime, optional): End local datetime. Defaults to None.
-        func (str, optional): Aggregate function (min,max,sum,avg,count). Defaults to None, return all
+        name (str): Qualified name ``Object.Property``.
+        dt_begin (datetime, optional): Start of range (local time).
+            Defaults to None.
+        dt_end (datetime, optional): End of range (local time).
+            Defaults to None.
+        func (str, optional): Aggregate name: ``min``, ``max``, ``sum``,
+            ``avg``, or ``count``. Defaults to None (implementation default).
 
     Returns:
-        any : Result function
+        Any: Aggregate result from ``ObjectManager.getHistoryAggregate``.
+            None if ``name`` is invalid, the object is missing, or on error.
     """
     object_name = name.split(".")[0] if '.' in name else name
     logger = _get_object_logger(object_name)
@@ -1442,7 +1574,26 @@ def addCustomFunction(
     active: bool = _UNSET,
     update: bool = False,
 ) -> bool:
-    """Add or update a CustomFunction in the database."""
+    """Create or update a custom function definition in the database.
+
+    Reloads the function in ``custom_function_registry`` after commit.
+
+    Args:
+        name (str): Function name.
+        code (str, optional): Executable code. Defaults to ``''`` on create.
+        test_code (str, optional): Test harness code. Defaults to ``''`` on
+            create.
+        description (str, optional): Description. Defaults to ``''`` on create.
+        order (int, optional): Sort order. Defaults to 0 on create.
+        active (bool, optional): Whether the function is active. Defaults to
+            True on create.
+        update (bool, optional): If True, update an existing row. If False and
+            the name exists, returns False. Defaults to False.
+
+    Returns:
+        bool: True on success, False if the function exists and ``update`` is
+            False.
+    """
     from app.core.models.CustomFunctions import CustomFunction
     from app.core.main.CustomFunctionRegistry import custom_function_registry
 
@@ -1478,6 +1629,14 @@ def addCustomFunction(
 
 
 def deleteCustomFunction(name: str) -> bool:
+    """Delete a custom function from the database.
+
+    Args:
+        name (str): Function name.
+
+    Returns:
+        bool: True if deleted, False if not found.
+    """
     from app.core.models.CustomFunctions import CustomFunction
     from app.core.main.CustomFunctionRegistry import custom_function_registry
 
@@ -1492,6 +1651,12 @@ def deleteCustomFunction(name: str) -> bool:
 
 
 def listCustomFunctions() -> list:
+    """List custom functions with compile-error metadata.
+
+    Returns:
+        list[dict]: One dict per function with keys ``name``, ``description``,
+            ``active``, ``order``, ``has_error``, ``error``.
+    """
     from app.core.models.CustomFunctions import CustomFunction
     from app.core.main.CustomFunctionRegistry import custom_function_registry
 
@@ -1512,7 +1677,20 @@ def listCustomFunctions() -> list:
 
 
 def runCustomFunctionTest(name: str, test_code: str = None, params=None) -> tuple:
-    """Run test_code for CustomFunction. Returns (output, success)."""
+    """Execute test code for a custom function.
+
+    Args:
+        name (str): Custom function name (must exist in DB).
+        test_code (str, optional): Code to run; if None, uses the stored
+            ``test_code`` for ``name``. Defaults to None.
+        params (Any, optional): Value passed to the test as ``params``.
+            Defaults to None.
+
+    Returns:
+        tuple[str, bool]: ``(output, success)`` where ``output`` is captured
+            stdout or an error message, and ``success`` is True when execution
+            finished without error.
+    """
     from app.core.models.CustomFunctions import CustomFunction
     from app.core.lib.execute import execute_and_capture_output
 

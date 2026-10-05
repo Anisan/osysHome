@@ -1,3 +1,4 @@
+"""Unit and type conversion helpers for scripts and methods."""
 from .core import * # noqa
 from .color import * # noqa
 from .color_value import * # noqa
