@@ -91,6 +91,107 @@ def updateClass(cls:dict) -> bool:
         invalidate_objects_tree_cache()
         return True
 
+def listClasses() -> list[dict]:
+    """Get all classes from the database.
+
+    Returns:
+        list[dict]: List of class rows ordered by name
+    """
+    try:
+        with session_scope() as session:
+            classes = session.query(Class).order_by(Class.name).all()
+            return [row2dict(cls) for cls in classes]
+    except Exception as e:
+        _logger.exception('listClasses: %s', e)
+    return None
+
+def getChildClasses(name:str, recursive:bool=False) -> list[dict]:
+    """Get child classes of a class.
+
+    Args:
+        name (str): Class name
+        recursive (bool, optional): Include all descendants. Defaults to False.
+
+    Returns:
+        list[dict]: List of class rows, or None if class not found
+    """
+    try:
+        result = []
+        with session_scope() as session:
+            cls = session.query(Class).filter(Class.name == name).one_or_none()
+            if not cls:
+                return None
+
+            def _add_children(parent_id: int):
+                children = session.query(Class).filter(Class.parent_id == parent_id).order_by(Class.name).all()
+                for child in children:
+                    result.append(row2dict(child))
+                    if recursive:
+                        _add_children(child.id)
+
+            _add_children(cls.id)
+        return result
+    except Exception as e:
+        _logger.exception('getChildClasses %s: %s', name, e)
+    return None
+
+def getClassParents(name:str) -> list[dict]:
+    """Get parent classes chain (immediate parent first, then up to root).
+
+    Args:
+        name (str): Class name
+
+    Returns:
+        list[dict]: Parent class rows, or None if class not found
+    """
+    try:
+        result = []
+        with session_scope() as session:
+            cls = session.query(Class).filter(Class.name == name).one_or_none()
+            if not cls:
+                return None
+            parent_id = cls.parent_id
+            while parent_id:
+                parent = session.query(Class).filter(Class.id == parent_id).one_or_none()
+                if not parent:
+                    break
+                result.append(row2dict(parent))
+                parent_id = parent.parent_id
+        return result
+    except Exception as e:
+        _logger.exception('getClassParents %s: %s', name, e)
+    return None
+
+def deleteClass(name:str) -> bool:
+    """Delete a class when it has no child classes and no objects.
+
+    Also removes class-level properties and methods.
+
+    Args:
+        name (str): Class name
+
+    Returns:
+        bool: Success
+    """
+    try:
+        with session_scope() as session:
+            cls = session.query(Class).filter(Class.name == name).one_or_none()
+            if not cls:
+                return False
+            if session.query(Class.id).filter(Class.parent_id == cls.id).first():
+                return False
+            if session.query(Object.id).filter(Object.class_id == cls.id).first():
+                return False
+            session.query(Property).filter(Property.class_id == cls.id).delete(synchronize_session=False)
+            session.query(Method).filter(Method.class_id == cls.id).delete(synchronize_session=False)
+            session.delete(cls)
+            session.commit()
+        invalidate_objects_tree_cache()
+        return True
+    except Exception as e:
+        _logger.exception('deleteClass %s: %s', name, e)
+    return False
+
 
 def addClassProperty(
     name: str,
@@ -559,6 +660,62 @@ def getObject(name:str) -> ObjectManager:
         logger.exception('getObject %s: %s',name,e)
         return None
 
+def listObjects() -> list[ObjectManager]:
+    """Get all objects from the runtime cache.
+
+    Enumeration syncs missing objects from DB first.
+
+    Returns:
+        list[ObjectManager]: List objects
+    """
+    try:
+        return list(objects_storage.values())
+    except Exception as e:
+        _logger.exception('listObjects: %s', e)
+    return None
+
+def objectExists(name:str) -> bool:
+    """Check whether an object exists.
+
+    Uses the runtime cache when already loaded; otherwise checks DB
+    without creating an ObjectManager.
+
+    Args:
+        name (str): Name object
+
+    Returns:
+        bool: True if object exists
+    """
+    try:
+        if name in objects_storage.objects:
+            return True
+        with session_scope() as session:
+            return session.query(Object.id).filter(Object.name == name).first() is not None
+    except Exception as e:
+        _logger.exception('objectExists %s: %s', name, e)
+    return False
+
+def getObjectClass(name:str) -> dict:
+    """Get the class of an object.
+
+    Args:
+        name (str): Name object
+
+    Returns:
+        dict: Class row, or None if object/class not found
+    """
+    try:
+        obj = getObject(name)
+        if not obj:
+            return None
+        parents = getattr(obj, 'parents', None) or []
+        if not parents:
+            return None
+        return getClass(parents[0])
+    except Exception as e:
+        _logger.exception('getObjectClass %s: %s', name, e)
+    return None
+
 def getObjectsByClass(class_name:str, subclasses:bool=True) -> list[ObjectManager]:
     """get list object by class
 
@@ -590,6 +747,149 @@ def getObjectsByClass(class_name:str, subclasses:bool=True) -> list[ObjectManage
                 return None
     except Exception as e:
         _logger.exception('getObjectsByClass %s: %s',class_name,e)
+    return None
+
+def getObjectsByProperty(property_name:str) -> list[ObjectManager]:
+    """Get list of objects that have a property with the given name.
+
+    Searches the runtime cache (``objects_storage``). Enumeration syncs
+    missing objects from DB first, so unloaded objects are included.
+    Inherited class properties are already resolved on each ObjectManager.
+
+    Args:
+        property_name (str): Property name
+
+    Returns:
+        list[ObjectManager]: List objects
+    """
+    try:
+        return [
+            obj for obj in objects_storage.values()
+            if property_name in obj.properties
+        ]
+    except Exception as e:
+        _logger.exception('getObjectsByProperty %s: %s', property_name, e)
+    return None
+
+def getObjectsByMethod(method_name:str) -> list[ObjectManager]:
+    """Get list of objects that have a method with the given name.
+
+    Searches the runtime cache (``objects_storage``). Enumeration syncs
+    missing objects from DB first, so unloaded objects are included.
+    Inherited class methods are already resolved on each ObjectManager.
+
+    Args:
+        method_name (str): Method name
+
+    Returns:
+        list[ObjectManager]: List objects
+    """
+    try:
+        return [
+            obj for obj in objects_storage.values()
+            if method_name in obj.methods
+        ]
+    except Exception as e:
+        _logger.exception('getObjectsByMethod %s: %s', method_name, e)
+    return None
+
+def getObjectsByPropertyValue(property_name:str, value) -> list[ObjectManager]:
+    """Get objects whose property equals the given value.
+
+    Searches the runtime cache. Enumeration syncs missing objects from DB first.
+
+    Args:
+        property_name (str): Property name
+        value (Any): Expected property value
+
+    Returns:
+        list[ObjectManager]: List objects
+    """
+    try:
+        result = []
+        for obj in objects_storage.values():
+            prop = obj.properties.get(property_name)
+            if prop is None:
+                continue
+            if prop.getValue(track_stats=False) == value:
+                result.append(obj)
+        return result
+    except Exception as e:
+        _logger.exception('getObjectsByPropertyValue %s: %s', property_name, e)
+    return None
+
+def getClassesByProperty(property_name:str, subclasses:bool=True) -> list[dict]:
+    """Get list of classes that have a property with the given name.
+
+    Args:
+        property_name (str): Property name
+        subclasses (bool, optional): Include subclasses. Defaults to True.
+
+    Returns:
+        list[dict]: List of class rows
+    """
+    try:
+        result = []
+        seen = set()
+        with session_scope() as session:
+            classes = (
+                session.query(Class)
+                .join(Property, Property.class_id == Class.id)
+                .filter(Property.name == property_name)
+                .all()
+            )
+
+            def _add_class(cls, with_subclasses: bool):
+                if cls.name not in seen:
+                    result.append(row2dict(cls))
+                    seen.add(cls.name)
+                if with_subclasses:
+                    children = session.query(Class).filter(Class.parent_id == cls.id).all()
+                    for child in children:
+                        _add_class(child, True)
+
+            for cls in classes:
+                _add_class(cls, subclasses)
+        return result
+    except Exception as e:
+        _logger.exception('getClassesByProperty %s: %s', property_name, e)
+    return None
+
+def getClassesByMethod(method_name:str, subclasses:bool=True) -> list[dict]:
+    """Get list of classes that have a method with the given name.
+
+    Args:
+        method_name (str): Method name
+        subclasses (bool, optional): Include subclasses. Defaults to True.
+
+    Returns:
+        list[dict]: List of class rows
+    """
+    try:
+        result = []
+        seen = set()
+        with session_scope() as session:
+            classes = (
+                session.query(Class)
+                .join(Method, Method.class_id == Class.id)
+                .filter(Method.name == method_name)
+                .all()
+            )
+
+            def _add_class(cls, with_subclasses: bool):
+                if cls.name not in seen:
+                    result.append(row2dict(cls))
+                    seen.add(cls.name)
+                if with_subclasses:
+                    children = session.query(Class).filter(Class.parent_id == cls.id).all()
+                    for child in children:
+                        _add_class(child, True)
+
+            for cls in classes:
+                _add_class(cls, subclasses)
+        return result
+    except Exception as e:
+        _logger.exception('getClassesByMethod %s: %s', method_name, e)
     return None
 
 def getProperty(name:str, data:str = 'value'):
@@ -1026,6 +1326,29 @@ def removeLinkFromObject(object_name:str, property_name:str, link:str) -> bool:
                 return True
     return False
 
+def getObjectsByLink(link:str) -> list[ObjectManager]:
+    """Get objects that have at least one property linked to the module.
+
+    Searches the runtime cache. Enumeration syncs missing objects from DB first.
+
+    Args:
+        link (str): Name module
+
+    Returns:
+        list[ObjectManager]: List objects
+    """
+    try:
+        result = []
+        for obj in objects_storage.values():
+            for prop in obj.properties.values():
+                if prop.linked and link in prop.linked:
+                    result.append(obj)
+                    break
+        return result
+    except Exception as e:
+        _logger.exception('getObjectsByLink %s: %s', link, e)
+    return None
+
 def clearLinkedObjects(link:str):
     """Clear link in all objects
 
@@ -1034,10 +1357,10 @@ def clearLinkedObjects(link:str):
     """
     with session_scope() as session:
         for obj in objects_storage.values():
-            for _, prop in obj.properties:
+            for prop in obj.properties.values():
                 if prop.linked and link in prop.linked:
                     prop.linked.remove(link)
-                    id = prop._value_id
+                    id = prop.value_id
                     rec = session.query(Value).where(Value.id == id).one_or_none()
                     if rec:
                         rec.linked = ','.join(prop.linked)
