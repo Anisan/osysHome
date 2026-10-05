@@ -810,26 +810,103 @@ def getObjectsByClass(class_name:str, subclasses:bool=True) -> list[ObjectManage
         _logger.exception('getObjectsByClass %s: %s',class_name,e)
     return None
 
-def getObjectsByProperty(property_name:str) -> list[ObjectManager]:
-    """Get objects that have a property with the given name.
+def _match_property_condition(value, condition: str, condition_value) -> bool:
+    """Compare a property value with ``condition_value`` using ``condition``.
+
+    Supported operators: ``=``, ``==``, ``>=``, ``>``, ``<=``, ``<``,
+    ``<>``, ``!=``. Numeric operators fall back to float coercion on
+    TypeError (string vs number).
+    """
+    op = (condition or '').strip()
+    if op in ('=', '=='):
+        return value == condition_value
+    if op in ('<>', '!='):
+        return value != condition_value
+
+    def _ordered(a, b, cmp_op: str) -> bool:
+        try:
+            left, right = a, b
+            if cmp_op == '>=':
+                return left >= right
+            if cmp_op == '>':
+                return left > right
+            if cmp_op == '<=':
+                return left <= right
+            if cmp_op == '<':
+                return left < right
+        except TypeError:
+            try:
+                left, right = float(a), float(b)
+            except (TypeError, ValueError):
+                return False
+            if cmp_op == '>=':
+                return left >= right
+            if cmp_op == '>':
+                return left > right
+            if cmp_op == '<=':
+                return left <= right
+            if cmp_op == '<':
+                return left < right
+        return False
+
+    if op in ('>=', '>', '<=', '<'):
+        return _ordered(value, condition_value, op)
+    return False
+
+
+def getObjectsByProperty(
+    property_name: str,
+    condition='',
+    condition_value='',
+) -> list[ObjectManager]:
+    """Get objects that have a property, optionally filtered by value.
 
     Searches the runtime cache (``objects_storage``). Enumeration syncs
     missing objects from DB first. Inherited class properties are already
-    resolved on each ObjectManager, so objects that only inherit the
-    property are included.
+    resolved on each ObjectManager. Value comparison uses decoded property
+    values (``getValue(track_stats=False)``) and does not increment read stats.
+
+    Shorthand (MajorDoMo-compatible): if ``condition_value`` is empty and
+    ``condition`` is not empty, ``condition`` is treated as the value and
+    the operator becomes ``==``.
+
+    Examples:
+        ``getObjectsByProperty('temp')`` — all objects that have property
+        ``temp``.
+        ``getObjectsByProperty('temp', 25)`` — ``temp == 25``.
+        ``getObjectsByProperty('temp', '>', 20)`` — ``temp > 20``.
+        ``getObjectsByProperty('temp', '!=', 0)`` — ``temp != 0``.
 
     Args:
         property_name (str): Property name
+        condition (Any, optional): Comparison operator (``==``, ``>``,
+            ``>=``, ``<``, ``<=``, ``!=``, ``<>``, ``=``) or, in shorthand
+            form, the expected value. Defaults to '' (no value filter —
+            any object that has the property).
+        condition_value (Any, optional): Value to compare against.
+            Defaults to ''.
 
     Returns:
         list[ObjectManager]: Matching objects.
             On error returns None.
     """
     try:
-        return [
-            obj for obj in objects_storage.values()
-            if property_name in obj.properties
-        ]
+        if condition_value == '' and condition != '':
+            condition_value = condition
+            condition = '=='
+
+        result = []
+        for obj in objects_storage.values():
+            prop = obj.properties.get(property_name)
+            if prop is None:
+                continue
+            if not condition:
+                result.append(obj)
+                continue
+            value = prop.getValue(track_stats=False)
+            if _match_property_condition(value, condition, condition_value):
+                result.append(obj)
+        return result
     except Exception as e:
         _logger.exception('getObjectsByProperty %s: %s', property_name, e)
     return None
@@ -856,34 +933,6 @@ def getObjectsByMethod(method_name:str) -> list[ObjectManager]:
         ]
     except Exception as e:
         _logger.exception('getObjectsByMethod %s: %s', method_name, e)
-    return None
-
-def getObjectsByPropertyValue(property_name:str, value) -> list[ObjectManager]:
-    """Get objects whose property value equals ``value``.
-
-    Searches the runtime cache (``objects_storage``). Enumeration syncs
-    missing objects from DB first. Comparison uses decoded property values
-    (``getValue(track_stats=False)``) and does not increment read stats.
-
-    Args:
-        property_name (str): Property name
-        value (Any): Expected property value
-
-    Returns:
-        list[ObjectManager]: Matching objects.
-            On error returns None.
-    """
-    try:
-        result = []
-        for obj in objects_storage.values():
-            prop = obj.properties.get(property_name)
-            if prop is None:
-                continue
-            if prop.getValue(track_stats=False) == value:
-                result.append(obj)
-        return result
-    except Exception as e:
-        _logger.exception('getObjectsByPropertyValue %s: %s', property_name, e)
     return None
 
 def getClassesByProperty(property_name:str, subclasses:bool=True) -> list[dict]:
