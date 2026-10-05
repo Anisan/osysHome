@@ -1,4 +1,4 @@
-""" Common library """
+"""Shared helpers for tasks, plugins, notifications, HTTP, and system stats."""
 import json
 import threading
 import time
@@ -38,6 +38,14 @@ _task_locks_lock = threading.RLock()
 
 @contextmanager
 def get_task_lock(name: str):
+    """Acquire a per-task-name lock for scheduled job mutations.
+
+    Args:
+        name (str): Task name used as the lock key.
+
+    Yields:
+        None: While the lock is held.
+    """
     with _task_locks_lock:
         if name not in _task_locks:
             _task_locks[name] = threading.Lock()
@@ -53,15 +61,17 @@ def get_task_lock(name: str):
 def addScheduledJob(
     name: str, code: str, dt: datetime.datetime, expire: int = 1800
 ) -> int:
-    """Add scheduled job
+    """Create or update a one-shot scheduled task.
+
     Args:
-        name (str): Name schedule
-        code (str): Python code
-        dt (datetime): Datetime start job
-        expire (int, optional): Expire time in minutes. Defaults to 1800.
+        name (str): Unique task name.
+        code (str): Python code to run.
+        dt (datetime.datetime): Local start time for the job.
+        expire (int, optional): Seconds after start when the job expires.
+            Defaults to 1800.
 
     Returns:
-        int: ID job or None
+        Optional[int]: Task id on success, or ``None`` on error.
     """
     with get_task_lock(name):
         try:
@@ -84,15 +94,16 @@ def addScheduledJob(
 
 
 def addCronJob(name: str, code: str, crontab: str = "* * * * *") -> int:
-    """Add cron job
+    """Create or update a recurring cron task.
 
     Args:
-        name (str): Name
-        code (str): Python code
-        crontab (str, optional): Cron syntax period. Defaults to '* * * * *'.
+        name (str): Unique task name.
+        code (str): Python code to run.
+        crontab (str, optional): Cron schedule expression. Defaults to
+            ``'* * * * *'``.
 
     Returns:
-        int: ID job or None
+        Optional[int]: Task id on success, or ``None`` on error.
     """
     with get_task_lock(name):
         try:
@@ -118,13 +129,13 @@ def addCronJob(name: str, code: str, crontab: str = "* * * * *") -> int:
 
 
 def getJob(name: str) -> dict:
-    """Get job data by name
+    """Load a task row by name.
 
     Args:
-        name (str): Name job
+        name (str): Task name.
 
     Returns:
-        dict: Job data
+        Optional[dict]: Task fields as a dict, or ``None`` if not found.
     """
     with session_scope() as session:
         job = session.query(Task).filter(Task.name == name).one_or_none()
@@ -133,13 +144,13 @@ def getJob(name: str) -> dict:
         return None
 
 def getJobs(query: str) -> list:
-    """Get jobs by name contain query
+    """Find tasks whose names match a SQL ``LIKE`` pattern.
 
     Args:
-        query (str): Query
+        query (str): Pattern passed to ``Task.name.like`` (include ``%`` wildcards).
 
     Returns:
-        list: Jobs
+        list: List of task dicts; empty if none match.
     """
     with session_scope() as session:
         result = session.query(Task).filter(Task.name.like(query)).all()
@@ -152,10 +163,10 @@ def getJobs(query: str) -> list:
 
 
 def clearScheduledJob(name: str):
-    """Clear jobs contains name
+    """Delete tasks whose names match a SQL ``LIKE`` pattern.
 
     Args:
-        name (str): Name for search
+        name (str): Pattern passed to ``Task.name.like``.
     """
     with get_task_lock(name):
         with session_scope() as session:
@@ -164,15 +175,15 @@ def clearScheduledJob(name: str):
             session.commit()
 
 def setTimeout(name: str, code: str, timeout: int = 0):
-    """Set timeout for run code
+    """Schedule code to run after a delay.
 
     Args:
-        name (str): Name timeout
-        code (str): Python code
-        timeout (int, optional): Timeout in seconds. Defaults to 0.
+        name (str): Task name for the delayed run.
+        code (str): Python code to execute.
+        timeout (int, optional): Delay in seconds from now. Defaults to 0.
 
     Returns:
-        _type_: _description_
+        Optional[int]: Scheduled task id from ``addScheduledJob``, or ``None``.
     """
     local_dt = convert_utc_to_local(get_now_to_utc())
     res = addScheduledJob(
@@ -182,22 +193,22 @@ def setTimeout(name: str, code: str, timeout: int = 0):
 
 
 def clearTimeout(name: str):
-    """Clear timeout by name
+    """Remove a delayed task by name (same as ``clearScheduledJob``).
 
     Args:
-        name (str): Name
+        name (str): Task name pattern to delete.
     """
     clearScheduledJob(name)
 
 
 def enableJob(name: str) -> bool:
-    """Enable job by name
+    """Activate a task by name.
 
     Args:
-        name (str): Name job
+        name (str): Task name.
 
     Returns:
-        bool: Success
+        bool: ``True`` if the task existed and was enabled, else ``False``.
     """
     with get_task_lock(name):
         try:
@@ -214,13 +225,13 @@ def enableJob(name: str) -> bool:
 
 
 def disableJob(name: str) -> bool:
-    """Disable job by name
+    """Deactivate a task by name.
 
     Args:
-        name (str): Name job
+        name (str): Task name.
 
     Returns:
-        bool: Success
+        bool: ``True`` if the task existed and was disabled, else ``False``.
     """
     with get_task_lock(name):
         try:
@@ -237,22 +248,26 @@ def disableJob(name: str) -> bool:
 
 
 def getModule(name: str):
-    """Get instance module by name
+    """Return a loaded plugin instance by folder name.
+
     Args:
-        name (str): Name module
+        name (str): Plugin name (registry key).
+
     Returns:
-        any: Module instance
+        Optional[Any]: Plugin instance, or ``None`` if not loaded.
     """
     if name not in plugins:
         return None
     return plugins[name]["instance"]
 
 def getModulesByAction(action: str):
-    """Get modules by action
+    """List plugin instances that advertise a given action.
+
     Args:
-        action (str): Action
+        action (str): Action name (e.g. ``say``, ``notify``).
+
     Returns:
-        list: List of modules
+        list: Plugin instances whose ``actions`` include ``action``.
     """
     return [module["instance"] for _, module in plugins.items() if action in module["instance"].actions]
 
@@ -261,13 +276,13 @@ def callPluginFunction(plugin: str, func: str, args=None):
     """Call a public method on a loaded plugin instance.
 
     Args:
-        plugin: Plugin name (folder name), e.g. ``YandexDevices``.
-        func: Method name on the plugin class.
-        args: Keyword arguments passed to the method (``dict``).
+        plugin (str): Plugin name (folder name), e.g. ``YandexDevices``.
+        func (str): Method name on the plugin class.
+        args (Optional[dict]): Keyword arguments for the method.
 
     Returns:
-        Whatever the plugin method returns, or ``None`` if the plugin or method
-        is missing or the call raised an exception.
+        Optional[Any]: Plugin method return value, or ``None`` if the plugin or
+        method is missing or the call raised an exception.
     """
     if args is None:
         args = {}
@@ -288,12 +303,14 @@ def callPluginFunction(plugin: str, func: str, args=None):
 
 
 def say(message: str, level: int = 0, args: dict = None):
-    """Say
+    """Broadcast text-to-speech to plugins with the ``say`` action.
 
     Args:
-        message (_type_): Message
-        level (int, optional): Level. Defaults to 0.
-        args (dict, optional): Arguments. Defaults to None.
+        message (str): Text to speak.
+        level (int, optional): Priority or volume level (plugin-specific).
+            Defaults to 0.
+        args (Optional[dict]): Extra options; ``source`` defaults to
+            ``osysHome``.
     """
     from .object import setProperty
     source = args.get("source", "osysHome") if args else "osysHome"
@@ -307,12 +324,13 @@ def say(message: str, level: int = 0, args: dict = None):
 
 
 def playSound(file_name: str, level: int = 0, args: dict = None):
-    """Play sound
+    """Play a media file on plugins with the ``playsound`` action.
 
     Args:
-        file_name (_type_): Path media file
-        level (int, optional): Level. Defaults to 0.
-        args (dict, optional): Arguments. Defaults to None.
+        file_name (str): Path or URL of the media file.
+        level (int, optional): Priority or volume level (plugin-specific).
+            Defaults to 0.
+        args (Optional[dict]): Extra options passed to each plugin.
     """
     modules_with_playsound = getModulesByAction("playsound")
     for plugin in modules_with_playsound:
@@ -323,7 +341,7 @@ def playSound(file_name: str, level: int = 0, args: dict = None):
 
 
 def _normalize_notify_params(params: Any) -> Optional[dict]:
-    """Привести params уведомления к dict или None."""
+    """Coerce notification ``params`` to a dict or ``None``."""
     if params is None:
         return None
     if isinstance(params, dict):
@@ -338,6 +356,7 @@ def _normalize_notify_params(params: Any) -> Optional[dict]:
 
 
 def _serialize_notify_params(params: Any) -> Optional[str]:
+    """Serialize notification params to a JSON string for storage."""
     normalized = _normalize_notify_params(params)
     if not normalized:
         return None
@@ -345,7 +364,14 @@ def _serialize_notify_params(params: Any) -> Optional[str]:
 
 
 def notify_to_dict(notify: Notify) -> dict:
-    """Сериализация Notify в dict для API/WS."""
+    """Serialize a ``Notify`` model row to a dict for API/WebSocket payloads.
+
+    Args:
+        notify (Notify): ORM notification instance.
+
+    Returns:
+        dict: Row fields with ``category`` as a name string and ``params`` as a dict.
+    """
     data = row2dict(notify)
     data["category"] = notify.category.name if notify.category else "Info"
     data["params"] = _normalize_notify_params(data.get("params")) or {}
@@ -359,14 +385,16 @@ def addNotify(
     source="",
     params: Optional[dict] = None,
 ):
-    """Add notify
+    """Create or bump an in-app notification and notify plugins.
 
     Args:
-        name (str): Text notify
-        description (str, optional): Description notify. Defaults to "".
-        category (CategoryNotify, optional): Category. Defaults to CategoryNotify.Info.
-        source (str, optional): Source notify (use name plugins). Defaults to "".
-        params (dict, optional): Extra data (url, detail, error, image, ...). Defaults to None.
+        name (str): Short notification title or text.
+        description (str, optional): Longer body text. Defaults to ``""``.
+        category (CategoryNotify, optional): Severity/category. Defaults to
+            ``CategoryNotify.Info``.
+        source (str, optional): Originating plugin or module name. Defaults to
+            ``""``.
+        params (Optional[dict]): Extra payload (url, detail, error, image, …).
     """
     notify_id = None
     notify_count = 1
@@ -423,7 +451,7 @@ def addNotify(
 
 
 def _dispatchNotify(data: dict):
-    """Вызов plugin.notify() у модулей с action="notify"."""
+    """Submit ``notify`` payloads to plugins with the ``notify`` action."""
     for plugin in getModulesByAction("notify"):
         try:
             _poolNotify.submit(plugin.notify, f"notify_{plugin.name}", data)
@@ -432,10 +460,13 @@ def _dispatchNotify(data: dict):
 
 
 def readNotify(notify_id: int):
-    """Set read for notify
+    """Mark a single notification as read.
 
     Args:
-        notify_id (int): ID notify
+        notify_id (int): Notification database id.
+
+    Returns:
+        Optional[bool]: ``True`` if the id was valid and processing ran; otherwise ``None``.
     """
     notify_id = parse_int_id(notify_id)
     if notify_id is None:
@@ -473,17 +504,22 @@ def readNotify(notify_id: int):
     return True
 
 def getPluginModuleNames() -> set:
-    """Имена реально загруженных модулей (плагинов) в текущем процессе."""
+    """Return names of plugins loaded in the current process.
+
+    Returns:
+        set[str]: Plugin registry keys.
+    """
     return {name for name in plugins.keys() if name}
 
 
 def readNotifyAll(source: Optional[str] = None, control_panel: bool = False):
-    """Set read all notify for source
+    """Mark multiple notifications as read.
 
     Args:
-        source (str, optional): Source notify. If None or empty, marks all notifications as read.
-        control_panel (bool): If True, marks notifications whose source is not a system module
-            (admin / osysHome / orphans), ignoring ``source``.
+        source (Optional[str]): When set, only notifications with this ``source``.
+            If ``None`` or empty (and ``control_panel`` is false), marks all as read.
+        control_panel (bool): If ``True``, marks notifications whose source is not a
+            loaded plugin module (control-panel / system sources), ignoring ``source``.
     """
     with session_scope() as session:
         if control_panel:
@@ -551,20 +587,22 @@ def requestUrl(
     cookies: dict = None,
     timeout: float = None,
 ) -> Optional[bytes]:
-    """Выполнить HTTP-запрос и вернуть содержимое ответа.
+    """Perform an HTTP request and return the response body.
 
     Args:
-        url: URL для запроса
-        method: HTTP-метод (GET, POST, PUT, PATCH, DELETE и др.)
-        params: query-параметры URL (для GET и др.)
-        headers: заголовки запроса
-        json_data: JSON-тело запроса (для POST, PUT и др.)
-        data: тело запроса (form-data, для POST и др.)
-        cookies: словарь cookies {name: value}
-        timeout: таймаут в секундах (по умолчанию Config.HTTP_REQUEST_TIMEOUT)
+        url (str): Request URL.
+        method (str, optional): HTTP method (GET, POST, PUT, PATCH, DELETE, …).
+            Defaults to ``"GET"``.
+        params (Optional[dict]): Query string parameters.
+        headers (Optional[dict]): Request headers.
+        json_data (Optional[dict]): JSON request body.
+        data (Optional[dict]): Form or raw request body.
+        cookies (Optional[dict]): Cookies as ``{name: value}``.
+        timeout (Optional[float]): Timeout in seconds; defaults to
+            ``Config.HTTP_REQUEST_TIMEOUT``.
 
     Returns:
-        bytes: содержимое ответа или None при ошибке
+        Optional[bytes]: Response content, or ``None`` on error.
     """
     import requests
     from app.configuration import Config
@@ -595,7 +633,18 @@ def getUrl(
     cookies: dict = None,
     timeout: float = None,
 ) -> Optional[bytes]:
-    """GET-запрос (alias для requestUrl с method='GET')."""
+    """Perform an HTTP GET via ``requestUrl``.
+
+    Args:
+        url (str): Request URL.
+        params (Optional[dict]): Query string parameters.
+        headers (Optional[dict]): Request headers.
+        cookies (Optional[dict]): Cookies as ``{name: value}``.
+        timeout (Optional[float]): Timeout in seconds.
+
+    Returns:
+        Optional[bytes]: Response content, or ``None`` on error.
+    """
     return requestUrl(
         url, method="GET", params=params, headers=headers, cookies=cookies, timeout=timeout
     )
@@ -610,7 +659,20 @@ def postUrl(
     cookies: dict = None,
     timeout: float = None,
 ) -> Optional[bytes]:
-    """POST-запрос (alias для requestUrl с method='POST')."""
+    """Perform an HTTP POST via ``requestUrl``.
+
+    Args:
+        url (str): Request URL.
+        params (Optional[dict]): Query string parameters.
+        headers (Optional[dict]): Request headers.
+        json_data (Optional[dict]): JSON request body.
+        data (Optional[dict]): Form or raw request body.
+        cookies (Optional[dict]): Cookies as ``{name: value}``.
+        timeout (Optional[float]): Timeout in seconds.
+
+    Returns:
+        Optional[bytes]: Response content, or ``None`` on error.
+    """
     return requestUrl(
         url,
         method="POST",
@@ -632,7 +694,20 @@ def putUrl(
     cookies: dict = None,
     timeout: float = None,
 ) -> Optional[bytes]:
-    """PUT-запрос (alias для requestUrl с method='PUT')."""
+    """Perform an HTTP PUT via ``requestUrl``.
+
+    Args:
+        url (str): Request URL.
+        params (Optional[dict]): Query string parameters.
+        headers (Optional[dict]): Request headers.
+        json_data (Optional[dict]): JSON request body.
+        data (Optional[dict]): Form or raw request body.
+        cookies (Optional[dict]): Cookies as ``{name: value}``.
+        timeout (Optional[float]): Timeout in seconds.
+
+    Returns:
+        Optional[bytes]: Response content, or ``None`` on error.
+    """
     return requestUrl(
         url,
         method="PUT",
@@ -654,7 +729,20 @@ def patchUrl(
     cookies: dict = None,
     timeout: float = None,
 ) -> Optional[bytes]:
-    """PATCH-запрос (alias для requestUrl с method='PATCH')."""
+    """Perform an HTTP PATCH via ``requestUrl``.
+
+    Args:
+        url (str): Request URL.
+        params (Optional[dict]): Query string parameters.
+        headers (Optional[dict]): Request headers.
+        json_data (Optional[dict]): JSON request body.
+        data (Optional[dict]): Form or raw request body.
+        cookies (Optional[dict]): Cookies as ``{name: value}``.
+        timeout (Optional[float]): Timeout in seconds.
+
+    Returns:
+        Optional[bytes]: Response content, or ``None`` on error.
+    """
     return requestUrl(
         url,
         method="PATCH",
@@ -674,20 +762,33 @@ def deleteUrl(
     cookies: dict = None,
     timeout: float = None,
 ) -> Optional[bytes]:
-    """DELETE-запрос (alias для requestUrl с method='DELETE')."""
+    """Perform an HTTP DELETE via ``requestUrl``.
+
+    Args:
+        url (str): Request URL.
+        params (Optional[dict]): Query string parameters.
+        headers (Optional[dict]): Request headers.
+        cookies (Optional[dict]): Cookies as ``{name: value}``.
+        timeout (Optional[float]): Timeout in seconds.
+
+    Returns:
+        Optional[bytes]: Response content, or ``None`` on error.
+    """
     return requestUrl(
         url, method="DELETE", params=params, headers=headers, cookies=cookies, timeout=timeout
     )
 
 
 def sendWebsocket(command: str, data: any, client_id:str=None) -> bool:
-    """Send command to websocket
+    """Send a command to the WebSocket server plugin.
+
     Args:
-        command (str): Command
-        data (any): Data
-        client_id(str): Client ID (None - send all)
+        command (str): Command name.
+        data (Any): Payload for the command.
+        client_id (Optional[str]): Target client id; ``None`` broadcasts to all.
+
     Returns:
-        bool: Success
+        bool: ``True`` if the plugin handled the send, else ``False``.
     """
     if "wsServer" not in plugins:
         return False
@@ -706,12 +807,14 @@ def sendWebsocket(command: str, data: any, client_id:str=None) -> bool:
         return False
 
 def sendDataToWebsocket(typeData: str, data: any) -> bool:
-    """Send data to websocket
+    """Push typed data to connected WebSocket clients.
+
     Args:
-        typeData (str): Type data
-        data (any): Data
+        typeData (str): Message type identifier.
+        data (Any): Payload to send.
+
     Returns:
-        bool: Success
+        bool: ``True`` if the plugin handled the send, else ``False``.
     """
     if "wsServer" not in plugins:
         return False
@@ -731,15 +834,16 @@ def sendDataToWebsocket(typeData: str, data: any) -> bool:
 
 
 def xml_to_dict(xml_data) -> dict:
-    """Convert xml to dictionary
+    """Parse XML text into a nested dictionary.
 
     Args:
-        xml_data (str): XML string
+        xml_data (str): XML document as a string.
 
     Returns:
-        dict: Dictionary
+        dict: Root tag mapped to the parsed tree (attributes use ``@`` prefixes).
     """
     def recursive_dict(element):
+        """Walk one ElementTree node into a tag/value pair."""
         node = {}
         if element.attrib:
             node.update(("@" + k, v) for k, v in element.attrib.items())
@@ -766,14 +870,15 @@ def xml_to_dict(xml_data) -> dict:
 
 
 def runCode(code: str, args=None):
-    """Run code
+    """Execute a snippet of Python code in a restricted context.
 
     Args:
-        code (str): Python code
-        args (dict, optional): Arguments. Defaults to None.
+        code (str): Python source to run.
+        args (Optional[dict]): Value bound as ``params`` in the execution namespace.
 
-    Return:
-        any, bool: Result
+    Returns:
+        tuple: ``(output, success)`` where ``output`` is captured stdout or an
+        error string, and ``success`` is ``False`` if execution failed.
     """
     # append common
     try:
@@ -794,24 +899,27 @@ def is_datetime_in_range(
     end_dt: Optional[datetime.datetime],
     inclusive: Union[bool, str] = True,
 ) -> bool:
-    """
-    Checks whether check_dt is between start_dt and end_dt.
+    """Check whether a datetime falls within an optional bounded range.
 
-    Parameters:
-        check_dt: The datetime to check.
-        start_dt: The start of the range (None = -∞).
-        end_dt: The end of the range (None = +∞).
-        inclusive: Boundary inclusion:
-        - True (default): both boundaries are included [start_dt, end_dt].
-        - False: both boundaries are excluded (start_dt, end_dt).
-        - "left": only start_dt is included [start_dt, end_dt).
-        - "right": only end_dt is included (start_dt, end_dt].
+    All datetimes are normalized to naive UTC before comparison.
+
+    Args:
+        check_dt (Optional[datetime.datetime]): Value to test; ``None`` yields
+            ``False``.
+        start_dt (Optional[datetime.datetime]): Range start; ``None`` means
+            unbounded below.
+        end_dt (Optional[datetime.datetime]): Range end; ``None`` means unbounded
+            above.
+        inclusive (Union[bool, str], optional): Boundary inclusion: ``True``
+            (default) both ends closed; ``False`` both open; ``"left"`` /
+            ``"right"`` half-open intervals.
 
     Returns:
-        bool: True if check_dt falls within the range.
+        bool: ``True`` if ``check_dt`` lies in the range per ``inclusive``.
     """
     # Нормализуем все даты к наивному UTC, чтобы избежать ошибок сравнения
     def _to_naive_utc(dt: Optional[datetime.datetime]) -> Optional[datetime.datetime]:
+        """Convert aware datetimes to naive UTC; pass through naive values."""
         if dt is None:
             return None
         if dt.tzinfo is None:
@@ -861,11 +969,17 @@ GenderKey = Literal['male', 'female', 'unknown']
 
 
 def normalize_gender(gender: Any) -> GenderKey:
-    """
-    Приводит значение пола к одному из: 'male', 'female', 'unknown'.
+    """Normalize a gender value to ``male``, ``female``, or ``unknown``.
 
-    Строки нормализуются (strip + casefold). Число 1 и bool True — мужской пол.
-    Число 0 — женский пол. bool False, None и пустая строка — неизвестный пол.
+    Strings are stripped and case-folded (English and Russian synonyms supported).
+    Integer ``1`` and ``True`` map to male; ``0`` maps to female; ``False``,
+    ``None``, and empty strings map to unknown.
+
+    Args:
+        gender (Any): Raw gender from config, speech, or user input.
+
+    Returns:
+        GenderKey: One of ``'male'``, ``'female'``, or ``'unknown'``.
     """
     if gender is None:
         return 'unknown'
@@ -896,29 +1010,24 @@ def inflect_by_gender(
     female_end: str,
     default_end: str = '',
 ) -> str:
-    """
-    Склоняет слово (или фразу) по полу, добавляя к основе нужное окончание.
+    """Append gender-specific suffixes to a word stem (e.g. Russian agreement).
 
-    Удобно для русских текстов в сценариях и уведомлениях: «он пришёл» / «она пришла»,
-    «готов» / «готова» и т.п. — передаёте основу и суффиксы, функция возвращает
-    base + male_end | base + female_end | base + default_end.
+    Returns ``base + male_end``, ``base + female_end``, or ``base + default_end``
+    depending on ``normalize_gender(gender)``.
 
     Args:
-        gender: Пол (см. normalize_gender). Неизвестное значение → default_end.
-        base: Основа слова без окончания (например, «готов»).
-        male_end: Окончание для мужского рода (например, «» или «ой»).
-        female_end: Окончание для женского рода (например, «а»).
-        default_end: Окончание при неопределённом поле; по умолчанию '' (нейтральная
-            форма совпадает с base).
+        gender (Any): Gender input (see ``normalize_gender``).
+        base (str): Word stem without the inflection suffix.
+        male_end (str): Suffix for male gender.
+        female_end (str): Suffix for female gender.
+        default_end (str, optional): Suffix when gender is unknown. Defaults to
+            ``''``.
 
     Returns:
-        str: Склеенная строка base + суффикс.
+        str: ``base`` concatenated with the chosen suffix.
 
     Example:
-        inflect_by_gender('female', 'готов', '', 'а')  # 'готова'
-        inflect_by_gender(1, 'он ', 'пришёл', 'пришла')  # 'он пришёл'
-        inflect_by_gender(None, 'готов', '', 'а')  # 'готов'
-        inflect_by_gender(0, 'готов', '', 'а')  # 'готова'
+        ``inflect_by_gender('female', 'готов', '', 'а')`` → ``'готова'``.
     """
     match normalize_gender(gender):
         case 'male':
@@ -970,9 +1079,20 @@ def registerSystemStatsMetric(
     history: int = 30,
     prop_type: PropertyType = PropertyType.Float,
 ) -> str:
-    """Create metric property on `SystemStats` for event-driven writes.
+    """Register a plugin metric property on ``SystemStats`` for event-driven writes.
 
-    Returns property key only (without ``SystemStats.`` prefix).
+    Args:
+        plugin_name (str): Plugin folder name.
+        metric_name (str): Logical metric name (sanitized for the property key).
+        description (str, optional): Human-readable description. Defaults to
+            ``"{plugin_name}: {metric_name}"`` when empty.
+        history (int, optional): History retention days for the property.
+            Defaults to 30.
+        prop_type (PropertyType, optional): Stored value type. Defaults to
+            ``PropertyType.Float``.
+
+    Returns:
+        str: Property key only (without the ``SystemStats.`` prefix).
     """
     property_key = _system_stats_metric_key(plugin_name, metric_name)
     if _is_system_stats_metric_registered(property_key):
@@ -1004,9 +1124,22 @@ def writeSystemStatsMetric(
     prop_type: PropertyType = PropertyType.Float,
     source: str = "",
 ) -> bool:
-    """Write plugin metric to SystemStats with forced ``track_stats=False``.
+    """Write a plugin metric to ``SystemStats`` with ``track_stats=False``.
 
-    This function is event-driven and does not rely on cron collectors.
+    Registers the property if needed. No-op when system stats are disabled.
+
+    Args:
+        plugin_name (str): Plugin folder name.
+        metric_name (str): Logical metric name.
+        value (Any): Value to store.
+        description (str, optional): Property description for registration.
+        history (int, optional): History retention when registering. Defaults to 30.
+        prop_type (PropertyType, optional): Value type when registering.
+        source (str, optional): Change source; defaults to
+            ``system_stats:{plugin_name}``.
+
+    Returns:
+        bool: ``True`` if the write succeeded, else ``False``.
     """
     from .object import updateProperty
     if not _is_system_stats_enabled():
@@ -1032,7 +1165,19 @@ def incrementSystemStatsMetric(
     history: int = 30,
     source: str = "",
 ) -> bool:
-    """Increment numeric metric with forced ``track_stats=False``."""
+    """Increment a numeric plugin metric with ``track_stats=False``.
+
+    Args:
+        plugin_name (str): Plugin folder name.
+        metric_name (str): Logical metric name.
+        step (Union[int, float], optional): Delta to add. Defaults to 1.
+        description (str, optional): Property description when registering.
+        history (int, optional): History retention when registering. Defaults to 30.
+        source (str, optional): Change source for the write.
+
+    Returns:
+        bool: ``True`` if the updated value was written, else ``False``.
+    """
     if not _is_system_stats_enabled():
         return False
     property_key = _system_stats_metric_key(plugin_name, metric_name)
@@ -1056,16 +1201,27 @@ def incrementSystemStatsMetric(
 
 
 def unregisterSystemStatsMetric(plugin_name: str, metric_name: str) -> None:
+    """No-op; metric keys remain on the ``SystemStats`` object.
+
+    Args:
+        plugin_name (str): Plugin folder name (unused).
+        metric_name (str): Logical metric name (unused).
+    """
     # No in-memory registry anymore; metric keys remain in SystemStats object.
     return None
 
 
 def unregisterSystemStatsPlugin(plugin_name: str) -> None:
-    """No-op in event-driven mode without registry."""
+    """No-op in event-driven mode (no in-process metric registry).
+
+    Args:
+        plugin_name (str): Plugin folder name (unused).
+    """
     return None
 
 
 def _system_stats_metric_key(plugin_name: str, metric_name: str) -> str:
+    """Build the ``SystemStats`` property key for a plugin metric."""
     safe_metric = re.sub(r"[^a-zA-Z0-9_]", "_", str(metric_name or "").strip())
     if not safe_metric:
         safe_metric = "metric"
@@ -1105,10 +1261,12 @@ class _CoreSystemStatsBuffer:
         self._pending: dict[str, Union[int, float]] = {}
 
     def increment(self, metric_name: str, step: Union[int, float] = 1) -> None:
+        """Add ``step`` to a pending in-memory delta for ``metric_name``."""
         with self._lock:
             self._pending[metric_name] = self._pending.get(metric_name, 0) + step
 
     def flush(self) -> None:
+        """Apply pending core metric deltas to the database."""
         if not _is_system_stats_enabled():
             with self._lock:
                 self._pending.clear()
@@ -1126,7 +1284,13 @@ _core_stats_buffer = _CoreSystemStatsBuffer()
 
 
 def scheduleSystemStatsWsNotify(object_name: str, property_name: str, value: Any) -> None:
-    """Debounce WebSocket updates for SystemStats subscriptions."""
+    """Queue a debounced WebSocket property update for ``SystemStats``.
+
+    Args:
+        object_name (str): Object name (typically ``SystemStats``).
+        property_name (str): Property name to push.
+        value (Any): Latest value to send after debounce.
+    """
     global _system_stats_ws_timer
     key = (object_name, property_name)
     with _system_stats_ws_lock:
@@ -1142,6 +1306,7 @@ def scheduleSystemStatsWsNotify(object_name: str, property_name: str, value: Any
 
 
 def flushSystemStatsWsNotifications() -> None:
+    """Send all pending debounced ``SystemStats`` WebSocket updates."""
     global _system_stats_ws_timer
     with _system_stats_ws_lock:
         pending = dict(_system_stats_ws_pending)
@@ -1160,17 +1325,19 @@ def flushSystemStatsWsNotifications() -> None:
 
 
 def flushBufferedCoreSystemStatsMetrics() -> None:
-    """Flush buffered core metric deltas (called from BatchWriter tick)."""
+    """Flush buffered core metric deltas (invoked from the BatchWriter tick)."""
     _core_stats_buffer.flush()
 
 
 def invalidateSystemStatsEnabledCache() -> None:
+    """Clear the cached ``SystemVar.system_stats`` enabled flag."""
     global _system_stats_enabled_cache
     with _system_stats_enabled_cache_lock:
         _system_stats_enabled_cache = None
 
 
 def _get_system_stats_property_manager(metric_name: str):
+    """Return ``(SystemStats object, property manager)`` or ``(None, None)``."""
     from app.core.main.ObjectsStorage import objects_storage
     obj = objects_storage.getObjectByName(SYSTEM_STATS_OBJECT)
     if not obj or metric_name not in obj.properties:
@@ -1179,6 +1346,7 @@ def _get_system_stats_property_manager(metric_name: str):
 
 
 def _sync_system_stats_property_runtime(prop, new_val: Union[int, float], source: str, changed) -> None:
+    """Update in-memory property state after a DB write."""
     object.__setattr__(prop, "_PropertyManager__value", new_val)
     prop.source = source
     prop.changed = changed
@@ -1248,7 +1416,19 @@ def writeCoreSystemStatsMetric(
     prop_type: PropertyType = PropertyType.Float,
     source: str = "core",
 ) -> bool:
-    """Write core metric to `SystemStats.<metric_name>` with track_stats=False."""
+    """Write a core metric to ``SystemStats.<metric_name>`` with ``track_stats=False``.
+
+    Args:
+        metric_name (str): Property name under ``SystemStats``.
+        value (Any): Value to store.
+        description (str, optional): Unused; kept for API symmetry with plugin metrics.
+        history (int, optional): Unused; kept for API symmetry.
+        prop_type (PropertyType, optional): Unused; kept for API symmetry.
+        source (str, optional): Change source; defaults to ``core``.
+
+    Returns:
+        bool: ``True`` if the write succeeded, else ``False``.
+    """
     from .object import updateProperty
     if not _is_system_stats_enabled():
         return False
@@ -1265,7 +1445,20 @@ def incrementCoreSystemStatsMetric(
     history: int = 30,
     source: str = "core",
 ) -> bool:
-    """Increment numeric core metric in `SystemStats.<metric_name>`."""
+    """Increment a numeric core metric on ``SystemStats``.
+
+    High-frequency metrics may be buffered in memory before a DB flush.
+
+    Args:
+        metric_name (str): Property name under ``SystemStats``.
+        step (Union[int, float], optional): Delta to add. Defaults to 1.
+        description (str, optional): Unused; kept for API symmetry.
+        history (int, optional): Unused; kept for API symmetry.
+        source (str, optional): Change source for non-buffered increments.
+
+    Returns:
+        bool: ``True`` if buffered or applied, else ``False``.
+    """
     if not _is_system_stats_enabled():
         return False
     if metric_name in _BUFFERED_CORE_METRICS:
@@ -1275,6 +1468,7 @@ def incrementCoreSystemStatsMetric(
 
 
 def _is_system_stats_enabled() -> bool:
+    """Return whether ``SystemVar.system_stats`` is enabled (short TTL cache)."""
     global _system_stats_enabled_cache, _system_stats_enabled_cache_at
     now = time.monotonic()
     with _system_stats_enabled_cache_lock:
@@ -1292,10 +1486,12 @@ def _is_system_stats_enabled() -> bool:
 
 
 def _read_system_stats_property_value(property_name: str):
+    """Read a ``SystemStats`` property without recording stats traffic."""
     return _get_property_value_no_stats(SYSTEM_STATS_OBJECT, property_name)
 
 
 def _get_property_value_no_stats(object_name: str, property_name: str):
+    """Read a property value from runtime cache with ``track_stats=False``."""
     try:
         from app.core.main.ObjectsStorage import objects_storage
         obj = objects_storage.getObjectByName(object_name)

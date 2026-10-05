@@ -1,45 +1,58 @@
+"""Temperature unit conversions and heat index."""
+
 def celsius_to_fahrenheit(celsius):
-    """
-    Преобразует температуру из Цельсия в Фаренгейт.
+    """Convert Celsius to Fahrenheit.
 
     Args:
-        celsius (float): температура в градусах Цельсия
+        celsius (float): Temperature in Celsius
 
     Returns:
-        float: температура в градусах Фаренгейта
+        float: Temperature in Fahrenheit
     """
     return (celsius * 9 / 5) + 32
 
 def fahrenheit_to_celsius(fahrenheit):
-    """
-    Преобразует температуру из Фаренгейта в Цельсий.
+    """Convert Fahrenheit to Celsius.
 
     Args:
-        fahrenheit (float): температура в градусах Фаренгейта
+        fahrenheit (float): Temperature in Fahrenheit
 
     Returns:
-        float: температура в градусах Цельсия
+        float: Temperature in Celsius
     """
     return (fahrenheit - 32) * 5 / 9
 
 def celsius_to_kelvin(celsius):
-    """Преобразует температуру из Цельсия в Кельвины."""
+    """Convert Celsius to Kelvin.
+
+    Args:
+        celsius (float): Temperature in Celsius
+
+    Returns:
+        float: Temperature in Kelvin
+    """
     return celsius + 273.15
 
 def kelvin_to_celsius(kelvin):
-    """Преобразует температуру из Кельвинов в Цельсии."""
+    """Convert Kelvin to Celsius.
+
+    Args:
+        kelvin (float): Temperature in Kelvin
+
+    Returns:
+        float: Temperature in Celsius
+    """
     return kelvin - 273.15
 
 def calculate_heat_index(temperature_fahrenheit, humidity_percent):
-    """
-    Рассчитывает температуру ощущения (Heat Index) в градусах Фаренгейта.
+    """Calculate heat index (feels-like temperature) in Fahrenheit.
 
     Args:
-        temperature_fahrenheit (float): температура в градусах Фаренгейта
-        humidity_percent (float): влажность в процентах (0-100)
+        temperature_fahrenheit (float): Temperature in Fahrenheit
+        humidity_percent (float): Relative humidity (0-100)
 
     Returns:
-        float: температура ощущения в градусах Фаренгейта
+        float: Heat index in Fahrenheit
     """
     hi = (
         -42.379 +

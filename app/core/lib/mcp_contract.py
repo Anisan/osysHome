@@ -9,6 +9,14 @@ from typing import Any, Dict, List, Optional, Tuple
 
 
 def revision_from_datetime(value: Any) -> Optional[str]:
+    """Convert a datetime-like value to a revision string.
+
+    Args:
+        value (Any): ``datetime``, string, or None
+
+    Returns:
+        str | None: ISO-like string, or None if empty
+    """
     if value is None:
         return None
     if isinstance(value, datetime):
@@ -18,6 +26,15 @@ def revision_from_datetime(value: Any) -> Optional[str]:
 
 
 def revision_from_dict(data: dict, keys: Optional[List[str]] = None) -> str:
+    """Build a short SHA-256 revision hash from a dict payload.
+
+    Args:
+        data (dict): Source data
+        keys (list[str], optional): If set, only these keys are hashed
+
+    Returns:
+        str: First 16 hex chars of the SHA-256 digest
+    """
     if keys:
         payload = {key: data.get(key) for key in keys}
     else:
@@ -27,7 +44,15 @@ def revision_from_dict(data: dict, keys: Optional[List[str]] = None) -> str:
 
 
 def build_plugin_mcp_descriptors(plugin_name: str, capabilities: dict) -> Tuple[list, list, list]:
-    """Build declarative MCP surface from mcp_capabilities()."""
+    """Build declarative MCP tools/resources/prompts from plugin capabilities.
+
+    Args:
+        plugin_name (str): Plugin name
+        capabilities (dict): Result of ``mcp_capabilities()``
+
+    Returns:
+        tuple[list, list, list]: ``(tools, resources, prompts)`` descriptor lists
+    """
     caps = capabilities or {}
     collections = [item for item in (caps.get("collections") or []) if isinstance(item, dict)]
     operations = [str(item).strip() for item in (caps.get("operations") or []) if str(item).strip()]
@@ -108,6 +133,7 @@ def build_plugin_mcp_descriptors(plugin_name: str, capabilities: dict) -> Tuple[
 
 
 def _type_matches(value: Any, expected: Any) -> bool:
+    """Return True if ``value`` matches a JSON Schema ``type`` (or type list)."""
     if expected is None:
         return True
     if isinstance(expected, list):
@@ -131,7 +157,17 @@ def _type_matches(value: Any, expected: Any) -> bool:
 
 
 def validate_entity_payload(payload: dict, schema: dict) -> dict:
-    """Lightweight JSON Schema validation for MCP entity payloads."""
+    """Lightweight JSON Schema validation for MCP entity payloads.
+
+    Checks required fields, basic types, and enums only.
+
+    Args:
+        payload (dict): Entity payload
+        schema (dict): JSON Schema-like object
+
+    Returns:
+        dict: ``{\"ok\": bool, \"errors\": [{\"field\", \"message\"}, ...]}``
+    """
     errors: List[dict] = []
     if not isinstance(payload, dict):
         return {"ok": False, "errors": [{"field": "_", "message": "payload must be an object"}]}
@@ -162,7 +198,14 @@ def validate_entity_payload(payload: dict, schema: dict) -> dict:
 
 
 def validate_plugin_mcp_capabilities(capabilities: dict) -> dict:
-    """Validate plugin MCP capabilities contract."""
+    """Validate a plugin ``mcp_capabilities()`` contract.
+
+    Args:
+        capabilities (dict): Capabilities object
+
+    Returns:
+        dict: ``{\"ok\": bool, \"errors\": [str, ...]}``
+    """
     errors: List[str] = []
     if not isinstance(capabilities, dict):
         return {"ok": False, "errors": ["capabilities must be an object"]}

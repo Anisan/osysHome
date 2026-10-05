@@ -9,11 +9,19 @@ from app.core.main.ObjectsStorage import objects_storage
 
 
 def _norm(value: Optional[str]) -> str:
+    """Normalize optional string (strip; empty if None)."""
     return str(value or "").strip()
 
 
 def validate_object_exists(object_name: Optional[str]) -> bool:
-    """Return True when object_name refers to a loaded object."""
+    """Check that an object name refers to a loadable object.
+
+    Args:
+        object_name (str | None): Object name
+
+    Returns:
+        bool: True if the object can be loaded
+    """
     name = _norm(object_name)
     if not name:
         return False
@@ -21,7 +29,15 @@ def validate_object_exists(object_name: Optional[str]) -> bool:
 
 
 def validate_object_property_exists(object_name: Optional[str], property_name: Optional[str]) -> bool:
-    """Return True when object.property exists."""
+    """Check that ``object.property`` exists on a loadable object.
+
+    Args:
+        object_name (str | None): Object name
+        property_name (str | None): Property name
+
+    Returns:
+        bool: True if the property exists on the object
+    """
     obj_name = _norm(object_name)
     prop_name = _norm(property_name)
     if not obj_name or not prop_name:
@@ -39,14 +55,22 @@ def sync_property_link(
     old_object: Optional[str] = None,
     old_property: Optional[str] = None,
 ) -> Tuple[bool, Optional[str]]:
-    """
-    Sync Value.linked for property-level plugin bindings.
+    """Sync ``Value.linked`` for a property-level plugin binding.
 
-    Removes the old link when old_object/old_property are provided and changed.
-    Adds a new link when object_name and property_name are both non-empty.
+    Removes the old link when ``old_object`` / ``old_property`` differ from
+    the new target. Adds a new link when both object and property are set.
+    Clearing both new names only removes the old link (if any).
+
+    Args:
+        plugin_name (str): Plugin / module link name
+        object_name (str | None): New linked object
+        property_name (str | None): New linked property
+        old_object (str | None, optional): Previous linked object
+        old_property (str | None, optional): Previous linked property
 
     Returns:
-        (success, error_message)
+        tuple[bool, str | None]: ``(success, error_message)``;
+            ``error_message`` is None on success
     """
     plugin = _norm(plugin_name)
     if not plugin:
@@ -83,7 +107,16 @@ def remove_property_link(
     object_name: Optional[str],
     property_name: Optional[str],
 ) -> bool:
-    """Remove property-level link for a plugin."""
+    """Remove a property-level plugin link.
+
+    Args:
+        plugin_name (str): Plugin / module link name
+        object_name (str | None): Object name
+        property_name (str | None): Property name
+
+    Returns:
+        bool: True if removed or nothing to remove; False on failure
+    """
     obj_name = _norm(object_name)
     prop_name = _norm(property_name)
     plugin = _norm(plugin_name)
@@ -93,11 +126,13 @@ def remove_property_link(
 
 
 def sync_object_link(object_name: Optional[str]) -> Tuple[bool, Optional[str]]:
-    """
-    Validate object-level binding (no Value.linked update).
+    """Validate an object-level binding (no ``Value.linked`` update).
+
+    Args:
+        object_name (str | None): Object name (empty clears / no-op)
 
     Returns:
-        (success, error_message)
+        tuple[bool, str | None]: ``(success, error_message)``
     """
     name = _norm(object_name)
     if not name:

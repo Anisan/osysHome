@@ -1,17 +1,19 @@
+"""Color space conversions, named colors, and Zigbee2MQTT payloads."""
+
 import math
 import json
 
 
 def hex_to_rgb(hex_str):
-    """
-    Преобразует HEX-строку вида '#FF5733' в кортеж (R, G, B) как целые числа 0-255.
-    Поддерживает форматы: '#RRGGBB', 'RRGGBB'
+    """Parse a hex color string into an RGB triplet.
+
+    Supports ``#RRGGBB`` and ``RRGGBB``.
 
     Args:
-        hex_str (str): строка в формате HEX
+        hex_str (str): Hex color string.
 
     Returns:
-        tuple: (R, G, B) как целые числа
+        tuple: ``(R, G, B)`` integers in 0–255.
     """
     hex_str = hex_str.lstrip("#")
     if len(hex_str) != 6:
@@ -20,54 +22,56 @@ def hex_to_rgb(hex_str):
 
 
 def rgb_to_hex(r, g, b):
-    """
-    Преобразует RGB (0-255) в HEX-строку вида 'FF5733'.
+    """Format RGB channels as a six-digit hex string (no leading ``#``).
 
     Args:
-        r, g, b (int): значения от 0 до 255
+        r (int): Red channel (0–255).
+        g (int): Green channel (0–255).
+        b (int): Blue channel (0–255).
 
     Returns:
-        str: HEX строка
+        str: Uppercase hex string ``RRGGBB``.
     """
     return f"{r:02X}{g:02X}{b:02X}"
 
 
 def hex_to_rgb_float(hex_str):
-    """
-    Преобразует HEX в RGB как float значения от 0.0 до 1.0 (как в ESPHome).
+    """Parse hex into normalized RGB floats (0.0–1.0), ESPHome-style.
 
     Args:
-        hex_str (str): строка в формате HEX
+        hex_str (str): Hex color string.
 
     Returns:
-        tuple: (R, G, B) как float от 0.0 до 1.0
+        tuple: ``(R, G, B)`` floats in 0.0–1.0.
     """
     r, g, b = hex_to_rgb(hex_str)
     return r / 255.0, g / 255.0, b / 255.0
 
 
 def rgb_float_to_hex(r, g, b):
-    """
-    Преобразует RGB float (0.0–1.0) в HEX строку.
+    """Convert normalized RGB floats to a hex string.
 
     Args:
-        r, g, b (float): значения от 0.0 до 1.0
+        r (float): Red channel (0.0–1.0).
+        g (float): Green channel (0.0–1.0).
+        b (float): Blue channel (0.0–1.0).
 
     Returns:
-        str: HEX строка
+        str: Uppercase hex string ``RRGGBB``.
     """
     return rgb_to_hex(int(round(r * 255)), int(round(g * 255)), int(round(b * 255)))
 
 
 def rgb_to_hsl(r, g, b):
-    """
-    Преобразует RGB в HSL.
+    """Convert RGB to HSL.
 
     Args:
-        r, g, b (int): значения от 0 до 255
+        r (int): Red channel (0–255).
+        g (int): Green channel (0–255).
+        b (int): Blue channel (0–255).
 
     Returns:
-        tuple: (H, S, L) - Hue (0-360), Saturation (0-100%), Lightness (0-100%)
+        tuple: ``(H, S, L)`` — hue 0–360, saturation and lightness 0–100%.
     """
     r, g, b = r / 255.0, g / 255.0, b / 255.0
     max_c = max(r, g, b)
@@ -94,16 +98,15 @@ def rgb_to_hsl(r, g, b):
 
 
 def hsl_to_rgb(h, s, l): # noqa
-    """
-    Преобразует HSL в RGB.
+    """Convert HSL to RGB.
 
     Args:
-        h (int): Hue (0-360)
-        s (int): Saturation (0-100%)
-        l (int): Lightness (0-100%)
+        h (int): Hue (0–360).
+        s (int): Saturation (0–100%).
+        l (int): Lightness (0–100%).
 
     Returns:
-        tuple: (R, G, B) как целые числа
+        tuple: ``(R, G, B)`` integers in 0–255.
     """
     h = h / 360.0
     s = s / 100.0
@@ -135,14 +138,15 @@ def hsl_to_rgb(h, s, l): # noqa
 
 
 def rgb_to_hsv(r, g, b):
-    """
-    Преобразует RGB в HSV.
+    """Convert RGB to HSV.
 
     Args:
-        r, g, b (int): значения от 0 до 255
+        r (int): Red channel (0–255).
+        g (int): Green channel (0–255).
+        b (int): Blue channel (0–255).
 
     Returns:
-        tuple: (H, S, V) - Hue (0-360), Saturation (0-100%), Value (0-100%)
+        tuple: ``(H, S, V)`` — hue 0–360, saturation and value 0–100%.
     """
     r, g, b = r / 255.0, g / 255.0, b / 255.0
     max_c = max(r, g, b)
@@ -169,16 +173,15 @@ def rgb_to_hsv(r, g, b):
 
 
 def hsv_to_rgb(h, s, v):
-    """
-    Преобразует HSV в RGB.
+    """Convert HSV to RGB.
 
     Args:
-        h (int): Hue (0-360)
-        s (int): Saturation (0-100%)
-        v (int): Value (0-100%)
+        h (int): Hue (0–360).
+        s (int): Saturation (0–100%).
+        v (int): Value (0–100%).
 
     Returns:
-        tuple: (R, G, B) как целые числа
+        tuple: ``(R, G, B)`` integers in 0–255.
     """
     h = h / 360.0
     s = s / 100.0
@@ -207,14 +210,15 @@ def hsv_to_rgb(h, s, v):
 
 
 def xyz_to_rgb(x, y, z):
-    """
-    Преобразует XYZ в RGB.
+    """Convert CIE XYZ to sRGB.
 
     Args:
-        x, y, z (float): значения XYZ (обычно 0-100)
+        x (float): X component (typically 0–100).
+        y (float): Y component (typically 0–100).
+        z (float): Z component (typically 0–100).
 
     Returns:
-        tuple: (R, G, B) как целые числа
+        tuple: ``(R, G, B)`` integers in 0–255.
     """
     x = x / 100.0
     y = y / 100.0
@@ -242,14 +246,15 @@ def xyz_to_rgb(x, y, z):
 
 
 def rgb_to_xyz(r, g, b):
-    """
-    Преобразует RGB в XYZ.
+    """Convert sRGB to CIE XYZ.
 
     Args:
-        r, g, b (int): значения от 0 до 255
+        r (int): Red channel (0–255).
+        g (int): Green channel (0–255).
+        b (int): Blue channel (0–255).
 
     Returns:
-        tuple: (X, Y, Z) как float
+        tuple: ``(X, Y, Z)`` floats (Y scale ~0–100).
     """
     r = r / 255.0
     g = g / 255.0
@@ -273,14 +278,15 @@ def rgb_to_xyz(r, g, b):
 
 
 def xyz_to_xyY(x, y, z):
-    """
-    Преобразует XYZ в xyY.
+    """Convert CIE XYZ to chromaticity xy and luminance Y.
 
     Args:
-        x, y, z (float): значения XYZ
+        x (float): X component.
+        y (float): Y component.
+        z (float): Z component.
 
     Returns:
-        tuple: (x, y, Y) - координаты хроматичности и яркость
+        tuple: ``(x, y, Y)`` chromaticity and luminance.
     """
     sum_xyz = x + y + z
     if sum_xyz == 0:
@@ -292,15 +298,15 @@ def xyz_to_xyY(x, y, z):
 
 
 def xyY_to_xyz(x, y, Y):
-    """
-    Преобразует xyY в XYZ.
+    """Convert chromaticity xy and luminance Y to CIE XYZ.
 
     Args:
-        x, y (float): координаты хроматичности
-        Y (float): яркость
+        x (float): Chromaticity x.
+        y (float): Chromaticity y.
+        Y (float): Luminance.
 
     Returns:
-        tuple: (X, Y, Z) как float
+        tuple: ``(X, Y, Z)`` floats.
     """
     if y == 0:
         return 0, 0, 0
@@ -310,59 +316,75 @@ def xyY_to_xyz(x, y, Y):
 
 
 def rgb_to_xyY(r, g, b):
-    """
-    Преобразует RGB в xyY.
+    """Convert RGB to chromaticity xy and luminance Y.
 
     Args:
-        r, g, b (int): значения от 0 до 255
+        r (int): Red channel (0–255).
+        g (int): Green channel (0–255).
+        b (int): Blue channel (0–255).
 
     Returns:
-        tuple: (x, y, Y) - координаты хроматичности и яркость
+        tuple: ``(x, y, Y)`` chromaticity and luminance.
     """
     x, y, z = rgb_to_xyz(r, g, b)
     return xyz_to_xyY(x, y, z)
 
 
 def rgb_to_xy(r, g, b):
-    """
-    Преобразует RGB в XY (без яркости Y).
+    """Convert RGB to CIE xy chromaticity (luminance omitted).
+
+    Args:
+        r (int): Red channel (0–255).
+        g (int): Green channel (0–255).
+        b (int): Blue channel (0–255).
+
+    Returns:
+        tuple: ``(x, y)`` chromaticity coordinates.
     """
     x, y, _ = rgb_to_xyY(r, g, b)
     return x, y
 
 
 def xyY_to_rgb(x, y, Y):
-    """
-    Преобразует xyY в RGB.
+    """Convert chromaticity xy and luminance Y to RGB.
 
     Args:
-        x, y (float): координаты хроматичности
-        Y (float): яркость
+        x (float): Chromaticity x.
+        y (float): Chromaticity y.
+        Y (float): Luminance.
 
     Returns:
-        tuple: (R, G, B) как целые числа
+        tuple: ``(R, G, B)`` integers in 0–255.
     """
     X, Y, Z = xyY_to_xyz(x, y, Y)
     return xyz_to_rgb(X, Y, Z)
 
 
 def xy_to_rgb(x, y, y_luminance=None):
-    """
-    Преобразует XY в RGB, используя опциональную яркость.
+    """Convert CIE xy chromaticity to RGB with optional luminance.
+
+    Args:
+        x (float): Chromaticity x.
+        y (float): Chromaticity y.
+        y_luminance (float, optional): Luminance Y; defaults to 1.0.
+
+    Returns:
+        tuple: ``(R, G, B)`` integers in 0–255.
     """
     luminance = 1.0 if y_luminance is None else float(y_luminance)
     return xyY_to_rgb(float(x), float(y), luminance)
 
 
 def xyz_to_lab(x, y, z):
-    """
-    Преобразует XYZ в CIE L*a*b*.
+    """Convert CIE XYZ to CIE L*a*b*.
 
     Args:
-        x, y, z (float): значения XYZ
+        x (float): X component.
+        y (float): Y component.
+        z (float): Z component.
 
     Returns:
-        tuple: (L, a, b) - L* (0-100), a*, b*
+        tuple: ``(L, a, b)`` — L* roughly 0–100.
     """
     x /= 95.047
     y /= 100.0
@@ -547,24 +569,30 @@ COLOR_MAP = {}
 
 
 def is_color_name(value):
-    """Проверяет, является ли строка известным именем цвета."""
+    """Return whether the string is a known English color name.
+
+    Args:
+        value: Value to check (typically a string).
+
+    Returns:
+        bool: True if ``value`` is a registered color name.
+    """
     if not isinstance(value, str):
         return False
     return value.strip().lower() in COLOR_NAME_MAP
 
 
 def parse_color_name(name):
-    """
-    Преобразует английское имя цвета (red, green, blue, ...) в RGB.
+    """Resolve an English color name to RGB.
 
-    Поддерживаются английские имена CSS/HTML и smart-home (warmwhite, relax, …).
-    Локализованные названия не принимаются — используйте hex/rgb/xy.
+    Supports CSS/HTML and smart-home names (e.g. warmwhite, relax).
+    Localized names are not accepted; use hex, rgb, or xy instead.
 
     Args:
-        name (str): имя цвета, регистр не важен
+        name (str): Color name (case-insensitive).
 
     Returns:
-        tuple: (R, G, B) как целые числа 0-255
+        tuple: ``(R, G, B)`` integers in 0–255.
     """
     if not isinstance(name, str):
         raise ValueError("Color name must be a string")
@@ -575,42 +603,46 @@ def parse_color_name(name):
 
 
 def rgb_to_color_name(r, g, b):
-    """
-    Возвращает имя цвета по RGB значению.
+    """Look up a registered color name for an exact RGB triplet.
 
     Args:
-        r, g, b (int): значения от 0 до 255
+        r (int): Red channel (0–255).
+        g (int): Green channel (0–255).
+        b (int): Blue channel (0–255).
 
     Returns:
-        str: название цвета или "unknown"
+        str: Color name, or ``"unknown"`` if not in the map.
     """
     return COLOR_MAP.get((r, g, b), "unknown")
 
 
 def is_light_color(r, g, b):
-    """
-    Проверяет, является ли цвет светлым (по яркости).
+    """Return whether the color is perceptually light (luminance threshold).
 
     Args:
-        r, g, b (int): значения от 0 до 255
+        r (int): Red channel (0–255).
+        g (int): Green channel (0–255).
+        b (int): Blue channel (0–255).
 
     Returns:
-        bool: True, если цвет светлый
+        bool: True if weighted brightness exceeds 128.
     """
     brightness = (r * 299 + g * 587 + b * 114) / 1000
     return brightness > 128
 
 
 def rgb_to_kelvin(r, g, b):
-    """
-    Приближённо вычисляет температуру цвета в Кельвинах по значению RGB.
-    Работает только для "белых" цветов (близких к нейтральному белому).
+    """Estimate correlated color temperature in Kelvin from RGB.
+
+    Intended for near-white colors only.
 
     Args:
-        r, g, b (int): значения от 0 до 255
+        r (int): Red channel (0–255).
+        g (int): Green channel (0–255).
+        b (int): Blue channel (0–255).
 
     Returns:
-        int: температура в Кельвинах (примерно)
+        int: Approximate color temperature in Kelvin (clamped 1000–40000).
     """
     r, g, b = r / 255.0, g / 255.0, b / 255.0
 
@@ -631,9 +663,13 @@ def rgb_to_kelvin(r, g, b):
 
 
 def kelvin_to_rgb(kelvin):
-    """
-    Приближенно преобразует температуру в Кельвинах в RGB.
-    Диапазон: 1000K - 40000K
+    """Approximate RGB for a black-body color temperature.
+
+    Args:
+        kelvin (int or float): Color temperature (roughly 1000–40000 K).
+
+    Returns:
+        tuple: ``(R, G, B)`` integers in 0–255.
     """
     temp = kelvin / 100.0
     if temp <= 66:
@@ -695,20 +731,45 @@ for _name, _rgb in COLOR_NAME_MAP.items():
 
 
 def hsb_to_rgb(h, s, b):
-    """
-    HSB эквивалентен HSV в текущей модели.
+    """Convert HSB to RGB (HSB is treated as HSV in this module).
+
+    Args:
+        h (int): Hue (0–360).
+        s (int): Saturation (0–100%).
+        b (int): Brightness (0–100%).
+
+    Returns:
+        tuple: ``(R, G, B)`` integers in 0–255.
     """
     return hsv_to_rgb(h, s, b)
 
 
 def rgb_to_hsb(r, g, b):
-    """
-    HSB эквивалентен HSV в текущей модели.
+    """Convert RGB to HSB (HSB is treated as HSV in this module).
+
+    Args:
+        r (int): Red channel (0–255).
+        g (int): Green channel (0–255).
+        b (int): Blue channel (0–255).
+
+    Returns:
+        tuple: ``(H, S, B)`` — hue 0–360, saturation and brightness 0–100%.
     """
     return rgb_to_hsv(r, g, b)
 
 
 def kelvin_to_mired(kelvin):
+    """Convert color temperature in Kelvin to mired (micro reciprocal degree).
+
+    Args:
+        kelvin (float): Color temperature in Kelvin (must be > 0).
+
+    Returns:
+        int: Mired value (rounded).
+
+    Raises:
+        ValueError: If kelvin is not positive.
+    """
     kelvin = float(kelvin)
     if kelvin <= 0:
         raise ValueError("kelvin must be > 0")
@@ -716,6 +777,17 @@ def kelvin_to_mired(kelvin):
 
 
 def mired_to_kelvin(mired):
+    """Convert mired to color temperature in Kelvin.
+
+    Args:
+        mired (float): Mired value (must be > 0).
+
+    Returns:
+        int: Color temperature in Kelvin (rounded).
+
+    Raises:
+        ValueError: If mired is not positive.
+    """
     mired = float(mired)
     if mired <= 0:
         raise ValueError("mired must be > 0")
@@ -723,8 +795,16 @@ def mired_to_kelvin(mired):
 
 
 def normalize_hue_sat(h, s, hue_scale=360, sat_scale=100):
-    """
-    Нормализует hue/saturation в диапазоны 0..360 и 0..100.
+    """Scale hue and saturation into 0–360 and 0–100.
+
+    Args:
+        h (float): Hue in source scale.
+        s (float): Saturation in source scale.
+        hue_scale (float): Full-scale hue of the source (default 360).
+        sat_scale (float): Full-scale saturation of the source (default 100).
+
+    Returns:
+        tuple: ``(h_norm, s_norm)`` clamped to standard ranges.
     """
     hue_scale = float(hue_scale or 360)
     sat_scale = float(sat_scale or 100)
@@ -736,8 +816,16 @@ def normalize_hue_sat(h, s, hue_scale=360, sat_scale=100):
 
 
 def denormalize_hue_sat(h, s, hue_scale=360, sat_scale=100):
-    """
-    Переводит hue/saturation из 0..360/0..100 в целевые шкалы.
+    """Map normalized hue/saturation into custom scales.
+
+    Args:
+        h (float): Hue in 0–360.
+        s (float): Saturation in 0–100.
+        hue_scale (float): Target hue full scale (default 360).
+        sat_scale (float): Target saturation full scale (default 100).
+
+    Returns:
+        tuple: ``(h_raw, s_raw)`` rounded to three decimal places.
     """
     hue_scale = float(hue_scale or 360)
     sat_scale = float(sat_scale or 100)
@@ -747,8 +835,13 @@ def denormalize_hue_sat(h, s, hue_scale=360, sat_scale=100):
 
 
 def parse_rgb_string(value):
-    """
-    Парсит строку вида 'R,G,B' в tuple RGB.
+    """Parse a comma-separated ``R,G,B`` string.
+
+    Args:
+        value (str): Three decimal channel values separated by commas.
+
+    Returns:
+        tuple: ``(R, G, B)`` integers in 0–255.
     """
     if not isinstance(value, str):
         raise ValueError("rgb string must be a string")
@@ -763,6 +856,7 @@ def parse_rgb_string(value):
 
 
 def _safe_rgb_from_universal(univ):
+    """Derive an RGB triplet from a universal color dict (rgb or xy)."""
     rgb = univ.get("rgb")
     if isinstance(rgb, (list, tuple)) and len(rgb) == 3:
         return int(rgb[0]), int(rgb[1]), int(rgb[2])
@@ -773,8 +867,14 @@ def _safe_rgb_from_universal(univ):
 
 
 def build_zigbee2mqtt_color(univ, fmt_hint=None):
-    """
-    Собирает payload для zigbee2mqtt поля `color`.
+    """Build a Zigbee2MQTT ``color`` command payload from a universal color dict.
+
+    Args:
+        univ (dict): Universal color with rgb, xy, hs, or hsv/hsb fields.
+        fmt_hint (str, optional): Preferred encoding (``xy``, ``hs``, ``hsv``, ``hsb``).
+
+    Returns:
+        dict: Payload shaped as ``{"color": {...}}``.
     """
     if not isinstance(univ, dict):
         raise ValueError("Universal color must be a dict")
@@ -805,7 +905,12 @@ def build_zigbee2mqtt_color(univ, fmt_hint=None):
 
 
 def color_json_dumps(value):
-    """
-    Стабильная сериализация цвета для БД.
+    """Serialize a color value to compact, stable JSON for storage.
+
+    Args:
+        value: JSON-serializable color structure.
+
+    Returns:
+        str: JSON string with sorted keys and minimal separators.
     """
     return json.dumps(value, sort_keys=True, separators=(",", ":"))

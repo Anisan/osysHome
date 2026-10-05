@@ -1,40 +1,38 @@
+"""JSON and percentage conversion helpers."""
 import json
 
 def json_to_dict(json_str):
-    """
-    Преобразует JSON-строку в словарь Python.
+    """Parse a JSON string into a Python object.
 
     Args:
-        json_str (str): строка в формате JSON
+        json_str (str): JSON string
 
     Returns:
-        dict: словарь Python
+        Any: Parsed Python object (typically dict/list)
     """
     return json.loads(json_str)
 
 
 def dict_to_json(data):
-    """
-    Преобразует словарь Python в JSON-строку.
+    """Serialize a Python object to a JSON string.
 
     Args:
-        data: любой сериализуемый объект
+        data: JSON-serializable object
 
     Returns:
-        str: строка в формате JSON
+        str: JSON string
     """
     return json.dumps(data)
 
 
 def percent_to_decimal(percent):
-    """
-    Преобразует процент (строку или число) в десятичную дробь.
+    """Convert a percent (string or number) to a 0..1 fraction.
 
     Args:
-        percent: строка вида "75%" или число
+        percent: Number or string like ``\"75%\"``
 
     Returns:
-        float: десятичная дробь
+        float: Decimal fraction
     """
     if isinstance(percent, str):
         percent = percent.strip().rstrip("%")
@@ -42,46 +40,48 @@ def percent_to_decimal(percent):
 
 
 def decimal_to_percent(decimal, with_symbol=False):
-    """
-    Преобразует десятичную дробь в процент.
+    """Convert a 0..1 fraction to a percent.
 
     Args:
-        decimal (float): дробь от 0 до 1
-        with_symbol (bool): добавить ли символ '%'
+        decimal (float): Fraction from 0 to 1
+        with_symbol (bool, optional): If True, return a string with ``%``.
+            Defaults to False.
 
     Returns:
-        float or str: процент
+        float | str: Percent value or formatted string
     """
     p = decimal * 100
     return f"{p}%" if with_symbol else p
 
 
 def percent_of(percent, max_value):
-    """
-    Вычисляет абсолютное значение по проценту от заданного максимума (100%).
+    """Compute an absolute value as a percent of a maximum.
 
     Args:
-        percent: строка вида "75%" или число
-        max_value (float): максимальное значение (100%)
+        percent: Number or string like ``\"75%\"``
+        max_value (float): Value that represents 100%
 
     Returns:
-        float: абсолютное значение
+        float: Absolute value
     """
     ratio = percent_to_decimal(percent)
     return ratio * max_value
 
 
 def value_to_percent(value, max_value, with_symbol=False):
-    """
-    Вычисляет, какой процент составляет value от max_value.
+    """Compute what percent ``value`` is of ``max_value``.
 
     Args:
-        value (float): текущее значение
-        max_value (float): максимальное значение
-        with_symbol (bool): добавить ли символ '%'
+        value (float): Current value
+        max_value (float): Maximum (100%)
+        with_symbol (bool, optional): If True, return a string with ``%``.
+            Defaults to False.
 
     Returns:
-        float or str: процент
+        float | str: Percent value or formatted string
+
+    Raises:
+        ValueError: If ``max_value`` is 0
     """
     if max_value == 0:
         raise ValueError("max_value не может быть 0 при вычислении процента")

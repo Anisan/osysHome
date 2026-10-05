@@ -1,8 +1,8 @@
-""" Constants """
+"""Core constants and property type enums."""
 from enum import Enum
 
 class CategoryNotify(Enum):
-    """ Category notify """
+    """Notification severity levels."""
     Debug = 0
     Info = 1
     Warning = 2
@@ -10,7 +10,7 @@ class CategoryNotify(Enum):
     Fatal = 4
 
 class PropertyType(Enum):
-    """ Types property """
+    """Supported property value types."""
     Empty = ''
     String = 'str'
     Integer = 'int'
@@ -28,4 +28,3 @@ SYSTEM_STATS_OBJECT = "SystemStats"
 SYSTEM_STATS_SOURCE = "osysHome:system_stats"
 SYSTEM_STATS_EXCLUDED_OBJECTS = frozenset({SYSTEM_STATS_OBJECT, "_permissions"})
 SYSTEM_STATS_PLUGIN_METRIC_PREFIX = "plugin_"
-

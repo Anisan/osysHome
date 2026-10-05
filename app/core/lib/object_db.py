@@ -10,7 +10,14 @@ from app.core.models.Clasess import Class, Object, Property, Method, Value, Hist
 
 
 def get_descendant_class_ids(class_id: int) -> list[int]:
-    """Return class_id and all descendant (child) class IDs down the tree."""
+    """Collect a class ID and all descendant class IDs.
+
+    Args:
+        class_id (int): Root class ID
+
+    Returns:
+        list[int]: ``[class_id, ...descendants]`` in BFS order
+    """
     root_id = int(class_id)
     ids = [root_id]
     queue = [root_id]
@@ -30,7 +37,19 @@ def get_descendant_class_ids(class_id: int) -> list[int]:
 
 
 def delete_object_from_db(object_id: int, *, clear_schedules: bool = True) -> str | None:
-    """Delete object and all related rows. Returns object name or None if not found."""
+    """Delete an object and all related DB rows.
+
+    Removes history, values, object-level properties and methods, then the
+    object row. Optionally clears scheduled jobs for ``ObjectName_%``.
+
+    Args:
+        object_id (int): Object ID
+        clear_schedules (bool, optional): Clear related scheduled jobs.
+            Defaults to True.
+
+    Returns:
+        str | None: Deleted object name, or None if not found
+    """
     obj = Object.query.get(object_id)
     if not obj:
         return None
@@ -55,7 +74,14 @@ def delete_object_from_db(object_id: int, *, clear_schedules: bool = True) -> st
 
 
 def delete_objects_by_class(class_id: int) -> list[str]:
-    """Delete all objects in class tree (class and descendants). Returns deleted names."""
+    """Delete all objects belonging to a class or its descendants.
+
+    Args:
+        class_id (int): Root class ID
+
+    Returns:
+        list[str]: Names of deleted objects
+    """
     class_ids = get_descendant_class_ids(class_id)
     objects = Object.query.filter(Object.class_id.in_(class_ids)).order_by(Object.name).all()
     deleted = []
@@ -67,6 +93,7 @@ def delete_objects_by_class(class_id: int) -> list[str]:
 
 
 def _orphan_object_query(model, object_ids: set[int]):
+    """Query rows with object_id not in the known object set."""
     query = model.query.filter(model.object_id.isnot(None))
     if object_ids:
         query = query.filter(~model.object_id.in_(object_ids))
@@ -74,6 +101,7 @@ def _orphan_object_query(model, object_ids: set[int]):
 
 
 def _orphan_class_query(model, class_ids: set[int]):
+    """Query class-level rows whose class_id is missing from the known set."""
     query = model.query.filter(model.class_id.isnot(None), model.object_id.is_(None))
     if class_ids:
         query = query.filter(~model.class_id.in_(class_ids))
@@ -81,7 +109,12 @@ def _orphan_class_query(model, class_ids: set[int]):
 
 
 def cleanup_orphan_records() -> dict[str, int]:
-    """Remove properties, methods, and values that reference missing objects/classes."""
+    """Remove properties, methods, and values that reference missing entities.
+
+    Returns:
+        dict[str, int]: Counts under keys ``properties``, ``methods``,
+            ``values``, ``history``
+    """
     object_ids = {row[0] for row in db.session.query(Object.id).all()}
     class_ids = {row[0] for row in db.session.query(Class.id).all()}
 
@@ -119,7 +152,17 @@ def cleanup_orphan_records() -> dict[str, int]:
 
 
 def migrate_value_for_type_change(old_type: str | None, new_type: str | None, value: str | None) -> str | None:
-    """Best-effort conversion of stored value when property type changes."""
+    """Best-effort convert a stored string value when property type changes.
+
+    Args:
+        old_type (str | None): Previous property type
+        new_type (str | None): New property type
+        value (str | None): Stored value
+
+    Returns:
+        str | None: Converted value, original value if unchanged,
+            or None if conversion failed
+    """
     if value is None or value == '' or value == 'None':
         return value
 
@@ -156,7 +199,21 @@ def migrate_values_for_property_type_change(
     object_id: int | None = None,
     class_id: int | None = None,
 ) -> int:
-    """Update stored values after property type change. Returns count of updated rows."""
+    """Update stored Value rows after a property type change.
+
+    Scope is either a single object (``object_id``) or all objects of a
+    class tree (``class_id``). Exactly one scope must be provided.
+
+    Args:
+        property_name (str): Property name
+        old_type (str | None): Previous type
+        new_type (str | None): New type
+        object_id (int | None, optional): Limit to one object
+        class_id (int | None, optional): Limit to class + descendants
+
+    Returns:
+        int: Number of updated rows
+    """
     if not property_name or (old_type or '') == (new_type or ''):
         return 0
 

@@ -1,14 +1,14 @@
+"""Core type and angle/frequency conversions."""
 import math
 
 def convert_to_boolean(value):
-    """
-    Преобразует различные типы данных в boolean.
+    """Convert various value types to a boolean.
 
     Args:
-        value: любое значение (str, int, float, bool и др.)
+        value: Any value (str, int, float, bool, etc.)
 
     Returns:
-        bool: результат преобразования
+        bool: Converted boolean
     """
     if isinstance(value, bool):
         return value
@@ -21,52 +21,48 @@ def convert_to_boolean(value):
 
 
 def degrees_to_radians(degrees):
-    """
-    Преобразует градусы в радианы.
+    """Convert degrees to radians.
 
     Args:
-        degrees (float): угол в градусах
+        degrees (float): Angle in degrees
 
     Returns:
-        float: угол в радианах
+        float: Angle in radians
     """
     return math.radians(degrees)
 
 
 def radians_to_degrees(radians):
-    """
-    Преобразует радианы в градусы.
+    """Convert radians to degrees.
 
     Args:
-        radians (float): угол в радианах
+        radians (float): Angle in radians
 
     Returns:
-        float: угол в градусах
+        float: Angle in degrees
     """
     return math.degrees(radians)
 
 
 def rpm_to_hz(rpm):
-    """
-    Преобразует обороты в минуту в герцы.
+    """Convert revolutions per minute to hertz.
 
     Args:
-        rpm (float): обороты в минуту
+        rpm (float): Revolutions per minute
 
     Returns:
-        float: частота в герцах
+        float: Frequency in hertz
     """
     return rpm / 60
 
 
 def hz_to_rpm(hz):
-    """
-    Преобразует герцы в обороты в минуту.
+    """Convert hertz to revolutions per minute.
 
     Args:
-        hz (float): частота в герцах
+        hz (float): Frequency in hertz
 
     Returns:
-        float: обороты в минуту
+        float: Revolutions per minute
     """
     return hz * 60

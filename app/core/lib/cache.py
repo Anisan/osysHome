@@ -1,4 +1,4 @@
-""" Cache module """
+"""Filesystem cache helpers (paths under Config.CACHE_FILE_PATH)."""
 import os
 import shutil
 from app.configuration import Config
@@ -6,23 +6,24 @@ from app.configuration import Config
 __cacheDir = Config.CACHE_FILE_PATH
 
 def getCacheDir() -> str:
-    """ Get root path cache
+    """Get the root cache directory path.
 
     Returns:
-        str: Root path cache
+        str: Absolute path to the cache root
     """
     return __cacheDir
 
 def getFullFilename(filename:str, directory:str = None, subdir:bool = False) -> str:
-    """ Get fullpath for filename in cache
+    """Build a full path for a file inside the cache.
 
     Args:
-        filename (str): Filename
-        directory (str, optional): Directory. Defaults to None.
-        subdir (bool, optional): Subdirectory. Defaults to False.
+        filename (str): File name
+        directory (str, optional): Subdirectory under cache root. Defaults to None.
+        subdir (bool, optional): Nest under ``filename[:2]/filename[2:4]/``.
+            Defaults to False.
 
     Returns:
-        str: Full filename
+        str: Full file path (file may not exist yet)
     """
     if directory:
         directory_path = os.path.join(__cacheDir, directory)
@@ -36,16 +37,16 @@ def getFullFilename(filename:str, directory:str = None, subdir:bool = False) -> 
     return file_path
 
 def saveToCache(filename:str, content: str, directory:str=None, subdir:bool=False) -> str:
-    """ Save file to cache
+    """Write content to a cache file (creates parent directories).
 
     Args:
         filename (str): File name
-        content (str): Content for save
-        directory (str, optional): Directory in cache. Defaults to None.
-        subdir (bool, optional): Split by subdirectories . Defaults to False.
+        content (str): Binary-compatible content to write
+        directory (str, optional): Subdirectory under cache root. Defaults to None.
+        subdir (bool, optional): Nest under hashed subdirectories. Defaults to False.
 
     Returns:
-        str: Filepath in cache
+        str: Full path of the written file
     """
     file_path = getFullFilename(filename, directory, subdir)
     # Создаем все промежуточные подкаталоги, если они не существуют
@@ -55,13 +56,13 @@ def saveToCache(filename:str, content: str, directory:str=None, subdir:bool=Fals
     return file_path
 
 def copyToCache(source: str, filename:str, directory:str=None, subdir:bool=False):
-    """ Copy file to cache
+    """Copy an existing file into the cache.
 
     Args:
-        source (str): File path
-        filename (str): File name
-        directory (str, optional): Directory in cache. Defaults to None.
-        subdir (bool, optional): Split by subdirectories . Defaults to False.
+        source (str): Source file path
+        filename (str): Destination file name in cache
+        directory (str, optional): Subdirectory under cache root. Defaults to None.
+        subdir (bool, optional): Nest under hashed subdirectories. Defaults to False.
     """
     file_path = getFullFilename(filename, directory, subdir)
     # Создаем все промежуточные подкаталоги, если они не существуют
@@ -71,34 +72,35 @@ def copyToCache(source: str, filename:str, directory:str=None, subdir:bool=False
     pass
 
 def deleteFromCache(filename:str, directory:str=None, subdir:bool=False):
-    """ Delete file from cache
+    """Delete a file from the cache.
 
     Args:
         filename (str): File name
-        directory (str, optional): Directory in cache. Defaults to None.
-        subdir (bool, optional): Split by subdirectories . Defaults to False.
+        directory (str, optional): Subdirectory under cache root. Defaults to None.
+        subdir (bool, optional): Nest under hashed subdirectories. Defaults to False.
     """
     file_path = getFullFilename(filename, directory, subdir)
     os.remove(file_path)
 
 def clearCache(directory:str=None):
-    """ Clear cache directory
+    """Remove a cache subdirectory and recreate its parent path.
 
     Args:
-        directory (str, optional): Directory in cache. Defaults to None.
+        directory (str, optional): Subdirectory under cache root. Defaults to None.
     """
     directory_path = os.path.join(__cacheDir, directory)
     shutil.rmtree(directory_path)
     os.makedirs(os.path.dirname(directory_path), exist_ok=True)
 
 def getFilesCache(directory:str=None):
-    """ Get files in cache
+    """List file names in a cache directory.
 
     Args:
-        directory (str, optional): Directory in cache. Defaults to None.
+        directory (str, optional): Subdirectory under cache root. Defaults to None.
 
-    Return:
-        list: List of files in cache
+    Returns:
+        list | str: File names, empty list if missing, or an error string
+            on permission denial.
     """
     directory_path = os.path.join(__cacheDir, directory)
     try:
@@ -110,15 +112,15 @@ def getFilesCache(directory:str=None):
         return f"Permission denied for directory {directory_path}."
 
 def existInCache(filename:str, directory:str=None, subdir:bool=False) -> bool:
-    """Exist file in cache
+    """Check whether a file exists in the cache.
 
     Args:
         filename (str): File name
-        directory (str, optional): Directory in cache. Defaults to None.
-        subdir (bool, optional): Split by subdirectories. Defaults to False.
+        directory (str, optional): Subdirectory under cache root. Defaults to None.
+        subdir (bool, optional): Nest under hashed subdirectories. Defaults to False.
 
     Returns:
-        bool: True if file exist in cache
+        bool: True if the file exists
     """
     file_path = getFullFilename(filename,directory,subdir)
 
@@ -128,15 +130,15 @@ def existInCache(filename:str, directory:str=None, subdir:bool=False) -> bool:
         return False
 
 def findInCache(filename:str, directory:str=None, subdir:bool=False) -> str:
-    """Find file in cache
+    """Find a file in the cache by name.
 
     Args:
-        filename (str): File name
-        directory (str, optional): Directory in cache. Defaults to None.
-        subdir (bool, optional): Find in subdirectories. Defaults to False.
+        filename (str): File name to find
+        directory (str, optional): Subdirectory under cache root. Defaults to None.
+        subdir (bool, optional): If True, walk nested directories. Defaults to False.
 
     Returns:
-        str: Filepath in cache
+        str: Full path if found, otherwise None
     """
     directory_path = os.path.join(__cacheDir, directory)
     if not os.path.exists(directory_path):

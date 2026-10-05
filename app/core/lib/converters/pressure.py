@@ -1,40 +1,68 @@
+"""Pressure unit conversions."""
+
 def pascals_to_mmhg(pascals):
-    """
-    Преобразует давление из Паскалей в мм рт. ст.
+    """Convert pascals to mmHg.
 
     Args:
-        pascals (float): давление в Паскалях
+        pascals (float): Pressure in pascals
 
     Returns:
-        float: давление в мм рт. ст.
+        float: Pressure in mmHg
     """
     return pascals * 0.00750062
 
 
 def mmhg_to_pascals(mmhg):
-    """
-    Преобразует давление из мм рт. ст. в Паскали.
+    """Convert mmHg to pascals.
 
     Args:
-        mmhg (float): давление в мм рт. ст.
+        mmhg (float): Pressure in mmHg
 
     Returns:
-        float: давление в Паскалях
+        float: Pressure in pascals
     """
     return mmhg / 0.00750062
 
 def hpa_to_mmhg(hpa):
-    """Преобразует давление из гПа в мм рт. ст."""
+    """Convert hectopascals to mmHg.
+
+    Args:
+        hpa (float): Pressure in hPa
+
+    Returns:
+        float: Pressure in mmHg
+    """
     return hpa * 0.750062
 
 def mmhg_to_hpa(mmhg):
-    """Преобразует давление из мм рт. ст. в гПа."""
+    """Convert mmHg to hectopascals.
+
+    Args:
+        mmhg (float): Pressure in mmHg
+
+    Returns:
+        float: Pressure in hPa
+    """
     return mmhg / 0.750062
 
 def hpa_to_inhg(hpa):
-    """Преобразует давление из гПа в дюймы рт. ст."""
+    """Convert hectopascals to inches of mercury.
+
+    Args:
+        hpa (float): Pressure in hPa
+
+    Returns:
+        float: Pressure in inHg
+    """
     return hpa * 0.02953
 
 def inhg_to_hpa(inhg):
-    """Преобразует давление из дюймов рт. ст. в гПа."""
+    """Convert inches of mercury to hectopascals.
+
+    Args:
+        inhg (float): Pressure in inHg
+
+    Returns:
+        float: Pressure in hPa
+    """
     return inhg / 0.02953

@@ -1,3 +1,4 @@
+"""SQL helpers for ad-hoc queries via session_scope."""
 from sqlalchemy import Table, MetaData
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.sql import text
@@ -7,39 +8,36 @@ from app.logging_config import getLogger
 _logger = getLogger("sql")
 
 def SqlExec(sql: str):
-    """
-    Exec SQL
+    """Execute a SQL statement without returning rows.
 
     Args:
-        sql (str): SQL
+        sql (str): SQL statement
     """
     with session_scope() as session:
         statement = text(sql)
         session.execute(statement)
 
 def SqlScalar(sql: str):
-    """
-    Exec SQL and return scalar value
+    """Execute SQL and return a single scalar value.
 
     Args:
-        sql (str): SQL
+        sql (str): SQL statement
 
     Returns:
-        any: scalar value
+        Any: Scalar result, or None if no row
     """
     with session_scope() as session:
         statement = text(sql)
         return session.execute(statement).scalar_one_or_none()
 
 def SqlSelectOne(sql: str) -> dict:
-    """
-    Exec SQL and return one row as dict
+    """Execute SQL and return one row as a mapping.
 
     Args:
-        sql (str): SQL
+        sql (str): SQL statement
 
     Returns:
-        dict: Row
+        dict: Row mapping, or None if no row
     """
     with session_scope() as session:
         statement = text(sql)
@@ -49,14 +47,13 @@ def SqlSelectOne(sql: str) -> dict:
         return row._mapping
 
 def SqlSelect(sql) -> list:
-    """
-    Exec SQL and return rows as list of dict
+    """Execute SQL and return all rows as mappings.
 
     Args:
-        sql (str): SQL
+        sql (str): SQL statement
 
     Returns:
-        list: Rows
+        list: List of row mappings
     """
     with session_scope() as session:
         statement = text(sql)
@@ -68,15 +65,17 @@ def SqlSelect(sql) -> list:
         return res_dict
 
 def SqlInsert(table: str, data: dict):
-    """
-    Inserts a new row into the specified table.
+    """Insert a row into a reflected table.
+
+    Auto-increment columns are stripped from ``data``. Missing nullable
+    or defaulted columns are filled when possible.
 
     Args:
-        table (str): The name of the table to insert into.
-        data (dict): A dictionary of column names to values to insert.
+        table (str): Table name
+        data (dict): Column name to value
 
     Returns:
-        bool: True if the insert was successful, False otherwise.
+        bool: True if exactly one row was inserted
     """
     with session_scope() as session:
         meta = MetaData()
@@ -120,16 +119,15 @@ def SqlInsert(table: str, data: dict):
             session.close()
 
 def SqlUpdate(table: str, data: dict, id_column: str):
-    """
-    Updates a row in the specified table.
+    """Update a row identified by ``id_column`` in a reflected table.
 
     Args:
-        table (str): The name of the table to update.
-        data (dict): A dictionary of column names to values to update.
-        id_column (str): The name of the column to use for identifying the row to update.
+        table (str): Table name
+        data (dict): Column name to value (must include ``id_column``)
+        id_column (str): Primary key / identity column name
 
     Returns:
-        bool: True if the update was successful, False otherwise.
+        bool: True if exactly one row was updated
     """
     with session_scope() as session:
 
