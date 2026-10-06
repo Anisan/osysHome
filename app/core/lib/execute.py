@@ -1,10 +1,14 @@
 """Runtime helpers for executing method / CustomFunction Python code."""
+import ast
 import io
 import re
 import sys
 import threading
 import traceback
-from typing import Any, Dict, Optional, Tuple
+from types import CodeType
+from typing import Any, Dict, List, Optional, Tuple
+
+_METHOD_WRAPPER_NAME = "__osys_method_exec__"
 
 MODULE_NAMES = [
     "app.core.lib.common",
@@ -150,6 +154,68 @@ def format_runtime_error(
     return output
 
 
+def _body_has_toplevel_return(body: List[ast.stmt]) -> bool:
+    """True if *body* contains ``return`` outside nested def/class scopes."""
+    for node in body:
+        if isinstance(node, ast.Return):
+            return True
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            continue
+        for attr in ("body", "orelse", "finalbody"):
+            child = getattr(node, attr, None)
+            if isinstance(child, list) and _body_has_toplevel_return(child):
+                return True
+        handlers = getattr(node, "handlers", None)
+        if isinstance(handlers, list):
+            for handler in handlers:
+                if _body_has_toplevel_return(handler.body):
+                    return True
+        cases = getattr(node, "cases", None)
+        if isinstance(cases, list):
+            for case in cases:
+                if _body_has_toplevel_return(case.body):
+                    return True
+    return False
+
+
+def compile_method_code(code: str, filename: str = "<string>") -> CodeType:
+    """Compile method/task code for ``exec``, allowing top-level ``return``.
+
+    When the AST has a ``return`` outside ``def``/``class``, the module body is
+    wrapped in a synthetic function and call via AST (not text indent) so
+    original line numbers stay intact for tracebacks. Code without top-level
+    ``return`` compiles unchanged.
+    """
+    tree = ast.parse(code or "", filename=filename, mode="exec")
+    if _body_has_toplevel_return(tree.body):
+        wrapper = ast.FunctionDef(
+            name=_METHOD_WRAPPER_NAME,
+            args=ast.arguments(
+                posonlyargs=[],
+                args=[],
+                vararg=None,
+                kwonlyargs=[],
+                kw_defaults=[],
+                kwarg=None,
+                defaults=[],
+            ),
+            body=list(tree.body) if tree.body else [ast.Pass()],
+            decorator_list=[],
+            returns=None,
+            type_params=[],
+        )
+        call = ast.Expr(
+            value=ast.Call(
+                func=ast.Name(id=_METHOD_WRAPPER_NAME, ctx=ast.Load()),
+                args=[],
+                keywords=[],
+            )
+        )
+        tree.body = [wrapper, call]
+        ast.fix_missing_locations(tree)
+    return compile(tree, filename, "exec")
+
+
 def execute_and_capture_output(
     code: str,
     variables: dict,
@@ -195,7 +261,7 @@ def execute_and_capture_output(
     environment['print'] = custom_print
 
     try:
-        code_obj = compile(code, code_filename, 'exec')
+        code_obj = compile_method_code(code, code_filename)
         exec(code_obj, environment)
         output = buffer.getvalue()
     except Exception as e:
