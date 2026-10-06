@@ -2,6 +2,7 @@
 import threading
 import datetime
 import json
+import re
 from sqlalchemy import delete
 from app.core.main.ObjectsStorage import objects_storage
 from app.logging_config import getLogger
@@ -810,18 +811,68 @@ def getObjectsByClass(class_name:str, subclasses:bool=True) -> list[ObjectManage
         _logger.exception('getObjectsByClass %s: %s',class_name,e)
     return None
 
+_PROPERTY_COMPARE_OPS = frozenset({
+    '=', '==', '===',
+    '<>', '!=', '!==',
+    '>=', '>', '<=', '<',
+    'contains', 'like', '~',
+})
+
+
 def _match_property_condition(value, condition: str, condition_value) -> bool:
     """Compare a property value with ``condition_value`` using ``condition``.
 
-    Supported operators: ``=``, ``==``, ``>=``, ``>``, ``<=``, ``<``,
-    ``<>``, ``!=``. Numeric operators fall back to float coercion on
-    TypeError (string vs number).
+    Supported operators:
+      - ``=``, ``==`` — equality
+      - ``===`` — strict equality (value and type)
+      - ``<>``, ``!=`` — inequality
+      - ``!==`` — strict inequality (not same value and type)
+      - ``>=``, ``>``, ``<=``, ``<`` — ordered compare; if both sides are
+        comparable as-is they are compared directly (so two strings compare
+        lexicographically). On TypeError, falls back to float coercion;
+        if that fails the match is False.
+      - ``contains`` — substring: ``str(condition_value) in str(value)``
+      - ``like`` — SQL ``LIKE`` pattern (``%`` / ``_`` wildcards, case-insensitive)
+      - ``~`` — regular expression search on ``str(value)``
+
+    Raises:
+        ValueError: If ``condition`` is not a supported operator or pattern is invalid.
     """
     op = (condition or '').strip()
+    if op not in _PROPERTY_COMPARE_OPS:
+        raise ValueError(f'Unknown property compare operator: {condition!r}')
+
     if op in ('=', '=='):
         return value == condition_value
+    if op == '===':
+        return value == condition_value and type(value) is type(condition_value)
     if op in ('<>', '!='):
         return value != condition_value
+    if op == '!==':
+        return not (value == condition_value and type(value) is type(condition_value))
+
+    if op == 'contains':
+        if value is None:
+            return False
+        return str(condition_value) in str(value)
+
+    if op == 'like':
+        if value is None:
+            return False
+        # SQL LIKE → regex: % → .*, _ → ., other chars escaped.
+        like_pattern = ''.join(
+            '.*' if ch == '%' else '.' if ch == '_' else re.escape(ch)
+            for ch in str(condition_value)
+        )
+        return re.fullmatch(like_pattern, str(value), flags=re.IGNORECASE) is not None
+
+    if op == '~':
+        if value is None:
+            return False
+        try:
+            return re.search(str(condition_value), str(value)) is not None
+        except re.error as e:
+            raise ValueError(f'Invalid regex for ~ operator: {e}') from e
 
     def _ordered(a, b, cmp_op: str) -> bool:
         try:
@@ -849,15 +900,13 @@ def _match_property_condition(value, condition: str, condition_value) -> bool:
                 return left < right
         return False
 
-    if op in ('>=', '>', '<=', '<'):
-        return _ordered(value, condition_value, op)
-    return False
+    return _ordered(value, condition_value, op)
 
 
 def getObjectsByProperty(
     property_name: str,
-    condition='',
-    condition_value='',
+    condition=_UNSET,
+    condition_value=_UNSET,
 ) -> list[ObjectManager]:
     """Get objects that have a property, optionally filtered by value.
 
@@ -866,47 +915,88 @@ def getObjectsByProperty(
     resolved on each ObjectManager. Value comparison uses decoded property
     values (``getValue(track_stats=False)``) and does not increment read stats.
 
-    Shorthand (MajorDoMo-compatible): if ``condition_value`` is empty and
-    ``condition`` is not empty, ``condition`` is treated as the value and
-    the operator becomes ``==``.
+    Call forms:
+        ``getObjectsByProperty('temp')`` — all objects with property ``temp``.
+        ``getObjectsByProperty('temp', 25)`` — shorthand for ``temp == 25``
+        (second argument is the value; empty string is a valid value).
+        ``getObjectsByProperty('temp', '>', 20)`` — explicit operator + value.
+        ``getObjectsByProperty('location', '==', '')`` — equals empty string.
+        ``getObjectsByProperty('location', '!=', '')`` — not empty string.
+        ``getObjectsByProperty('name', 'contains', 'Hall')`` — substring.
+        ``getObjectsByProperty('name', 'like', 'Hall%')`` — SQL LIKE.
+        ``getObjectsByProperty('name', '~', r'^Hall')`` — regex.
 
-    Examples:
-        ``getObjectsByProperty('temp')`` — all objects that have property
-        ``temp``.
-        ``getObjectsByProperty('temp', 25)`` — ``temp == 25``.
-        ``getObjectsByProperty('temp', '>', 20)`` — ``temp > 20``.
-        ``getObjectsByProperty('temp', '!=', 0)`` — ``temp != 0``.
+    Comparison notes:
+        - ``==`` / ``!=`` use Python equality: ``True == 1 == 1.0`` matches,
+          but ``1 == '1'`` does not. Use ``===`` / ``!==`` for type-strict
+          checks.
+        - Ordered operators (``>``, ``>=``, ``<``, ``<=``) compare values
+          as-is when types allow it, so two strings are compared
+          lexicographically (e.g. ``'NO_TEMP' >= ''`` is True). Only on
+          TypeError is float coercion attempted.
+        - Passing a known operator as the sole second argument
+          (e.g. ``getObjectsByProperty('temp', '==')``) is treated as
+          shorthand equality to that string and logs a warning; pass the
+          value as the third argument instead.
 
     Args:
         property_name (str): Property name
-        condition (Any, optional): Comparison operator (``==``, ``>``,
-            ``>=``, ``<``, ``<=``, ``!=``, ``<>``, ``=``) or, in shorthand
-            form, the expected value. Defaults to '' (no value filter —
-            any object that has the property).
-        condition_value (Any, optional): Value to compare against.
-            Defaults to ''.
+        condition (Any, optional): Comparison operator (``==``, ``===``,
+            ``>``, ``>=``, ``<``, ``<=``, ``!=``, ``!==``, ``<>``, ``=``,
+            ``contains``, ``like``, ``~``), or in shorthand form the expected
+            value when ``condition_value`` is omitted. Omit entirely for no
+            value filter.
+        condition_value (Any, optional): Value to compare against
+            (``''`` is a valid filter value). Omit for shorthand / no filter.
 
     Returns:
-        list[ObjectManager]: Matching objects.
-            On error returns None.
+        list[ObjectManager]: Matching objects (possibly empty).
+            None on unknown operator or other error.
     """
     try:
-        if condition_value == '' and condition != '':
-            condition_value = condition
-            condition = '=='
+        if condition is _UNSET and condition_value is _UNSET:
+            op = None
+            expected = _UNSET
+        elif condition_value is _UNSET:
+            # Shorthand: second arg is the value (including '').
+            if isinstance(condition, str) and condition.strip() in _PROPERTY_COMPARE_OPS:
+                _logger.warning(
+                    "getObjectsByProperty %s: operator %r used without a value; "
+                    "treating as equality to that string. Pass the value as the "
+                    "third argument, e.g. getObjectsByProperty(%r, %r, <value>).",
+                    property_name,
+                    condition,
+                    property_name,
+                    condition,
+                )
+            op = '=='
+            expected = condition
+        else:
+            op = condition
+            expected = condition_value
+            if not isinstance(op, str) or op.strip() not in _PROPERTY_COMPARE_OPS:
+                _logger.error(
+                    'getObjectsByProperty %s: unknown operator %r',
+                    property_name,
+                    op,
+                )
+                return None
 
         result = []
         for obj in objects_storage.values():
             prop = obj.properties.get(property_name)
             if prop is None:
                 continue
-            if not condition:
+            if op is None:
                 result.append(obj)
                 continue
             value = prop.getValue(track_stats=False)
-            if _match_property_condition(value, condition, condition_value):
+            if _match_property_condition(value, op, expected):
                 result.append(obj)
         return result
+    except ValueError as e:
+        _logger.error('getObjectsByProperty %s: %s', property_name, e)
+        return None
     except Exception as e:
         _logger.exception('getObjectsByProperty %s: %s', property_name, e)
     return None
