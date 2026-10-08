@@ -694,6 +694,51 @@
         return null;
     }
 
+    function preventParentHide(event) {
+        event.preventDefault();
+    }
+
+    function attachNestedModalGuards(modalState) {
+        detachNestedModalGuards(modalState);
+        var parents = [];
+        document.querySelectorAll('.modal.show').forEach(function(el) {
+            if (el === modalState.element) return;
+            parents.push(el);
+            el.addEventListener('hide.bs.modal', preventParentHide);
+        });
+        modalState._parentModals = parents;
+        if (!parents.length) return;
+
+        // Stack cron builder above parent modal + backdrop
+        modalState.element.style.zIndex = '1065';
+        setTimeout(function() {
+            var backdrops = document.querySelectorAll('.modal-backdrop');
+            if (backdrops.length) {
+                var last = backdrops[backdrops.length - 1];
+                last.style.zIndex = '1060';
+                last.classList.add('cron-builder-backdrop');
+            }
+        }, 0);
+    }
+
+    function detachNestedModalGuards(modalState) {
+        (modalState._parentModals || []).forEach(function(el) {
+            el.removeEventListener('hide.bs.modal', preventParentHide);
+        });
+        modalState._parentModals = [];
+        if (modalState.element) {
+            modalState.element.style.zIndex = '';
+        }
+        document.querySelectorAll('.modal-backdrop.cron-builder-backdrop').forEach(function(bd) {
+            bd.classList.remove('cron-builder-backdrop');
+            bd.style.zIndex = '';
+        });
+        // Keep body in modal mode if a parent modal is still open
+        if (document.querySelector('.modal.show')) {
+            document.body.classList.add('modal-open');
+        }
+    }
+
     function collectFields(modalState) {
         var format = getFormat(modalState);
         var out = {};
@@ -921,6 +966,7 @@
 
         element.addEventListener('show.bs.modal', function(event) {
             modalState._open = true;
+            attachNestedModalGuards(modalState);
             var trigger = resolveOpenTrigger(event);
             if (trigger) {
                 var inputId = trigger.getAttribute('data-cron-builder-open');
@@ -935,6 +981,7 @@
         });
 
         element.addEventListener('shown.bs.modal', function() {
+            attachNestedModalGuards(modalState);
             loadFromActiveInput(modalState);
         });
 
@@ -945,6 +992,7 @@
                 modalState._nextRunsTimer = null;
             }
             clearNextRuns(modalState);
+            detachNestedModalGuards(modalState);
         });
 
         modals.set(modalId, modalState);
@@ -990,21 +1038,34 @@
         };
     }
 
+    function openFromButton(btn, options) {
+        if (!btn) return null;
+        var opts = options || {};
+        var inputId = btn.getAttribute('data-cron-builder-open');
+        var target = btn.getAttribute('data-bs-target') || '';
+        if (!inputId || target.indexOf('#') !== 0) return null;
+        var modalId = target.slice(1);
+        var modalState = bindModal(modalId);
+        if (!modalState) return null;
+        modalState.activeInputId = inputId;
+        if (!fields.has(inputId)) {
+            register(inputId, { modalId: modalId });
+        }
+        if (opts.show && window.bootstrap && modalState.element) {
+            var instance = bootstrap.Modal.getOrCreateInstance(modalState.element);
+            instance.show(btn);
+        }
+        return modalState;
+    }
+
     function onOpenButtonClick(event) {
         var btn = event.target && event.target.closest
             ? event.target.closest('[data-cron-builder-open]')
             : null;
         if (!btn) return;
-        var inputId = btn.getAttribute('data-cron-builder-open');
-        var target = btn.getAttribute('data-bs-target') || '';
-        if (!inputId || target.indexOf('#') !== 0) return;
-        var modalId = target.slice(1);
-        var modalState = bindModal(modalId);
-        if (!modalState) return;
-        modalState.activeInputId = inputId;
-        if (!fields.has(inputId)) {
-            register(inputId, { modalId: modalId });
-        }
+        // Only bind active input here. Do NOT stopPropagation — Bootstrap
+        // data-bs-toggle on regular pages listens on document bubble.
+        openFromButton(btn, { show: false });
     }
 
     function init() {
@@ -1036,6 +1097,7 @@
         parseCron: parseCron,
         buildCron: buildCron,
         validateFieldValue: validateFieldValue,
+        openFromButton: openFromButton,
         init: init
     };
 
