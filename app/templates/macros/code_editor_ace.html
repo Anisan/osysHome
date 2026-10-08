@@ -473,7 +473,9 @@
         enableSnippets: true,
         enableLiveAutocompletion: true,
         showPrintMargin: false,
-        useWorker: true
+        // Server /api/utils/validate-python is the source of truth; Ace's Python
+        // worker flags legitimate top-level return in method/task code.
+        useWorker: false
     });
     
     var displaySettings = {

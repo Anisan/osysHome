@@ -1,5 +1,4 @@
 from flask import request, jsonify, current_app
-import ast
 from flask_restx import Namespace, Resource, fields
 from sqlalchemy import func, case
 from app.core.models.Plugins import Notify
@@ -9,6 +8,7 @@ from app.logging_config import getLogger
 from app.extensions import cache
 from app.database import row2dict, session_scope
 from app.core.lsp_client import run_lsp_action
+from app.core.lib.execute import compile_method_code
 
 _logger = getLogger("api")
 
@@ -158,7 +158,8 @@ class ValidateCode(Resource):
         errors = []
 
         try:
-            ast.parse(code, filename="<editor>")
+            # Same path as method/task runtime: top-level return is allowed.
+            compile_method_code(code, "<editor>")
         except SyntaxError as e:
             errors.append({
                 "row": e.lineno - 1,          # Ace использует 0-based индекс

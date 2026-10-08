@@ -421,6 +421,9 @@ class PylspClient:
         skip_phrases = [
             "unable to detect undefined names",
             "imported but unused",
+            # Method/task code allows top-level return (runtime AST wrap before exec).
+            "return' outside function",
+            "return outside function",
         ]
         if cf_editor:
             skip_phrases = list(skip_phrases) + ["redefinition of unused", "redefinition of"]
