@@ -65,7 +65,10 @@
      data-i18n-invalid-field="{{ gettext('Invalid value for {field}: {value}') }}"
      data-i18n-list-required="{{ gettext('Select at least one value for {field}') }}"
      data-i18n-range-order="{{ gettext('Range start must be less than or equal to end ({field})') }}"
-     data-i18n-step-invalid="{{ gettext('Step must be a positive integer ({field})') }}">
+     data-i18n-step-invalid="{{ gettext('Step must be a positive integer ({field})') }}"
+     data-i18n-next-runs="{{ gettext('Next runs') }}"
+     data-i18n-timezone="{{ gettext('Timezone: {tz}') }}"
+     data-i18n-loading-next="{{ gettext('Loading next runs...') }}">
     <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
         <div class="modal-content">
             <div class="modal-header">
@@ -102,6 +105,11 @@
                     <code class="cron-builder-preview-expr d-block mb-1" id="{{ modal_id }}-preview-expr">* * * * *</code>
                     <div class="small text-muted" id="{{ modal_id }}-preview-hint"></div>
                     <div class="small text-danger mt-2 d-none" id="{{ modal_id }}-preview-error" role="alert"></div>
+                    <div class="cron-builder-next-runs mt-3 d-none" id="{{ modal_id }}-next-runs">
+                        <div class="small text-muted mb-1" id="{{ modal_id }}-next-runs-label">{{ gettext('Next runs') }}</div>
+                        <ul class="list-unstyled small mb-1 cron-builder-next-runs-list" id="{{ modal_id }}-next-runs-list"></ul>
+                        <div class="small text-muted" id="{{ modal_id }}-next-runs-tz"></div>
+                    </div>
                 </div>
             </div>
             <div class="modal-footer">
@@ -169,6 +177,16 @@
         border-color: var(--bs-danger) !important;
     }
 
+    .cron-builder-modal .cron-builder-next-runs-list {
+        margin: 0;
+        padding-left: 0;
+    }
+
+    .cron-builder-modal .cron-builder-next-runs-list li {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        padding: 0.1rem 0;
+    }
+
     @media (max-width: 575.98px) {
         .cron-builder-modal .cron-builder-field-row {
             grid-template-columns: 1fr;
@@ -200,7 +218,10 @@ window.CronBuilderLocale = {{ {
     'invalidField': gettext('Invalid value for {field}: {value}'),
     'listRequired': gettext('Select at least one value for {field}'),
     'rangeOrder': gettext('Range start must be less than or equal to end ({field})'),
-    'stepInvalid': gettext('Step must be a positive integer ({field})')
+    'stepInvalid': gettext('Step must be a positive integer ({field})'),
+    'nextRuns': gettext('Next runs'),
+    'timezone': gettext('Timezone: {tz}'),
+    'loadingNext': gettext('Loading next runs...')
 }|tojson }};
 </script>
 <script src="{{ config.ASSETS_ROOT }}/js/components/cron-builder.js"></script>

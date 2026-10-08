@@ -73,7 +73,10 @@
             invalidField: 'i18nInvalidField',
             listRequired: 'i18nListRequired',
             rangeOrder: 'i18nRangeOrder',
-            stepInvalid: 'i18nStepInvalid'
+            stepInvalid: 'i18nStepInvalid',
+            nextRuns: 'i18nNextRuns',
+            timezone: 'i18nTimezone',
+            loadingNext: 'i18nLoadingNext'
         };
         var dsKey = map[key];
         var val = dsKey ? modalEl.dataset[dsKey] : '';
@@ -722,6 +725,99 @@
         }
     }
 
+    function clearNextRuns(modalState) {
+        if (modalState.nextRunsWrap) {
+            modalState.nextRunsWrap.classList.add('d-none');
+        }
+        if (modalState.nextRunsList) {
+            modalState.nextRunsList.innerHTML = '';
+        }
+        if (modalState.nextRunsTz) {
+            modalState.nextRunsTz.textContent = '';
+        }
+    }
+
+    function renderNextRuns(modalState, nextRuns, timezone) {
+        if (!modalState.nextRunsWrap || !modalState.nextRunsList) return;
+        var runs = Array.isArray(nextRuns) ? nextRuns : [];
+        if (!runs.length) {
+            clearNextRuns(modalState);
+            return;
+        }
+        modalState.nextRunsWrap.classList.remove('d-none');
+        if (modalState.nextRunsLabel) {
+            modalState.nextRunsLabel.textContent = i18n(modalState.element, 'nextRuns', 'Next runs');
+        }
+        modalState.nextRunsList.innerHTML = '';
+        runs.forEach(function(item) {
+            var li = document.createElement('li');
+            li.textContent = item;
+            modalState.nextRunsList.appendChild(li);
+        });
+        if (modalState.nextRunsTz) {
+            modalState.nextRunsTz.textContent = timezone
+                ? i18n(modalState.element, 'timezone', 'Timezone: {tz}').replace('{tz}', timezone)
+                : '';
+        }
+    }
+
+    function scheduleNextRunsFetch(modalState, expr, hasErrors) {
+        if (modalState._nextRunsTimer) {
+            clearTimeout(modalState._nextRunsTimer);
+            modalState._nextRunsTimer = null;
+        }
+        if (!modalState._open) {
+            clearNextRuns(modalState);
+            return;
+        }
+        if (hasErrors || !expr || expr.indexOf('?') !== -1) {
+            clearNextRuns(modalState);
+            return;
+        }
+        if (modalState.nextRunsWrap && modalState.nextRunsList) {
+            modalState.nextRunsWrap.classList.remove('d-none');
+            if (modalState.nextRunsLabel) {
+                modalState.nextRunsLabel.textContent = i18n(modalState.element, 'nextRuns', 'Next runs');
+            }
+            modalState.nextRunsList.innerHTML = '';
+            var loading = document.createElement('li');
+            loading.className = 'text-muted';
+            loading.textContent = i18n(modalState.element, 'loadingNext', 'Loading next runs...');
+            modalState.nextRunsList.appendChild(loading);
+            if (modalState.nextRunsTz) modalState.nextRunsTz.textContent = '';
+        }
+        var requestId = (modalState._nextRunsRequestId || 0) + 1;
+        modalState._nextRunsRequestId = requestId;
+        modalState._nextRunsTimer = setTimeout(function() {
+            fetch('/api/utils/cron/validate', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ crontab: expr, count: 5 })
+            })
+                .then(function(response) {
+                    if (!response.ok) throw new Error('HTTP ' + response.status);
+                    return response.json();
+                })
+                .then(function(data) {
+                    if (requestId !== modalState._nextRunsRequestId) return;
+                    if (data && data.ok && Array.isArray(data.next_runs) && data.next_runs.length) {
+                        renderNextRuns(modalState, data.next_runs, data.timezone);
+                    } else {
+                        clearNextRuns(modalState);
+                        if (data && data.ok === false && data.errors && data.errors.length) {
+                            var msg = data.errors[0].message || i18n(modalState.element, 'invalidExpr', 'Invalid cron expression');
+                            setValidationUI(modalState, [msg]);
+                        }
+                    }
+                })
+                .catch(function() {
+                    if (requestId !== modalState._nextRunsRequestId) return;
+                    clearNextRuns(modalState);
+                });
+        }, 400);
+    }
+
     function updatePreview(modalState) {
         var collected = collectFields(modalState);
         var expr = buildCron(collected.fields, collected.format);
@@ -746,6 +842,7 @@
         }
         var errors = validateCollected(modalState, collected);
         setValidationUI(modalState, errors);
+        scheduleNextRunsFetch(modalState, hasEmpty ? '' : expr, errors.length > 0);
         return { expr: expr, errors: errors, collected: collected };
     }
 
@@ -771,10 +868,17 @@
             previewExpr: document.getElementById(modalId + '-preview-expr'),
             previewHint: document.getElementById(modalId + '-preview-hint'),
             previewError: document.getElementById(modalId + '-preview-error'),
+            nextRunsWrap: document.getElementById(modalId + '-next-runs'),
+            nextRunsLabel: document.getElementById(modalId + '-next-runs-label'),
+            nextRunsList: document.getElementById(modalId + '-next-runs-list'),
+            nextRunsTz: document.getElementById(modalId + '-next-runs-tz'),
             applyBtn: document.getElementById(modalId + '-apply-btn'),
             presetsEl: document.getElementById(modalId + '-presets'),
             activeInputId: null,
-            editors: {}
+            editors: {},
+            _open: false,
+            _nextRunsTimer: null,
+            _nextRunsRequestId: 0
         };
 
         buildFieldRows(modalState);
@@ -816,6 +920,7 @@
         }
 
         element.addEventListener('show.bs.modal', function(event) {
+            modalState._open = true;
             var trigger = resolveOpenTrigger(event);
             if (trigger) {
                 var inputId = trigger.getAttribute('data-cron-builder-open');
@@ -831,6 +936,15 @@
 
         element.addEventListener('shown.bs.modal', function() {
             loadFromActiveInput(modalState);
+        });
+
+        element.addEventListener('hidden.bs.modal', function() {
+            modalState._open = false;
+            if (modalState._nextRunsTimer) {
+                clearTimeout(modalState._nextRunsTimer);
+                modalState._nextRunsTimer = null;
+            }
+            clearNextRuns(modalState);
         });
 
         modals.set(modalId, modalState);

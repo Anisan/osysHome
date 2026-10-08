@@ -311,6 +311,36 @@ class setCronTask(Resource):
         return {"success": True}, 200
 
 
+cron_validate_model = utils_ns.model(
+    "CronValidateModel",
+    {
+        "crontab": fields.String(description="Cron expression", required=True),
+        "count": fields.Integer(description="Number of next runs to preview (1-10)", required=False),
+    },
+)
+
+
+@utils_ns.route("/cron/validate")
+class ValidateCron(Resource):
+    @api_key_required
+    @handle_admin_required
+    @utils_ns.expect(cron_validate_model, validate=True)
+    @utils_ns.doc(security="apikey")
+    def post(self):
+        """Validate cron expression and return upcoming run times (server timezone)."""
+        payload = request.get_json() or {}
+        crontab = payload.get("crontab", "")
+        count = payload.get("count", 5)
+        from app.core.lib.crontab import validate_cron_expression
+
+        result = validate_cron_expression(crontab, preview_count=count)
+        tz = result.get("timezone")
+        if tz is not None:
+            result["timezone"] = str(tz)
+        result["success"] = bool(result.get("ok"))
+        return result, 200
+
+
 @utils_ns.route("/notifications")
 class GetNotifications(Resource):
     @api_key_required
