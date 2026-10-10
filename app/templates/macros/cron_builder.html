@@ -1,0 +1,236 @@
+{% macro cron_builder_field(input_id, label=None, placeholder=None, hint=None, value=None, modal_id='cronBuilderModal', wrapper_class='mb-3', input_class='form-control', show_label=True, name=None) %}
+{% set picker_btn_id = input_id ~ '-cron-btn' %}
+{% set field_name = name or input_id %}
+{% set placeholder_text = placeholder or gettext('* * * * *') %}
+{% set hint_text = hint if hint is not none else gettext('Cron: min hour day month weekday (optional seconds last: min hour day month weekday sec)') %}
+<div class="{{ wrapper_class }} cron-builder-field" data-cron-builder-field="{{ input_id }}">
+    {% if show_label and label %}
+    <label class="form-label" for="{{ input_id }}">{{ label }}</label>
+    {% endif %}
+    <div class="input-group">
+        <input type="text"
+               class="{{ input_class }}"
+               id="{{ input_id }}"
+               name="{{ field_name }}"
+               value="{{ value or '' }}"
+               placeholder="{{ placeholder_text }}"
+               autocomplete="off"
+               spellcheck="false"
+               data-cron-builder-input="{{ input_id }}">
+        <button type="button"
+                class="btn btn-outline-secondary"
+                id="{{ picker_btn_id }}"
+                data-cron-builder-open="{{ input_id }}"
+                data-bs-toggle="modal"
+                data-bs-target="#{{ modal_id }}"
+                title="{{ gettext('Cron builder') }}"
+                aria-label="{{ gettext('Cron builder') }}">
+            <i class="fas fa-clock"></i>
+        </button>
+    </div>
+    {% if hint_text %}
+    <small class="form-text text-muted">{{ hint_text }}</small>
+    {% endif %}
+</div>
+{% endmacro %}
+
+
+{% macro cron_builder_modal(modal_id='cronBuilderModal') %}
+<div class="modal fade cron-builder-modal"
+     id="{{ modal_id }}"
+     tabindex="-1"
+     aria-labelledby="{{ modal_id }}-label"
+     aria-hidden="true"
+     data-cron-builder-modal="{{ modal_id }}"
+     data-i18n-every="{{ gettext('Every') }}"
+     data-i18n-step="{{ gettext('Every N') }}"
+     data-i18n-list="{{ gettext('List') }}"
+     data-i18n-range="{{ gettext('Range') }}"
+     data-i18n-custom="{{ gettext('Custom') }}"
+     data-i18n-second="{{ gettext('Second') }}"
+     data-i18n-minute="{{ gettext('Minute') }}"
+     data-i18n-hour="{{ gettext('Hour') }}"
+     data-i18n-day="{{ gettext('Day of month') }}"
+     data-i18n-month="{{ gettext('Month') }}"
+     data-i18n-dow="{{ gettext('Day of week') }}"
+     data-i18n-hint-every="{{ gettext('Every value') }}"
+     data-i18n-hint-step="{{ gettext('Every {n}') }}"
+     data-i18n-hint-list="{{ gettext('At {values}') }}"
+     data-i18n-hint-range="{{ gettext('From {from} to {to}') }}"
+     data-i18n-hint-custom="{{ gettext('Custom: {value}') }}"
+     data-i18n-preview-empty="{{ gettext('Enter a cron expression') }}"
+     data-i18n-dow-names="{{ gettext('Sun,Mon,Tue,Wed,Thu,Fri,Sat') }}"
+     data-i18n-month-names="{{ gettext('Jan,Feb,Mar,Apr,May,Jun,Jul,Aug,Sep,Oct,Nov,Dec') }}"
+     data-i18n-invalid-expr="{{ gettext('Invalid cron expression') }}"
+     data-i18n-invalid-field="{{ gettext('Invalid value for {field}: {value}') }}"
+     data-i18n-list-required="{{ gettext('Select at least one value for {field}') }}"
+     data-i18n-range-order="{{ gettext('Range start must be less than or equal to end ({field})') }}"
+     data-i18n-step-invalid="{{ gettext('Step must be a positive integer ({field})') }}"
+     data-i18n-next-runs="{{ gettext('Next runs') }}"
+     data-i18n-timezone="{{ gettext('Timezone: {tz}') }}"
+     data-i18n-loading-next="{{ gettext('Loading next runs...') }}">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="{{ modal_id }}-label">{{ gettext('Cron builder') }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ gettext('Close') }}"></button>
+            </div>
+            <div class="modal-body">
+                <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+                    <span class="small text-muted me-1">{{ gettext('Format') }}</span>
+                    <div class="btn-group btn-group-sm" role="group" aria-label="{{ gettext('Format') }}">
+                        <input type="radio" class="btn-check" name="{{ modal_id }}-format" id="{{ modal_id }}-format-5" value="5" autocomplete="off" checked>
+                        <label class="btn btn-outline-secondary" for="{{ modal_id }}-format-5">{{ gettext('5 fields') }}</label>
+                        <input type="radio" class="btn-check" name="{{ modal_id }}-format" id="{{ modal_id }}-format-6" value="6" autocomplete="off">
+                        <label class="btn btn-outline-secondary" for="{{ modal_id }}-format-6">{{ gettext('6 fields (seconds)') }}</label>
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <div class="small text-muted mb-1">{{ gettext('Presets') }}</div>
+                    <div class="d-flex flex-wrap gap-1" id="{{ modal_id }}-presets" role="group">
+                        <button type="button" class="btn btn-sm btn-outline-primary" data-cron-preset="every_minute">{{ gettext('Every minute') }}</button>
+                        <button type="button" class="btn btn-sm btn-outline-primary" data-cron-preset="every_5_min">{{ gettext('Every 5 minutes') }}</button>
+                        <button type="button" class="btn btn-sm btn-outline-primary" data-cron-preset="hourly">{{ gettext('Hourly') }}</button>
+                        <button type="button" class="btn btn-sm btn-outline-primary" data-cron-preset="daily">{{ gettext('Daily') }}</button>
+                        <button type="button" class="btn btn-sm btn-outline-primary" data-cron-preset="weekly">{{ gettext('Weekly') }}</button>
+                        <button type="button" class="btn btn-sm btn-outline-primary" data-cron-preset="monthly">{{ gettext('Monthly') }}</button>
+                    </div>
+                </div>
+
+                <div class="cron-builder-fields" id="{{ modal_id }}-fields"></div>
+
+                <div class="cron-builder-preview mt-3 p-3 rounded border">
+                    <div class="small text-muted mb-1">{{ gettext('Preview') }}</div>
+                    <code class="cron-builder-preview-expr d-block mb-1" id="{{ modal_id }}-preview-expr">* * * * *</code>
+                    <div class="small text-muted" id="{{ modal_id }}-preview-hint"></div>
+                    <div class="small text-danger mt-2 d-none" id="{{ modal_id }}-preview-error" role="alert"></div>
+                    <div class="cron-builder-next-runs mt-3 d-none" id="{{ modal_id }}-next-runs">
+                        <div class="small text-muted mb-1" id="{{ modal_id }}-next-runs-label">{{ gettext('Next runs') }}</div>
+                        <ul class="list-unstyled small mb-1 cron-builder-next-runs-list" id="{{ modal_id }}-next-runs-list"></ul>
+                        <div class="small text-muted" id="{{ modal_id }}-next-runs-tz"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ gettext('Cancel') }}</button>
+                <button type="button" class="btn btn-primary" id="{{ modal_id }}-apply-btn">
+                    <i class="fas fa-check me-1"></i>{{ gettext('Apply') }}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endmacro %}
+
+
+{% macro cron_builder_assets() %}
+<style>
+    .cron-builder-modal .cron-builder-field-row {
+        display: grid;
+        grid-template-columns: minmax(7rem, 9rem) minmax(7rem, 9rem) 1fr;
+        gap: 0.5rem;
+        align-items: start;
+        margin-bottom: 0.65rem;
+    }
+
+    .cron-builder-modal .cron-builder-field-row.is-hidden {
+        display: none;
+    }
+
+    .cron-builder-modal .cron-builder-preview {
+        background: rgba(var(--bs-secondary-rgb), 0.08);
+    }
+
+    .cron-builder-modal .cron-builder-preview-expr {
+        font-size: 1.05rem;
+        word-break: break-all;
+    }
+
+    .cron-builder-modal .cron-builder-extras .form-control,
+    .cron-builder-modal .cron-builder-extras .form-select {
+        max-width: 100%;
+    }
+
+    .cron-builder-modal .cron-builder-field-row.has-error .form-select,
+    .cron-builder-modal .cron-builder-field-row.has-error .form-control {
+        border-color: var(--bs-danger);
+    }
+
+    .cron-builder-modal .cron-check-grid {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.25rem 0.75rem;
+        padding: 0.35rem 0.5rem;
+        border: 1px solid var(--bs-border-color);
+        border-radius: 0.375rem;
+        max-height: 7.5rem;
+        overflow-y: auto;
+    }
+
+    .cron-builder-modal .cron-check-grid .form-check {
+        min-width: 4.5rem;
+        margin: 0;
+    }
+
+    .cron-builder-modal .cron-builder-preview.is-invalid {
+        border-color: var(--bs-danger) !important;
+    }
+
+    .cron-builder-modal .cron-builder-next-runs-list {
+        margin: 0;
+        padding-left: 0;
+    }
+
+    .cron-builder-modal .cron-builder-next-runs-list li {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        padding: 0.1rem 0;
+    }
+
+    /* Nested open from another Bootstrap modal (e.g. Todo task editor) */
+    .cron-builder-modal.show {
+        z-index: 1065;
+    }
+    .modal-backdrop.cron-builder-backdrop {
+        z-index: 1060;
+    }
+
+    @media (max-width: 575.98px) {
+        .cron-builder-modal .cron-builder-field-row {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+<script>
+window.CronBuilderLocale = {{ {
+    'every': gettext('Every'),
+    'step': gettext('Every N'),
+    'list': gettext('List'),
+    'range': gettext('Range'),
+    'custom': gettext('Custom'),
+    'second': gettext('Second'),
+    'minute': gettext('Minute'),
+    'hour': gettext('Hour'),
+    'day': gettext('Day of month'),
+    'month': gettext('Month'),
+    'dow': gettext('Day of week'),
+    'hintEvery': gettext('Every value'),
+    'hintStep': gettext('Every {n}'),
+    'hintList': gettext('At {values}'),
+    'hintRange': gettext('From {from} to {to}'),
+    'hintCustom': gettext('Custom: {value}'),
+    'previewEmpty': gettext('Enter a cron expression'),
+    'dowNames': gettext('Sun,Mon,Tue,Wed,Thu,Fri,Sat'),
+    'monthNames': gettext('Jan,Feb,Mar,Apr,May,Jun,Jul,Aug,Sep,Oct,Nov,Dec'),
+    'invalidExpr': gettext('Invalid cron expression'),
+    'invalidField': gettext('Invalid value for {field}: {value}'),
+    'listRequired': gettext('Select at least one value for {field}'),
+    'rangeOrder': gettext('Range start must be less than or equal to end ({field})'),
+    'stepInvalid': gettext('Step must be a positive integer ({field})'),
+    'nextRuns': gettext('Next runs'),
+    'timezone': gettext('Timezone: {tz}'),
+    'loadingNext': gettext('Loading next runs...')
+}|tojson }};
+</script>
+<script src="{{ config.ASSETS_ROOT }}/js/components/cron-builder.js"></script>
+{% endmacro %}
