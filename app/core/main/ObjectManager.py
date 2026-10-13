@@ -829,8 +829,14 @@ class PropertyManager():
                     converted_value = bool(value)
             elif self.type == "enum":
                 # For enum, validate against allowed values
+                # При динамическом options_source whitelist только в UI — не требуем enum_values
                 converted_value = value
-                if not init and self.params and 'enum_values' in self.params:
+                if (
+                    not init
+                    and self.params
+                    and not self.params.get("options_source")
+                    and "enum_values" in self.params
+                ):
                     enum_values = self.params['enum_values']
                     if enum_values and isinstance(enum_values, dict):
                         if str(converted_value) not in enum_values:
@@ -1383,7 +1389,7 @@ class MethodManager():
             return [MethodManager._safeJsonValue(v) for v in value]
         return str(value)
 
-    def _addMemoryHistoryEntry(self, name, source, args, result, timestamp):
+    def _addMemoryHistoryEntry(self, name, source, args, result, timestamp, exec_time=None):
         """Добавляет запись о вызове метода в память."""
         self._pruneMemoryHistory()
         entry = {
@@ -1392,6 +1398,7 @@ class MethodManager():
             'args': args,
             'result': result,
             'timestamp': timestamp,
+            'exec_time': exec_time,
         }
         self._call_history.append(entry)
         max_count = getattr(Config, 'MEMORY_METHOD_CALLS_MAX_ENTRIES', 100)
@@ -1411,6 +1418,7 @@ class MethodManager():
             'args': self._safeJsonValue(entry.get('args')),
             'result': self._safeJsonValue(entry.get('result')),
             'timestamp': ts_str,
+            'exec_time': entry.get('exec_time'),
         }
 
     def getMemoryHistory(self, serialize: bool = True):
@@ -1420,7 +1428,7 @@ class MethodManager():
             serialize: Если True — даты/args/result в JSON-совместимом виде.
 
         Returns:
-            list[dict]: Записи с method, source, args, result, timestamp.
+            list[dict]: Записи с method, source, args, result, timestamp, exec_time.
         """
         self._pruneMemoryHistory()
         if serialize:
@@ -2026,12 +2034,17 @@ class ObjectManager:
                     source=SYSTEM_STATS_SOURCE,
                 )
 
-            self.methods[name]._addMemoryHistoryEntry(
-                name, stored_source, args, output, self.methods[name].executed
-            )
-
             end = time.perf_counter()
             self.methods[name].exec_time = int((end - start) * 1000)  # в миллисекунды
+
+            self.methods[name]._addMemoryHistoryEntry(
+                name,
+                stored_source,
+                args,
+                output,
+                self.methods[name].executed,
+                self.methods[name].exec_time,
+            )
 
             # send event to proxy
             plugins = getModulesByAction('proxy')
