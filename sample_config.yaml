@@ -68,6 +68,17 @@ application:
   object_preload_batch_size: 10
   object_preload_interval_sec: 0.5
 
+  # In-memory history for property value changes (Objects UI «Memory history»).
+  # Not the DB History table — RAM only, cleared on object reload / process restart.
+  # Window in seconds; entries older than this are pruned.
+  memory_history_window_sec: 3600
+  # Hard cap on entries kept per property (newest kept).
+  memory_history_max_entries: 100
+
+  # In-memory history for method calls (same UI, method buttons).
+  memory_method_calls_window_sec: 3600
+  memory_method_calls_max_entries: 100
+
   # User session lifetime in days.
   # Default is 31 days, matching Flask's default behavior.
   session_lifetime_days: 31

@@ -1632,6 +1632,42 @@ def clearLinkedObjects(link:str):
         session.commit()
 
 
+def getObjectMemoryHistory(
+    name: str,
+    property_name: str = None,
+    method_name: str = None,
+    serialize: bool = True,
+) -> dict:
+    """История изменений свойств и вызовов методов объекта в памяти runtime.
+
+    Не путать с ``getHistory`` (БД ``History``). Данные живут в окне
+    ``MEMORY_*_WINDOW_SEC`` / ``MEMORY_*_MAX_ENTRIES``.
+
+    Args:
+        name: Имя объекта.
+        property_name: Фильтр по свойству (опционально).
+        method_name: Фильтр по методу (опционально).
+        serialize: JSON-совместимый формат (по умолчанию True).
+
+    Returns:
+        dict: ``object``, ``properties``, ``methods`` или None при ошибке.
+    """
+    logger = _get_object_logger(name)
+    try:
+        obj = objects_storage.getObjectByName(name)
+        if not obj:
+            logger.error('Object %s not found', name)
+            return None
+        return obj.getMemoryHistory(
+            property_name=property_name,
+            method_name=method_name,
+            serialize=serialize,
+        )
+    except Exception as e:
+        logger.exception('getObjectMemoryHistory %s: %s', name, e)
+    return None
+
+
 def getHistory(name:str, dt_begin:datetime = None, dt_end:datetime = None, limit:int = None, order_desc: bool = False, func=None) -> list:
     """Get history records for a property.
 
@@ -1815,7 +1851,12 @@ def listCustomFunctions() -> list:
         ]
 
 
-def runCustomFunctionTest(name: str, test_code: str = None, params=None) -> tuple:
+def runCustomFunctionTest(
+    name: str,
+    test_code: str = None,
+    params=None,
+    execution_source: str = None,
+) -> tuple:
     """Execute test code for a custom function.
 
     Args:
@@ -1824,6 +1865,8 @@ def runCustomFunctionTest(name: str, test_code: str = None, params=None) -> tupl
             ``test_code`` for ``name``. Defaults to None.
         params (Any, optional): Value passed to the test as ``params``.
             Defaults to None.
+        execution_source (str, optional): Корень цепочки source для runCode.
+            По умолчанию ``CustomFunction.test:{name}``.
 
     Returns:
         tuple[str, bool]: ``(output, success)`` where ``output`` is captured
@@ -1831,7 +1874,7 @@ def runCustomFunctionTest(name: str, test_code: str = None, params=None) -> tupl
             finished without error.
     """
     from app.core.models.CustomFunctions import CustomFunction
-    from app.core.lib.execute import execute_and_capture_output
+    from app.core.lib.common import runCode
 
     with session_scope() as session:
         row = session.query(CustomFunction).filter(CustomFunction.name == name).one_or_none()
@@ -1842,11 +1885,5 @@ def runCustomFunctionTest(name: str, test_code: str = None, params=None) -> tupl
     if not code.strip():
         return 'test_code is empty.', False
 
-    variables = {'params': params, 'logger': _logger}
-    output, error = execute_and_capture_output(
-        code,
-        variables,
-        code_filename=f'<Test:{name}>',
-        method_context={'source': f'CustomFunction.test:{name}'},
-    )
-    return output, not error
+    src = execution_source or f"CustomFunction.test:{name}"
+    return runCode(code, args=params, execution_source=src)

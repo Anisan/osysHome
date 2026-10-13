@@ -196,6 +196,12 @@ class ConfigLoader(object):
         self.DEBUG_TB_PROFILER_DUMP_FILENAME = 'dump.prof'
         self.DEBUG_TB_INTERCEPT_REDIRECTS = False
 
+        # Окно и лимит истории значений/вызовов в памяти
+        self.MEMORY_HISTORY_WINDOW_SEC = 3600  # 1 час
+        self.MEMORY_METHOD_CALLS_WINDOW_SEC = 3600
+        self.MEMORY_HISTORY_MAX_ENTRIES = 100
+        self.MEMORY_METHOD_CALLS_MAX_ENTRIES = 100
+
         # True, если при загрузке применены рекомендуемые параметры безопасности.
         self.SECURITY_DEFAULTS_APPLIED = False
 
@@ -292,6 +298,10 @@ class ConfigLoader(object):
         self.OBJECT_PRELOAD_ENABLED = app_config.get('object_preload_enabled', True)
         self.OBJECT_PRELOAD_BATCH_SIZE = app_config.get('object_preload_batch_size', 10)
         self.OBJECT_PRELOAD_INTERVAL_SEC = app_config.get('object_preload_interval_sec', 0.5)
+        self.MEMORY_HISTORY_WINDOW_SEC = app_config.get('memory_history_window_sec', 3600)
+        self.MEMORY_METHOD_CALLS_WINDOW_SEC = app_config.get('memory_method_calls_window_sec', 3600)
+        self.MEMORY_HISTORY_MAX_ENTRIES = app_config.get('memory_history_max_entries', 100)
+        self.MEMORY_METHOD_CALLS_MAX_ENTRIES = app_config.get('memory_method_calls_max_entries', 100)
 
         # Session lifetime configuration
         self.SESSION_LIFETIME_DAYS = app_config.get('session_lifetime_days', 31)

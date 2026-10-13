@@ -1,4 +1,4 @@
-from flask import request, jsonify, current_app
+from flask import request, jsonify, current_app, g
 from flask_restx import Namespace, Resource, fields
 from sqlalchemy import func, case
 from app.core.models.Plugins import Notify
@@ -268,7 +268,10 @@ class RunCode(Resource):
             code = payload["code"]
             from app.core.lib.common import runCode
 
-            result, success = runCode(code)
+            user = getattr(g, "current_user", None)
+            username = getattr(user, "username", None) if user else None
+            execution_source = f"api:{username}" if username else "api"
+            result, success = runCode(code, execution_source=execution_source)
             return {"success": success, "result": result}, 200
         except Exception as ex:
             return {"success": False, "result": ex}, 200
