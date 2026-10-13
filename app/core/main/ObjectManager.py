@@ -102,20 +102,25 @@ def _truncate_source_chain(source: str) -> str:
 
 
 def _source_root_key(segment: str) -> str:
-    """Корень метки: 'WS:eraser' / 'WS:' / 'WS' → 'WS'; 'property:status' без изменений."""
+    """Корень метки: 'WS:eraser' / 'WS:' / 'WS' → 'WS';
+    'property:Obj.status' / 'method:Obj.m' — без изменений."""
     segment = (segment or "").strip()
     if not segment:
         return ""
-    if segment.startswith("property:"):
+    if segment.startswith("property:") or segment.startswith("method:"):
         return segment
     return segment.split(":", 1)[0]
 
 
-def _source_chain_led_to(incoming: str, parent: Optional[str]) -> str:
+def _source_chain_led_to(
+    incoming: str, parent: Optional[str], object_name: Optional[str] = None
+) -> str:
     """Что привело к вызову: явный source и/или родительский контекст."""
     incoming = (incoming or "").strip()
     if not incoming:
-        return parent or "self"
+        if parent:
+            return parent
+        return f"self:{object_name}" if object_name else "self"
     if not parent:
         return incoming
     if incoming == parent or incoming.startswith(parent + _SOURCE_SEP):
@@ -128,6 +133,7 @@ def _source_chain_led_to(incoming: str, parent: Optional[str]) -> str:
     if (
         _source_root_key(parent_first) == _source_root_key(incoming_first)
         and not incoming.startswith("property:")
+        and not incoming.startswith("method:")
     ):
         return parent
     return f"{parent}{_SOURCE_SEP}{incoming}"
@@ -135,14 +141,14 @@ def _source_chain_led_to(incoming: str, parent: Optional[str]) -> str:
 
 def _source_execution_context(led_to: str, object_name: str, method_name: str) -> str:
     """Контекст во время выполнения метода (видят вложенные setProperty/callMethod)."""
-    link = f"{object_name}.{method_name}"
+    link = f"method:{object_name}.{method_name}"
     if led_to == link or led_to.endswith(_SOURCE_SEP + link):
         return led_to
     return f"{led_to}{_SOURCE_SEP}{link}"
 
 
 def _append_username_to_source(source: str, username: Optional[str]) -> str:
-    """Добавляет username к первому звену цепочки: 'WS -> Obj.m' → 'WS:user -> Obj.m'."""
+    """Добавляет username к первому звену: 'WS -> method:Obj.m' → 'WS:user -> method:Obj.m'."""
     if not username:
         return source
     parts = source.split(_SOURCE_SEP) if source else [""]
@@ -161,7 +167,7 @@ def _source_matches_link(source: str, link: str) -> bool:
     - прямой отчёт устройства — ``source == "z2m"`` → подавляем обратный
       вызов плагина (защита от эха);
     - запись из метода, который лишь был запущен плагином, —
-      ``source == "z2m -> Relay01.switch"`` → НЕ подавляем: это команда,
+      ``source == "z2m -> method:Relay01.switch"`` → НЕ подавляем: это команда,
       которую нужно доставить физическому устройству.
     """
     if not source or not link:
@@ -1741,15 +1747,16 @@ class ObjectManager:
                     args = {
                         'VALUE': value, 'NEW_VALUE': value, 'OLD_VALUE': old, 'PROPERTY': name, 'SOURCE': source,
                     }
-                    # Внутри метода — только звено property:… (родительский контекст уже в стеке).
-                    # Снаружи — source свойства + property:…
+                    # Внутри метода — только звено property:Obj.prop (родительский контекст уже в стеке).
+                    # Снаружи — source свойства + property:Obj.prop
+                    prop_link = f"property:{self.name}.{name}"
                     in_method = bool(get_execution_source())
                     if in_method:
-                        method_source = f"property:{name}"
+                        method_source = prop_link
                     elif source:
-                        method_source = f"{source}{_SOURCE_SEP}property:{name}"
+                        method_source = f"{source}{_SOURCE_SEP}{prop_link}"
                     else:
-                        method_source = f"property:{name}"
+                        method_source = prop_link
                     self.callMethod(prop.method, args, method_source)
             finally:
                 chain_exit()
@@ -1975,7 +1982,9 @@ class ObjectManager:
 
         # Цепочка: что привело к вызову + контекст для вложенных вызовов (только thread-local стек)
         parent_ctx = get_execution_source()
-        led_to = _truncate_source_chain(_source_chain_led_to(source or '', parent_ctx))
+        led_to = _truncate_source_chain(
+            _source_chain_led_to(source or '', parent_ctx, self.name)
+        )
         execution_ctx = _truncate_source_chain(
             _source_execution_context(led_to, self.name, name)
         )
