@@ -147,13 +147,15 @@ def getJobs(query: str) -> list:
     """Find tasks whose names match a SQL ``LIKE`` pattern.
 
     Args:
-        query (str): Pattern passed to ``Task.name.like`` (include ``%`` wildcards).
+        query (str): Pattern for ``Task.name.like`` (``%`` / ``_`` wildcards).
+            Escape literal ``_``/``%`` with ``\\`` (e.g. ``obj\\_meth\\_%``).
 
     Returns:
         list: List of task dicts; empty if none match.
     """
     with session_scope() as session:
-        result = session.query(Task).filter(Task.name.like(query)).all()
+        # ESCAPE нужен: без него \\_ на SQLite ищет литеральный backslash.
+        result = session.query(Task).filter(Task.name.like(query, escape="\\")).all()
         if result:
             jobs = []
             for task in result:
@@ -166,11 +168,11 @@ def clearScheduledJob(name: str):
     """Delete tasks whose names match a SQL ``LIKE`` pattern.
 
     Args:
-        name (str): Pattern passed to ``Task.name.like``.
+        name (str): Same pattern rules as ``getJobs``.
     """
     with get_task_lock(name):
         with session_scope() as session:
-            sql = delete(Task).where(Task.name.like(name))
+            sql = delete(Task).where(Task.name.like(name, escape="\\"))
             session.execute(sql)
             session.commit()
 
