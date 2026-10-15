@@ -64,6 +64,117 @@ _poolLinkedProperty = AdaptiveThreadPoolRouter(
     quarantine_duration_seconds=300,
 )
 
+# Цепочка вызовов методов: "Mqtt:topic -> Sensor.onChange -> Climate.apply"
+_SOURCE_SEP = " -> "
+_execution_local = threading.local()
+
+
+def get_execution_source() -> Optional[str]:
+    """Текущий контекст выполнения метода в этом потоке (для наследования source)."""
+    stack = getattr(_execution_local, "stack", None)
+    if stack:
+        return stack[-1]
+    return None
+
+
+def _push_execution_source(source: str) -> None:
+    stack = getattr(_execution_local, "stack", None)
+    if stack is None:
+        stack = []
+        _execution_local.stack = stack
+    stack.append(source)
+
+
+def _pop_execution_source() -> None:
+    stack = getattr(_execution_local, "stack", None)
+    if stack:
+        stack.pop()
+
+
+def _truncate_source_chain(source: str) -> str:
+    """Ограничивает длину цепочки source (как REACTIVE_MAX_DEPTH)."""
+    max_parts = Config.REACTIVE_MAX_DEPTH if Config.REACTIVE_MAX_DEPTH is not None else 20
+    parts = source.split(_SOURCE_SEP)
+    if len(parts) <= max_parts:
+        return source
+    keep_tail = max(1, max_parts - 2)
+    return _SOURCE_SEP.join([parts[0], "..."] + parts[-keep_tail:])
+
+
+def _source_root_key(segment: str) -> str:
+    """Корень метки: 'WS:eraser' / 'WS:' / 'WS' → 'WS';
+    'property:Obj.status' / 'method:Obj.m' — без изменений."""
+    segment = (segment or "").strip()
+    if not segment:
+        return ""
+    if segment.startswith("property:") or segment.startswith("method:"):
+        return segment
+    return segment.split(":", 1)[0]
+
+
+def _source_chain_led_to(
+    incoming: str, parent: Optional[str], object_name: Optional[str] = None
+) -> str:
+    """Что привело к вызову: явный source и/или родительский контекст."""
+    incoming = (incoming or "").strip()
+    if not incoming:
+        if parent:
+            return parent
+        return f"self:{object_name}" if object_name else "self"
+    if not parent:
+        return incoming
+    if incoming == parent or incoming.startswith(parent + _SOURCE_SEP):
+        return incoming
+    if parent.startswith(incoming + _SOURCE_SEP):
+        return parent
+    parent_first = parent.split(_SOURCE_SEP, 1)[0]
+    incoming_first = incoming.split(_SOURCE_SEP, 1)[0]
+    # Тот же источник (WS vs WS:/WS:title) — не дублируем корень, оставляем цепочку вызовов
+    if (
+        _source_root_key(parent_first) == _source_root_key(incoming_first)
+        and not incoming.startswith("property:")
+        and not incoming.startswith("method:")
+    ):
+        return parent
+    return f"{parent}{_SOURCE_SEP}{incoming}"
+
+
+def _source_execution_context(led_to: str, object_name: str, method_name: str) -> str:
+    """Контекст во время выполнения метода (видят вложенные setProperty/callMethod)."""
+    link = f"method:{object_name}.{method_name}"
+    if led_to == link or led_to.endswith(_SOURCE_SEP + link):
+        return led_to
+    return f"{led_to}{_SOURCE_SEP}{link}"
+
+
+def _append_username_to_source(source: str, username: Optional[str]) -> str:
+    """Добавляет username к первому звену: 'WS -> method:Obj.m' → 'WS:user -> method:Obj.m'."""
+    if not username:
+        return source
+    parts = source.split(_SOURCE_SEP) if source else [""]
+    first = parts[0]
+    if first == username or first.endswith(f":{username}"):
+        return source
+    parts[0] = f"{first}:{username}" if first else username
+    return _SOURCE_SEP.join(parts)
+
+
+def _source_matches_link(source: str, link: str) -> bool:
+    """Проверка, что текущее звено source исходит от плагина/link (с учётом :username).
+
+    Сравнивается последнее звено цепочки, а не её корень:
+
+    - прямой отчёт устройства — ``source == "z2m"`` → подавляем обратный
+      вызов плагина (защита от эха);
+    - запись из метода, который лишь был запущен плагином, —
+      ``source == "z2m -> method:Relay01.switch"`` → НЕ подавляем: это команда,
+      которую нужно доставить физическому устройству.
+    """
+    if not source or not link:
+        return False
+    last = source.split(_SOURCE_SEP)[-1]
+    return last == link or last.startswith(link + ":")
+
 
 @dataclass
 class ValueUpdate:
@@ -169,6 +280,8 @@ class BatchWriter:
         start_time = time.time()
         values_count = 0
         history_count = 0
+        batch = None
+        batch_size = 0
 
         try:
             with self._lock:
@@ -367,7 +480,9 @@ class BatchWriter:
             execution_time = time.time() - start_time
             # Обновляем статистику ошибок
             with self._lock:
-                if any(not item.internal for item in batch):
+                if batch:
+                    self._batch = batch + self._batch
+                if batch and any(not item.internal for item in batch):
                     self._total_errors += 1
                     incrementCoreSystemStatsMetric(
                         "batch_total_errors",
@@ -375,13 +490,13 @@ class BatchWriter:
                         description="Total external batch write errors",
                         source=SYSTEM_STATS_SOURCE,
                     )
-                else:
+                elif batch:
                     self._total_internal_errors += 1
                 self._last_error = error_msg
                 self._last_error_time = get_now_to_utc()
                 self._append_flush_history(
                     duration_seconds=execution_time,
-                    batch_size=batch_size,
+                    batch_size=batch_size if batch else 0,
                     values_count=0,
                     history_count=0,
                     success=False,
@@ -558,6 +673,7 @@ class PropertyManager():
         self.count_read = 0
         self.count_write = 0
         self.readed = get_now_to_utc()
+        self._history: list[dict] = []
 
     def _get_color_scales(self):
         return {
@@ -719,8 +835,14 @@ class PropertyManager():
                     converted_value = bool(value)
             elif self.type == "enum":
                 # For enum, validate against allowed values
+                # При динамическом options_source whitelist только в UI — не требуем enum_values
                 converted_value = value
-                if not init and self.params and 'enum_values' in self.params:
+                if (
+                    not init
+                    and self.params
+                    and not self.params.get("options_source")
+                    and "enum_values" in self.params
+                ):
                     enum_values = self.params['enum_values']
                     if enum_values and isinstance(enum_values, dict):
                         if str(converted_value) not in enum_values:
@@ -935,6 +1057,74 @@ class PropertyManager():
                 return deleted_count, count - deleted_count
             return 0, count
 
+    def _pruneMemoryHistory(self):
+        """Удаляет записи истории старше окна MEMORY_HISTORY_WINDOW_SEC."""
+        if not self._history:
+            return
+        window_sec = getattr(Config, 'MEMORY_HISTORY_WINDOW_SEC', 3600)
+        now = get_now_to_utc()
+        pruned = []
+        for entry in self._history:
+            ts = entry.get('timestamp')
+            if ts is None:
+                continue
+            try:
+                age = (now - ts).total_seconds()
+            except TypeError:
+                continue
+            if age <= window_sec:
+                pruned.append(entry)
+        self._history = pruned
+
+    def _addMemoryHistoryEntry(self, value, source, changed, history_only: bool):
+        """Добавляет запись об изменении значения свойства в память."""
+        self._pruneMemoryHistory()
+        entry = {
+            'value': self._encodeValue(value) if value is not None else None,
+            'changed': changed,
+            'source': source,
+            'history_only': history_only,
+            'timestamp': changed if changed else get_now_to_utc(),
+        }
+        self._history.append(entry)
+        max_count = getattr(Config, 'MEMORY_HISTORY_MAX_ENTRIES', 100)
+        if len(self._history) > max_count:
+            self._history = self._history[-max_count:]
+
+    @staticmethod
+    def _formatMemoryHistoryDt(dt):
+        """Форматирует datetime UTC → локальное строковое представление."""
+        if not dt:
+            return None
+        try:
+            return str(convert_utc_to_local(dt))
+        except Exception:
+            return str(dt)
+
+    def _serializeMemoryHistoryEntry(self, entry: dict) -> dict:
+        """Сериализует запись истории свойства для API/UI."""
+        return {
+            'value': entry.get('value'),
+            'source': entry.get('source') or '',
+            'history_only': bool(entry.get('history_only')),
+            'changed': self._formatMemoryHistoryDt(entry.get('changed')),
+            'timestamp': self._formatMemoryHistoryDt(entry.get('timestamp')),
+        }
+
+    def getMemoryHistory(self, serialize: bool = True):
+        """Возвращает историю изменений значения свойства в памяти.
+
+        Args:
+            serialize: Если True — даты как локальные строки (для API/UI).
+
+        Returns:
+            list[dict]: Записи с value, source, history_only, changed, timestamp.
+        """
+        self._pruneMemoryHistory()
+        if serialize:
+            return [self._serializeMemoryHistoryEntry(e) for e in self._history]
+        return list(self._history)
+
     def setValue(self, value, source='', changed=None, save_history:bool=None, bypass_rate_limit:bool=False, track_stats:bool=True):
         # Check if property is read-only
         if self.read_only:
@@ -967,12 +1157,9 @@ class PropertyManager():
         
         # Подготавливаем значения для истории (нужны в любом случае)
         temp_value = self._decodeValue(value)
-        temp_source = source
-        username = getattr(current_user, 'username', None)
-        if username:
-            if temp_source != '':
-                temp_source += ':'
-            temp_source += username
+        temp_source = _append_username_to_source(
+            source or '', getattr(current_user, 'username', None)
+        )
         
         # Если не history_only, проверяем rate limit и обновляем значение
         if not history_only:
@@ -991,6 +1178,12 @@ class PropertyManager():
             self.__value = temp_value
             self.source = temp_source
             self.changed = new_changed
+
+        # История в памяти — всегда, даже если запись в БД упала
+        try:
+            self._addMemoryHistoryEntry(temp_value, temp_source, new_changed, history_only)
+        except Exception as ex:
+            _logger.exception(ex, exc_info=True)
 
         # save Value To DB
         try:
@@ -1151,6 +1344,7 @@ class MethodManager():
         self.exec_params = None
         self.exec_result = None
         self.exec_time = None
+        self._call_history: list[dict] = []
 
     def to_dict(self):
         return {
@@ -1170,6 +1364,82 @@ class MethodManager():
 
     def __repr__(self):
         return self.__str__()
+
+    def _pruneMemoryHistory(self):
+        """Удаляет записи вызовов старше окна MEMORY_METHOD_CALLS_WINDOW_SEC."""
+        if not self._call_history:
+            return
+        window_sec = getattr(Config, 'MEMORY_METHOD_CALLS_WINDOW_SEC', 3600)
+        now = get_now_to_utc()
+        pruned = []
+        for entry in self._call_history:
+            ts = entry.get('timestamp')
+            if ts is None:
+                continue
+            try:
+                age = (now - ts).total_seconds()
+            except TypeError:
+                continue
+            if age <= window_sec:
+                pruned.append(entry)
+        self._call_history = pruned
+
+    @staticmethod
+    def _safeJsonValue(value):
+        """Приводит args/result к JSON-совместимому виду."""
+        if value is None or isinstance(value, (str, int, float, bool)):
+            return value
+        if isinstance(value, dict):
+            return {str(k): MethodManager._safeJsonValue(v) for k, v in value.items()}
+        if isinstance(value, (list, tuple)):
+            return [MethodManager._safeJsonValue(v) for v in value]
+        return str(value)
+
+    def _addMemoryHistoryEntry(self, name, source, args, result, timestamp, exec_time=None):
+        """Добавляет запись о вызове метода в память."""
+        self._pruneMemoryHistory()
+        entry = {
+            'method': name,
+            'source': source,
+            'args': args,
+            'result': result,
+            'timestamp': timestamp,
+            'exec_time': exec_time,
+        }
+        self._call_history.append(entry)
+        max_count = getattr(Config, 'MEMORY_METHOD_CALLS_MAX_ENTRIES', 100)
+        if len(self._call_history) > max_count:
+            self._call_history = self._call_history[-max_count:]
+
+    def _serializeMemoryHistoryEntry(self, entry: dict) -> dict:
+        """Сериализует запись истории вызова метода для API/UI."""
+        ts = entry.get('timestamp')
+        try:
+            ts_str = str(convert_utc_to_local(ts)) if ts else None
+        except Exception:
+            ts_str = str(ts) if ts else None
+        return {
+            'method': entry.get('method'),
+            'source': entry.get('source') or '',
+            'args': self._safeJsonValue(entry.get('args')),
+            'result': self._safeJsonValue(entry.get('result')),
+            'timestamp': ts_str,
+            'exec_time': entry.get('exec_time'),
+        }
+
+    def getMemoryHistory(self, serialize: bool = True):
+        """Возвращает историю вызовов метода в памяти.
+
+        Args:
+            serialize: Если True — даты/args/result в JSON-совместимом виде.
+
+        Returns:
+            list[dict]: Записи с method, source, args, result, timestamp, exec_time.
+        """
+        self._pruneMemoryHistory()
+        if serialize:
+            return [self._serializeMemoryHistoryEntry(e) for e in self._call_history]
+        return list(self._call_history)
 
 
 """
@@ -1197,7 +1467,6 @@ class ObjectManager:
         object.__setattr__(self, "__inited", False)
         object.__setattr__(self, "__permissions", None)
         object.__setattr__(self, "__templates", {})
-        object.__setattr__(self, "_current_execution_source", None)
         object.__setattr__(self, "_runtime", {})
         object.__setattr__(self, "_lifecycle_running", False)
         object.__setattr__(self, "_render_env", None)
@@ -1471,15 +1740,24 @@ class ObjectManager:
             try:
                 old = prop.getValue()
                 if source is None or source == '':
-                    if self._current_execution_source is not None:
-                        source = self._current_execution_source
+                    source = get_execution_source() or ''
                 prop.setValue(value, source, changed=changed, save_history=save_history, track_stats=track_stats)
                 value = prop.getValue()
                 if prop.method:
                     args = {
                         'VALUE': value, 'NEW_VALUE': value, 'OLD_VALUE': old, 'PROPERTY': name, 'SOURCE': source,
                     }
-                    self.callMethod(prop.method, args, source)
+                    # Внутри метода — только звено property:Obj.prop (родительский контекст уже в стеке).
+                    # Снаружи — source свойства + property:Obj.prop
+                    prop_link = f"property:{self.name}.{name}"
+                    in_method = bool(get_execution_source())
+                    if in_method:
+                        method_source = prop_link
+                    elif source:
+                        method_source = f"{source}{_SOURCE_SEP}{prop_link}"
+                    else:
+                        method_source = prop_link
+                    self.callMethod(prop.method, args, method_source)
             finally:
                 chain_exit()
 
@@ -1491,7 +1769,7 @@ class ObjectManager:
             # link
             if prop.linked and not is_system_stats_write:
                 for link in prop.linked:
-                    if link == source:
+                    if _source_matches_link(str(source or ""), link):
                         continue
                     # get plugin
                     plugin = getModule(link)
@@ -1702,14 +1980,23 @@ class ObjectManager:
 
         self._check_permissions(TypeOperation.Call, None, name)
 
-        source = source if source else "self." + name
-        self._current_execution_source = source
+        # Цепочка: что привело к вызову + контекст для вложенных вызовов (только thread-local стек)
+        parent_ctx = get_execution_source()
+        led_to = _truncate_source_chain(
+            _source_chain_led_to(source or '', parent_ctx, self.name)
+        )
+        execution_ctx = _truncate_source_chain(
+            _source_execution_context(led_to, self.name, name)
+        )
+        # В код метода и UI — цепочка без текущего метода (она в имени записи)
+        source_for_code = led_to
+        _push_execution_source(execution_ctx)
         try:
             variables = {
                 'self': self,
                 'params': args,
                 'logger': _logger,
-                'source': source,
+                'source': source_for_code,
                 'runtime': self._runtime,
                 **vars(self)
             }
@@ -1719,7 +2006,7 @@ class ObjectManager:
                 'object': self.name,
                 'method': name,
                 'owner': None,
-                'source': source,
+                'source': source_for_code,
             }
             for method in methods:
                 method_context['owner'] = method.get('owner')
@@ -1739,13 +2026,11 @@ class ObjectManager:
                 if res:
                     output += res + "\n"
 
-            username = getattr(current_user, 'username', None)
-            if username:
-                if source != '':
-                    source += ':'
-                source += username
+            stored_source = _append_username_to_source(
+                led_to, getattr(current_user, 'username', None)
+            )
 
-            self.methods[name].source = source
+            self.methods[name].source = stored_source
             self.methods[name].executed = get_now_to_utc()
             self.methods[name].exec_params = args
             self.methods[name].exec_result = output
@@ -1761,6 +2046,15 @@ class ObjectManager:
             end = time.perf_counter()
             self.methods[name].exec_time = int((end - start) * 1000)  # в миллисекунды
 
+            self.methods[name]._addMemoryHistoryEntry(
+                name,
+                stored_source,
+                args,
+                output,
+                self.methods[name].executed,
+                self.methods[name].exec_time,
+            )
+
             # send event to proxy
             plugins = getModulesByAction('proxy')
             for plugin in plugins:
@@ -1771,7 +2065,7 @@ class ObjectManager:
             self._logger.exception(ex)
             return str(ex)
         finally:
-            self._current_execution_source = None
+            _pop_execution_source()
 
     def _setTemplates(self, templates):
         object.__setattr__(self, "__templates", templates)
@@ -1878,8 +2172,10 @@ class ObjectManager:
         """
         self._check_permissions(TypeOperation.Call, None, methodName)
 
-        src = f',"{source}"' if source else ',"Scheduler"'
-        code = f'callMethod("{self.name}.{methodName}"{src})'
+        # callMethod(name, args={}, source='') — source только keyword/3-й аргумент;
+        # иначе строка попадает в args и в цепочке остаётся «self».
+        src = source or "Scheduler"
+        code = f'callMethod("{self.name}.{methodName}", source="{src}")'
         setTimeout(self.name + "_" + methodName + "_timeout", code, timeout)
 
     def getHistory(self, name:str, dt_begin:datetime = None, dt_end:datetime = None, limit:int = None, order_desc: bool = False, func=None) -> list:
@@ -1997,6 +2293,71 @@ class ObjectManager:
             deleted_count, all = res
             count[key] = {"history": prop.history, "deleted":deleted_count, "all": all}
         return count
+
+    def getPropertyMemoryHistory(self, name: str = None, serialize: bool = True):
+        """История изменений значений свойств в памяти.
+
+        Args:
+            name: Имя свойства или None для всех свойств.
+            serialize: JSON-совместимый формат (даты как локальные строки).
+
+        Returns:
+            dict[str, list[dict]]: Имя свойства → список записей.
+            Пустой dict, если свойство не найдено.
+        """
+        result = {}
+        if name is not None:
+            prop = self.properties.get(name)
+            if prop is None:
+                return {}
+            result[name] = prop.getMemoryHistory(serialize=serialize)
+            return result
+        for prop_name, prop in self.properties.items():
+            history = prop.getMemoryHistory(serialize=serialize)
+            if history:
+                result[prop_name] = history
+        return result
+
+    def getMethodCallMemoryHistory(self, name: str = None, serialize: bool = True):
+        """История вызовов методов в памяти.
+
+        Args:
+            name: Имя метода или None для всех методов.
+            serialize: JSON-совместимый формат.
+
+        Returns:
+            dict[str, list[dict]]: Имя метода → список записей.
+            Пустой dict, если метод не найден.
+        """
+        result = {}
+        if name is not None:
+            method = self.methods.get(name)
+            if method is None:
+                return {}
+            result[name] = method.getMemoryHistory(serialize=serialize)
+            return result
+        for method_name, method in self.methods.items():
+            history = method.getMemoryHistory(serialize=serialize)
+            if history:
+                result[method_name] = history
+        return result
+
+    def getMemoryHistory(self, property_name: str = None, method_name: str = None, serialize: bool = True):
+        """Агрегированная история значений и вызовов методов в памяти.
+
+        Args:
+            property_name: Фильтр по свойству (None — все со записями).
+            method_name: Фильтр по методу (None — все со записями).
+            serialize: JSON-совместимый формат.
+
+        Returns:
+            dict: ``properties``, ``methods``, ``object``.
+        """
+        return {
+            "object": self.name,
+            "properties": self.getPropertyMemoryHistory(property_name, serialize=serialize),
+            "methods": self.getMethodCallMemoryHistory(method_name, serialize=serialize),
+        }
 
     def getStats(self):
         stat_props = {}

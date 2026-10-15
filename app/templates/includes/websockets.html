@@ -243,14 +243,14 @@
     elements = document.querySelectorAll(`[id^="prop_source:${msg.property}"]`);
     elements.forEach(element => {
       if (element.id === `prop_source:${msg.property}`)
-        element.textContent = msg.source;
+        element.textContent = msg.source || '';
     });
   });
   socket.on('executedMethod', function (msg) {
     var elements = document.querySelectorAll(`[id^="method_source:${msg.method}"]`);
     elements.forEach(element => {
       if (element.id === `method_source:${msg.method}`)
-        element.textContent = msg.source;
+        element.textContent = msg.source || '';
     });
     elements = document.querySelectorAll(`[id^="method_executed:${msg.method}"]`);
     elements.forEach(element => {

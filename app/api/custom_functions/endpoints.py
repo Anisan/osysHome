@@ -1,12 +1,12 @@
 import ast
 
-from flask import request
+from flask import request, g
 from flask_restx import Namespace, Resource, fields
 
 from app.api.decorators import api_key_required
 from app.api.models import model_result, model_404
 from app.authentication.handlers import handle_admin_required
-from app.core.lib.execute import execute_and_capture_output
+from app.core.lib.object import runCustomFunctionTest
 from app.core.main.CustomFunctionRegistry import custom_function_registry
 from app.core.models.CustomFunctions import CustomFunction
 from app.database import session_scope, row2dict, get_now_to_utc
@@ -244,18 +244,17 @@ class CustomFunctionTest(Resource):
         if not test_code.strip():
             return {'success': False, 'msg': 'test_code is empty.'}, 400
 
-        variables = {
-            'params': payload.get('params'),
-            'logger': __import__('app.logging_config', fromlist=['getLogger']).getLogger('custom_function_test'),
-        }
-        output, error = execute_and_capture_output(
-            test_code,
-            variables,
-            code_filename=f'<Test:{name}>',
-            method_context={'source': f'CustomFunction.test:{name}'},
+        user = getattr(g, "current_user", None)
+        username = getattr(user, "username", None) if user else None
+        execution_source = f"api:{username}" if username else f"CustomFunction.test:{name}"
+        output, success = runCustomFunctionTest(
+            name,
+            test_code=test_code,
+            params=payload.get('params'),
+            execution_source=execution_source,
         )
         return {
-            'success': not error,
+            'success': success,
             'result': output,
-            'error': error,
+            'error': output if not success else None,
         }, 200

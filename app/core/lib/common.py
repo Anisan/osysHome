@@ -147,13 +147,15 @@ def getJobs(query: str) -> list:
     """Find tasks whose names match a SQL ``LIKE`` pattern.
 
     Args:
-        query (str): Pattern passed to ``Task.name.like`` (include ``%`` wildcards).
+        query (str): Pattern for ``Task.name.like`` (``%`` / ``_`` wildcards).
+            Escape literal ``_``/``%`` with ``\\`` (e.g. ``obj\\_meth\\_%``).
 
     Returns:
         list: List of task dicts; empty if none match.
     """
     with session_scope() as session:
-        result = session.query(Task).filter(Task.name.like(query)).all()
+        # ESCAPE нужен: без него \\_ на SQLite ищет литеральный backslash.
+        result = session.query(Task).filter(Task.name.like(query, escape="\\")).all()
         if result:
             jobs = []
             for task in result:
@@ -166,11 +168,11 @@ def clearScheduledJob(name: str):
     """Delete tasks whose names match a SQL ``LIKE`` pattern.
 
     Args:
-        name (str): Pattern passed to ``Task.name.like``.
+        name (str): Same pattern rules as ``getJobs``.
     """
     with get_task_lock(name):
         with session_scope() as session:
-            sql = delete(Task).where(Task.name.like(name))
+            sql = delete(Task).where(Task.name.like(name, escape="\\"))
             session.execute(sql)
             session.commit()
 
@@ -869,29 +871,51 @@ def xml_to_dict(xml_data) -> dict:
     return {root.tag: recursive_dict(root)[1]}
 
 
-def runCode(code: str, args=None):
+def runCode(
+    code: str,
+    args=None,
+    execution_source: Optional[str] = None,
+    variables: Optional[dict] = None,
+):
     """Execute a snippet of Python code in a restricted context.
 
     Args:
         code (str): Python source to run.
-        args (Optional[dict]): Value bound as ``params`` in the execution namespace.
+        args (Optional[dict]): Value bound as ``params`` in the execution namespace
+            (игнорируется, если в ``variables`` уже задан ``params``).
+        execution_source (Optional[str]): Корень цепочки source для callMethod/setProperty
+            без явного source (например ``Scheduler`` / ``TelegramBot``).
+        variables (Optional[dict]): Дополнительный namespace для exec (``self``,
+            ``message``, ``callback``, ``task`` и т.п.). Мержится поверх
+            базовых ``params``/``logger``.
 
     Returns:
         tuple: ``(output, success)`` where ``output`` is captured stdout or an
         error string, and ``success`` is ``False`` if execution failed.
     """
-    # append common
+    push_source = pop_source = None
+    if execution_source:
+        from app.core.main.ObjectManager import _pop_execution_source, _push_execution_source
+
+        push_source = _push_execution_source
+        pop_source = _pop_execution_source
+        push_source(execution_source)
+
     try:
-        variables = {
+        env = {
             "params": args,
             "logger": _logger,
         }
-        output, error = execute_and_capture_output(code, variables)
-
+        if variables:
+            env.update(variables)
+        output, error = execute_and_capture_output(code, env)
         return output, not error
     except Exception as ex:
         _logger.exception(ex)
         return str(ex), False
+    finally:
+        if pop_source:
+            pop_source()
 
 def is_datetime_in_range(
     check_dt: Optional[datetime.datetime],

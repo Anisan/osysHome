@@ -314,7 +314,8 @@ def _merge_system_stats_permissions():
 
 def startSystemVar():
     from app.core.lib.object import setProperty
-    setProperty("SystemVar.Started",datetime.datetime.now(), "osysHome")
+    # Локальное «сейчас»: тип datetime в setValue сам сделает convert_local_to_utc
+    setProperty("SystemVar.Started", datetime.datetime.now(), "osysHome")
     setProperty("SystemVar.NeedRestart", False, "osysHome")
 
 

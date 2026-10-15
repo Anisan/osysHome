@@ -231,7 +231,8 @@ def ensure_language_loaded(app, lang):
     already_loaded = bool(app.translations.get(lang))
     if not already_loaded:
         for filepath in app.translation_files.get(lang, []):
-            with open(filepath, 'r', encoding='utf-8') as f:
+            # utf-8-sig снимает BOM, если файл сохранён из Windows/редактора с сигнатурой
+            with open(filepath, 'r', encoding='utf-8-sig') as f:
                 dict_translate = json.load(f)
                 for key, value in dict_translate.items():
                     if key not in app.translations[lang]:
