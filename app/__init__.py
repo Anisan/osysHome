@@ -119,6 +119,7 @@ def createApp(config_object):
             '_': safe_translate,
             'gettext': safe_translate,  # Дополнительный алиас
             'current_language': get_current_language,
+            'LANGUAGES': current_app.config.get('LANGUAGES', []),
             'osysHome_version': get_current_version(),
         }
 
