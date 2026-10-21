@@ -100,7 +100,8 @@
       pin: {{ _('Pin to favorites')|tojson }},
       unpin: {{ _('Unpin from favorites')|tojson }},
       compactOn: {{ _('Compact sidebar')|tojson }},
-      compactOff: {{ _('Expand sidebar')|tojson }}
+      compactOff: {{ _('Expand sidebar')|tojson }},
+      dragReorder: {{ _('Drag to reorder')|tojson }}
     };
 
     function isSidebarDesktop() {
@@ -281,6 +282,196 @@
       });
     }
 
+    // Имя активного модуля с сервера — не теряем при перерисовке избранного/недавних
+    var sidebarActiveModuleName = (function() {
+      var el = document.querySelector('.sidebar-category-card .sidebar-module-item.list-group-item-primary');
+      return el ? el.getAttribute('data-module-name') : null;
+    })();
+
+    function getActiveModuleName() {
+      if (sidebarActiveModuleName) {
+        return sidebarActiveModuleName;
+      }
+      var active = document.querySelector('#appSidebarNav .sidebar-module-item.list-group-item-primary');
+      return active ? active.getAttribute('data-module-name') : null;
+    }
+
+    function syncActiveHighlight() {
+      var name = getActiveModuleName();
+      if (!name) {
+        return { inQuick: false, active: null, name: null };
+      }
+      sidebarActiveModuleName = name;
+
+      var inFavorites = getFavorites().indexOf(name) !== -1;
+      var inRecents = !inFavorites && getRecentsExcludingFavorites().indexOf(name) !== -1;
+      var inQuick = inFavorites || inRecents;
+
+      document.querySelectorAll('#appSidebarNav .sidebar-module-item.list-group-item-primary').forEach(function(el) {
+        el.classList.remove('list-group-item-primary');
+      });
+
+      // Подсветка в категории всегда (в т.ч. в свёрнутой группе)
+      var categoryItem = findPrimaryModuleItem(name);
+      if (categoryItem) {
+        categoryItem.classList.add('list-group-item-primary');
+      }
+
+      var scrollTarget = categoryItem;
+      if (inQuick) {
+        var listId = inFavorites ? 'sidebarFavoritesList' : 'sidebarRecentsList';
+        var quickItem = document.querySelector('#' + listId + ' .sidebar-module-item[data-module-name="' + escapeSelectorValue(name) + '"]');
+        if (quickItem) {
+          quickItem.classList.add('list-group-item-primary');
+          scrollTarget = quickItem;
+        }
+      }
+
+      return { inQuick: inQuick, active: scrollTarget, name: name };
+    }
+
+    function isSidebarFilterActive() {
+      var input = document.getElementById('sidebarFilterInput');
+      return !!(input && input.value && input.value.trim());
+    }
+
+    function refreshFavoritesDragState() {
+      var list = document.getElementById('sidebarFavoritesList');
+      if (!list) {
+        return;
+      }
+      var canDrag = !isSidebarFilterActive() && !isSidebarCompact();
+      list.querySelectorAll('.sidebar-module-item').forEach(function(item) {
+        // Без отдельной иконки — тот же вид, что у остальных пунктов
+        item.draggable = canDrag;
+        item.classList.toggle('sidebar-module-item--draggable', canDrag);
+        var moduleTitle = item.getAttribute('data-module-title') || '';
+        var tip = canDrag
+          ? (moduleTitle ? moduleTitle + ' — ' + SIDEBAR_I18N.dragReorder : SIDEBAR_I18N.dragReorder)
+          : moduleTitle;
+        if (tip) {
+          item.setAttribute('title', tip);
+        } else {
+          item.removeAttribute('title');
+        }
+        var link = item.querySelector('.sidebar-module-link');
+        if (link) {
+          if (tip) {
+            link.setAttribute('title', tip);
+          } else {
+            link.removeAttribute('title');
+          }
+        }
+        item.querySelectorAll('a, img').forEach(function(el) {
+          el.setAttribute('draggable', 'false');
+        });
+      });
+    }
+
+    function persistFavoritesOrderFromDom() {
+      var list = document.getElementById('sidebarFavoritesList');
+      if (!list || isSidebarFilterActive()) {
+        return;
+      }
+      var names = [];
+      list.querySelectorAll('.sidebar-module-item').forEach(function(item) {
+        var name = item.getAttribute('data-module-name');
+        if (name) {
+          names.push(name);
+        }
+      });
+      if (names.length) {
+        setFavorites(names);
+      }
+    }
+
+    function initFavoritesDrag() {
+      var list = document.getElementById('sidebarFavoritesList');
+      if (!list || list.dataset.dragInit === '1') {
+        return;
+      }
+      list.dataset.dragInit = '1';
+
+      var dragItem = null;
+      var didReorder = false;
+
+      list.addEventListener('dragstart', function(e) {
+        var item = e.target.closest('.sidebar-module-item');
+        if (!item || !list.contains(item) || !item.draggable) {
+          e.preventDefault();
+          return;
+        }
+        // Звезда — только pin, не старт drag
+        if (e.target.closest('.sidebar-pin-btn')) {
+          e.preventDefault();
+          return;
+        }
+        dragItem = item;
+        didReorder = false;
+        item.classList.add('sidebar-dragging');
+        try {
+          e.dataTransfer.effectAllowed = 'move';
+          e.dataTransfer.setData('text/plain', item.getAttribute('data-module-name') || '');
+        } catch (err) {}
+      });
+
+      list.addEventListener('dragend', function() {
+        if (dragItem) {
+          dragItem.classList.remove('sidebar-dragging');
+        }
+        list.querySelectorAll('.sidebar-drag-over').forEach(function(el) {
+          el.classList.remove('sidebar-drag-over');
+        });
+        if (didReorder) {
+          persistFavoritesOrderFromDom();
+        }
+        dragItem = null;
+      });
+
+      list.addEventListener('dragover', function(e) {
+        if (!dragItem) {
+          return;
+        }
+        e.preventDefault();
+        try {
+          e.dataTransfer.dropEffect = 'move';
+        } catch (err) {}
+
+        var target = e.target.closest('.sidebar-module-item');
+        if (!target || target === dragItem || !list.contains(target)) {
+          return;
+        }
+        list.querySelectorAll('.sidebar-drag-over').forEach(function(el) {
+          el.classList.remove('sidebar-drag-over');
+        });
+        var rect = target.getBoundingClientRect();
+        var before = (e.clientY - rect.top) < rect.height / 2;
+        var next = before ? target : target.nextSibling;
+        if (dragItem.nextSibling !== next) {
+          list.insertBefore(dragItem, next);
+          didReorder = true;
+        }
+        target.classList.add('sidebar-drag-over');
+      });
+
+      list.addEventListener('drop', function(e) {
+        e.preventDefault();
+      });
+
+      // После drag не открывать ссылку «кликом»
+      list.addEventListener('click', function(e) {
+        if (!didReorder) {
+          return;
+        }
+        var link = e.target.closest('a.sidebar-module-link');
+        if (link && list.contains(link)) {
+          e.preventDefault();
+          e.stopPropagation();
+        }
+        didReorder = false;
+      }, true);
+    }
+
     function renderFavoritesAndRecents() {
       renderQuickSection('sidebarFavoritesCard', 'sidebarFavoritesList', getFavorites(), { stripPin: false });
       renderQuickSection('sidebarRecentsCard', 'sidebarRecentsList', getRecentsExcludingFavorites(), { stripPin: true });
@@ -296,6 +487,8 @@
         btn.setAttribute('aria-label', SIDEBAR_I18N.unpin);
         btn.setAttribute('aria-pressed', 'true');
       });
+      refreshFavoritesDragState();
+      syncActiveHighlight();
     }
 
     function toggleFavorite(moduleName) {
@@ -442,6 +635,7 @@
       } else {
         loadSidebarWidth();
       }
+      refreshFavoritesDragState();
     }
 
     function loadCompactMode() {
@@ -620,11 +814,20 @@
     }
 
     function revealActiveModule() {
-      var active = document.querySelector('.sidebar-category-card .sidebar-module-item.list-group-item-primary');
-      if (!active) {
+      var info = syncActiveHighlight();
+      if (!info.active) {
         return;
       }
-      var collapseEl = active.closest('.collapse');
+
+      // Если модуль в избранном/недавних — только подсветка там, группу не раскрываем
+      if (info.inQuick) {
+        setTimeout(function() {
+          info.active.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+        }, 50);
+        return;
+      }
+
+      var collapseEl = info.active.closest('.collapse');
       if (collapseEl && !collapseEl.classList.contains('show')) {
         if (typeof bootstrap !== 'undefined') {
           bootstrap.Collapse.getOrCreateInstance(collapseEl, { toggle: false }).show();
@@ -633,7 +836,7 @@
         }
       }
       setTimeout(function() {
-        active.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+        info.active.scrollIntoView({ block: 'nearest', inline: 'nearest' });
       }, 50);
     }
 
@@ -693,6 +896,8 @@
       trackRecentFromActive();
       renderFavoritesAndRecents();
       updatePinButtons();
+      // Подсветка в избранном/недавних без раскрытия категории
+      revealActiveModule();
     }
 
     paintSidebarQuickAccess();
@@ -701,6 +906,7 @@
     if (!isSidebarCompact()) {
       loadSidebarWidth();
     }
+    initFavoritesDrag();
     initSidebarPins();
     initSidebarFilter();
 

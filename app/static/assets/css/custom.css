@@ -211,6 +211,22 @@
     opacity: 0.45;
 }
 
+.admin-shell .sidebar-module-item--draggable {
+    cursor: grab;
+}
+
+.admin-shell .sidebar-module-item--draggable:active {
+    cursor: grabbing;
+}
+
+.admin-shell .sidebar-module-item.sidebar-dragging {
+    opacity: 0.45;
+}
+
+.admin-shell .sidebar-module-item.sidebar-drag-over {
+    box-shadow: inset 0 2px 0 var(--bs-primary, #0d6efd);
+}
+
 .admin-shell .sidebar-module-link:hover .sidebar-pin-btn,
 .admin-shell .sidebar-pin-btn.is-pinned,
 .admin-shell .sidebar-pin-btn:focus-visible {
@@ -259,7 +275,6 @@
     .admin-shell .sidebar-compact .sidebar-item-title,
     .admin-shell .sidebar-compact .sidebar-pin-btn,
     .admin-shell .sidebar-compact .sidebar-category-toggle > div,
-    .admin-shell .sidebar-compact .collapse-indicator,
     .admin-shell .sidebar-compact .sidebar-quick-section .card-header > div,
     .admin-shell .sidebar-compact .sidebar-resizer {
         display: none !important;
@@ -309,10 +324,10 @@
         margin-right: 0.25rem !important;
     }
 
-    .admin-shell .sidebar-compact .collapse {
-        display: block !important;
-        height: auto !important;
-        visibility: visible !important;
+    /* В compact шеврон категории компактный, чтобы было видно свёрнуто/раскрыто */
+    .admin-shell .sidebar-compact .collapse-indicator {
+        font-size: 0.65rem;
+        margin-left: 0.15rem !important;
     }
 }
 
