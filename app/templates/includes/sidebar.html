@@ -274,9 +274,16 @@
       card.classList.toggle('d-none', added === 0);
     }
 
+    function getRecentsExcludingFavorites() {
+      var favorites = getFavorites();
+      return getRecents().filter(function(name) {
+        return favorites.indexOf(name) === -1;
+      });
+    }
+
     function renderFavoritesAndRecents() {
       renderQuickSection('sidebarFavoritesCard', 'sidebarFavoritesList', getFavorites(), { stripPin: false });
-      renderQuickSection('sidebarRecentsCard', 'sidebarRecentsList', getRecents(), { stripPin: true });
+      renderQuickSection('sidebarRecentsCard', 'sidebarRecentsList', getRecentsExcludingFavorites(), { stripPin: true });
       // В избранном кнопка pin тоже работает — синхронизируем иконки после клонирования
       updatePinButtons();
       document.querySelectorAll('#sidebarFavoritesList .sidebar-pin-btn').forEach(function(btn) {
@@ -296,6 +303,8 @@
       var idx = favorites.indexOf(moduleName);
       if (idx === -1) {
         favorites.push(moduleName);
+        // Убрать из недавних, чтобы не дублировать
+        setRecents(getRecents().filter(function(item) { return item !== moduleName; }));
       } else {
         favorites.splice(idx, 1);
       }
@@ -311,6 +320,12 @@
       }
       var name = active.getAttribute('data-module-name');
       if (!name) {
+        return;
+      }
+      // В избранном — не дублируем в недавних
+      if (getFavorites().indexOf(name) !== -1) {
+        var cleaned = getRecents().filter(function(item) { return item !== name; });
+        setRecents(cleaned);
         return;
       }
       var recents = getRecents().filter(function(item) { return item !== name; });
@@ -672,19 +687,27 @@
       });
     }
 
-    $(document).ready(function() {
-      loadConfSidebar();
-      loadCompactMode();
-      if (!isSidebarCompact()) {
-        loadSidebarWidth();
-      }
-      initSidebarResizer();
-      initSidebarOffcanvasNav();
-      initSidebarPins();
-      initSidebarFilter();
+    // Быстрая отрисовка избранного/недавних сразу после разметки nav
+    // (не ждём DOMContentLoaded — иначе секции «всплывают» после загрузки страницы)
+    function paintSidebarQuickAccess() {
       trackRecentFromActive();
       renderFavoritesAndRecents();
       updatePinButtons();
+    }
+
+    paintSidebarQuickAccess();
+    loadConfSidebar();
+    loadCompactMode();
+    if (!isSidebarCompact()) {
+      loadSidebarWidth();
+    }
+    initSidebarPins();
+    initSidebarFilter();
+
+    $(document).ready(function() {
+      // Bootstrap и остальной DOM уже доступны
+      initSidebarResizer();
+      initSidebarOffcanvasNav();
       applySidebarFilter();
       revealActiveModule();
     });
