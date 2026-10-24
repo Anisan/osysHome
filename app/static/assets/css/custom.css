@@ -146,6 +146,97 @@
     min-width: 0;
 }
 
+.admin-shell .sidebar-toolbar {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    background: var(--bs-body-bg, #fff);
+}
+
+.admin-shell .sidebar-toolbar-actions {
+    align-items: center;
+}
+
+.admin-shell .sidebar-toolbar-actions .sidebar-toolbar-btn {
+    flex: 1 1 0;
+    min-width: 0;
+    height: calc(1.5em + 0.5rem + 2px);
+    padding-top: 0.15rem;
+    padding-bottom: 0.15rem;
+    line-height: 1.25;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    align-items: center;
+    justify-content: center;
+}
+
+.admin-shell .sidebar-toolbar-actions .sidebar-toolbar-btn--icon {
+    flex: 0 0 auto;
+    width: calc(1.5em + 0.5rem + 2px);
+    padding-left: 0;
+    padding-right: 0;
+}
+
+.admin-shell .sidebar-category-toggle {
+    background: var(--bs-card-cap-bg, rgba(0, 0, 0, 0.03));
+    color: inherit;
+    cursor: pointer;
+}
+
+.admin-shell .sidebar-category-toggle:hover,
+.admin-shell .sidebar-category-toggle:focus-visible {
+    background: var(--bs-secondary-bg, rgba(0, 0, 0, 0.06));
+}
+
+.admin-shell .sidebar-category-toggle .collapse-indicator {
+    transition: transform 0.3s ease;
+}
+
+.admin-shell .sidebar-module-item {
+    min-height: 2.5rem;
+    padding-top: 0.4rem;
+    padding-bottom: 0.4rem;
+}
+
+.admin-shell .sidebar-module-link {
+    gap: 0.15rem;
+    position: relative;
+    min-width: 0;
+}
+
+.admin-shell .sidebar-pin-btn {
+    color: var(--bs-secondary-color, #6c757d);
+    line-height: 1;
+    opacity: 0.45;
+}
+
+.admin-shell .sidebar-module-item--draggable {
+    cursor: grab;
+}
+
+.admin-shell .sidebar-module-item--draggable:active {
+    cursor: grabbing;
+}
+
+.admin-shell .sidebar-module-item.sidebar-dragging {
+    opacity: 0.45;
+}
+
+.admin-shell .sidebar-module-item.sidebar-drag-over {
+    box-shadow: inset 0 2px 0 var(--bs-primary, #0d6efd);
+}
+
+.admin-shell .sidebar-module-link:hover .sidebar-pin-btn,
+.admin-shell .sidebar-pin-btn.is-pinned,
+.admin-shell .sidebar-pin-btn:focus-visible {
+    opacity: 1;
+}
+
+.admin-shell .sidebar-pin-btn.is-pinned {
+    color: var(--bs-warning, #ffc107);
+}
+
 .admin-shell .sidebar-resizer {
     position: absolute;
     top: 0;
@@ -159,8 +250,85 @@
     background: transparent;
 }
 
+.admin-shell .sidebar-resizer.dragging,
+.admin-shell .sidebar-resizer:hover {
+    background: rgba(13, 110, 253, 0.12);
+}
+
 .admin-shell .sidebar-resizer::before {
     content: none;
+}
+
+/* Компактный режим: только иконки модулей */
+@media (min-width: 992px) {
+    .admin-shell .sidebar-resizable.sidebar-compact {
+        width: 72px !important;
+        min-width: 72px;
+        max-width: 72px;
+        padding-right: 0;
+    }
+
+    .admin-shell .sidebar-compact .sidebar-filter-group,
+    .admin-shell .sidebar-compact .sidebar-toolbar-label,
+    .admin-shell .sidebar-compact #sidebarExpandAll,
+    .admin-shell .sidebar-compact #sidebarCollapseAll,
+    .admin-shell .sidebar-compact .sidebar-item-title,
+    .admin-shell .sidebar-compact .sidebar-pin-btn,
+    .admin-shell .sidebar-compact .sidebar-category-toggle > div,
+    .admin-shell .sidebar-compact .sidebar-quick-section .card-header > div,
+    .admin-shell .sidebar-compact .sidebar-resizer {
+        display: none !important;
+    }
+
+    .admin-shell .sidebar-compact .sidebar-toolbar-actions {
+        justify-content: center;
+    }
+
+    .admin-shell .sidebar-compact .sidebar-category-toggle,
+    .admin-shell .sidebar-compact .sidebar-quick-section .card-header {
+        justify-content: center;
+        padding-left: 0.25rem;
+        padding-right: 0.25rem;
+    }
+
+    .admin-shell .sidebar-compact .sidebar-category-toggle > i,
+    .admin-shell .sidebar-compact .sidebar-quick-section .card-header > i {
+        margin: 0;
+    }
+
+    .admin-shell .sidebar-compact .sidebar-module-item {
+        justify-content: center;
+        padding-left: 0.25rem;
+        padding-right: 0.25rem;
+    }
+
+    .admin-shell .sidebar-compact .sidebar-module-link {
+        justify-content: center;
+        flex-grow: 0 !important;
+    }
+
+    .admin-shell .sidebar-compact .sidebar-module-link img {
+        margin: 0;
+    }
+
+    .admin-shell .sidebar-compact .sidebar-module-link .badge {
+        position: absolute;
+        top: -0.2rem;
+        right: -0.35rem;
+        font-size: 0.65rem;
+        padding: 0.15em 0.35em;
+    }
+
+    .admin-shell .sidebar-compact .card {
+        margin-left: 0.25rem !important;
+        margin-right: 0.25rem !important;
+    }
+
+    /* В compact шеврон категории компактный, чтобы было видно свёрнуто/раскрыто */
+    .admin-shell .sidebar-compact .collapse-indicator {
+        font-size: 0.65rem;
+        margin-left: 0.15rem !important;
+    }
 }
 
 @media (max-width: 991.98px) {
@@ -173,6 +341,10 @@
         min-width: 0;
         max-width: none;
         padding-right: 0;
+    }
+
+    .admin-shell .sidebar-module-item {
+        min-height: 2.75rem;
     }
 }
 

@@ -1,0 +1,73 @@
+{# Кнопки темы и языка для fullscreen-страниц (login, about) #}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/flag-icon-css/3.5.0/css/flag-icon.min.css">
+<style>
+  .fullscreen-controls {
+    position: fixed;
+    top: 1rem;
+    right: 1rem;
+    z-index: 1050;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .fullscreen-controls .ui-theme-menu {
+    max-height: 70vh;
+    overflow-y: auto;
+  }
+  .fullscreen-controls .dropdown-menu {
+    max-height: 70vh;
+    overflow-y: auto;
+  }
+  .fullscreen-controls .dropdown-item.active {
+    font-weight: 600;
+  }
+  .fullscreen-controls .flag-icon {
+    width: 1.1em;
+    line-height: 1;
+  }
+</style>
+
+{% set lang_flag_map = {
+  'en': 'us',
+  'uk': 'ua',
+  'zh': 'cn',
+  'ja': 'jp',
+  'ko': 'kr',
+  'ar': 'sa'
+} %}
+{% set current_lang = current_language() %}
+
+<div class="fullscreen-controls" role="toolbar" aria-label="{{ _('Theme') }} / {{ _('Language') }}">
+  {% set theme_btn_class = '' %}
+  {% set theme_label_class = 'ms-1' %}
+  {% include 'includes/ui_theme_dropdown.html' %}
+
+  <div class="dropdown flex-shrink-0">
+    <button type="button"
+            class="btn btn-outline-secondary dropdown-toggle"
+            id="fullscreenLangSwitch"
+            data-bs-toggle="dropdown"
+            data-bs-auto-close="true"
+            aria-expanded="false"
+            title="{{ _('Language') }}"
+            aria-label="{{ _('Language') }}">
+      <i class="flag-icon flag-icon-{{ lang_flag_map.get(current_lang, current_lang) }}" aria-hidden="true"></i>
+      <span class="ms-1 text-uppercase">{{ current_lang }}</span>
+    </button>
+    <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="fullscreenLangSwitch">
+      {% for lang_code in LANGUAGES %}
+      <li>
+        <a class="dropdown-item d-flex align-items-center{% if lang_code == current_lang %} active{% endif %}"
+           href="?lang={{ lang_code }}"
+           {% if lang_code == current_lang %}aria-current="true"{% endif %}>
+          <i class="flag-icon flag-icon-{{ lang_flag_map.get(lang_code, lang_code) }} me-2" aria-hidden="true"></i>
+          <span class="text-uppercase">{{ lang_code }}</span>
+        </a>
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+</div>
+
+<script src="{{ config.ASSETS_ROOT }}/plugins/bootstrap/js/bootstrap.bundle.min.js"></script>
+<script src="{{ config.ASSETS_ROOT }}/js/theme-manager.js"></script>

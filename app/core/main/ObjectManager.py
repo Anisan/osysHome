@@ -1229,6 +1229,17 @@ class PropertyManager():
 
         return self._format_output_value(self.__value)
 
+    def getStoredValue(self):
+        """Реально сохранённое значение без подстановки default_value.
+
+        Нужно для истории/подмешивания: default из params класса — не установка.
+        """
+        return self._format_output_value(self.__value)
+
+    def wasValueSet(self) -> bool:
+        """True, если значение хотя бы раз устанавливали (есть datetime changed)."""
+        return self.changed is not None
+
     @property
     def value(self):
         return self.getValue()
@@ -2210,14 +2221,31 @@ class ObjectManager:
                 del item["value_id"]
 
             from app.core.lib.common import is_datetime_in_range
-            if is_datetime_in_range(prop.changed, dt_begin, dt_end, True):
-                changed = convert_utc_to_local(prop.changed)
-                if result:
-                    find = any(item.get("added") == changed for item in result)
-                    if not find:
-                        result.append({"value": prop.value, "added": changed, "source": prop.source})
-                else:
-                    result.append({"value": prop.value, "added": changed, "source": prop.source})
+
+            def _naive_utc(dt):
+                if dt is None:
+                    return None
+                if getattr(dt, "tzinfo", None) is not None:
+                    from zoneinfo import ZoneInfo
+                    return dt.astimezone(ZoneInfo("UTC")).replace(tzinfo=None)
+                return dt
+
+            # Подмешиваем текущее значение только если его реально ставили
+            # (есть changed), оно в диапазоне и этой точки ещё нет в History.
+            # Важно: берём getStoredValue(), а не prop.value — иначе в историю
+            # попадает default_value из params класса сразу после создания объекта.
+            if prop.wasValueSet() and is_datetime_in_range(prop.changed, dt_begin, dt_end, True):
+                changed_utc = _naive_utc(prop.changed)
+                already_in_history = any(
+                    _naive_utc(item.get("added")) == changed_utc
+                    for item in result
+                )
+                if not already_in_history:
+                    result.append({
+                        "value": prop.getStoredValue(),
+                        "added": convert_utc_to_local(prop.changed),
+                        "source": prop.source,
+                    })
             if func:
                 result = [func(r) for r in result]
             return result

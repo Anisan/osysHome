@@ -1,47 +1,108 @@
 <!-- [ navigation menu ] start -->
+{% macro category_icon(cat) -%}
+{%- if cat == 'System' -%}fa-server
+{%- elif cat == 'App' -%}fa-th-large
+{%- elif cat == 'Devices' -%}fa-microchip
+{%- elif cat == 'Automation' -%}fa-robot
+{%- elif cat == 'Communication' -%}fa-comments
+{%- elif cat == 'Network' -%}fa-network-wired
+{%- else -%}fa-cogs
+{%- endif -%}
+{%- endmacro %}
 <div class="offcanvas-lg offcanvas-start sidebar-resizable" tabindex="-1" id="appSidebar" aria-labelledby="appSidebarLabel">
     <div class="offcanvas-header d-lg-none border-bottom py-2">
         <h5 class="offcanvas-title" id="appSidebarLabel">{{ _('Control panel') }}</h5>
         <button type="button" class="btn-close" data-bs-dismiss="offcanvas" data-bs-target="#appSidebar" aria-label="{{ _('Close') }}"></button>
     </div>
-    <div class="offcanvas-body p-0">
-        <nav class="sidebar p-0">
-            {% for key,group in sidebar().items() %}
-            <div class="card mb-1 ms-2 me-1">
-                <div class="card-header d-flex justify-content-between align-items-center py-1" data-bs-toggle="collapse" data-bs-target="#collapse{{ key }}" aria-expanded="true" aria-controls="collapse{{ key }}">
-                    <i class="fas fa-cogs flex-shrink-0"></i>
+    <div class="offcanvas-body p-0 d-flex flex-column">
+        <div class="sidebar-toolbar border-bottom px-2 py-2 flex-shrink-0">
+            <div class="input-group input-group-sm sidebar-filter-group">
+                <span class="input-group-text"><i class="fas fa-magnifying-glass" aria-hidden="true"></i></span>
+                <input type="search" class="form-control" id="sidebarFilterInput" placeholder="{{ _('Filter modules') }}" autocomplete="off" aria-label="{{ _('Filter modules') }}">
+            </div>
+            <div class="d-flex align-items-center gap-1 mt-2 sidebar-toolbar-actions">
+                <button type="button" class="btn btn-outline-secondary btn-sm sidebar-toolbar-btn" id="sidebarExpandAll" title="{{ _('Expand all') }}" aria-label="{{ _('Expand all') }}">
+                    <i class="fas fa-expand-alt" aria-hidden="true"></i><span class="sidebar-toolbar-label ms-1">{{ _('Expand all') }}</span>
+                </button>
+                <button type="button" class="btn btn-outline-secondary btn-sm sidebar-toolbar-btn" id="sidebarCollapseAll" title="{{ _('Collapse all') }}" aria-label="{{ _('Collapse all') }}">
+                    <i class="fas fa-compress-alt" aria-hidden="true"></i><span class="sidebar-toolbar-label ms-1">{{ _('Collapse all') }}</span>
+                </button>
+                <button type="button" class="btn btn-outline-secondary btn-sm sidebar-toolbar-btn sidebar-toolbar-btn--icon d-none d-lg-inline-flex" id="sidebarCompactToggle" title="{{ _('Compact sidebar') }}" aria-label="{{ _('Compact sidebar') }}" aria-pressed="false">
+                    <i class="fas fa-angles-left" aria-hidden="true"></i>
+                </button>
+            </div>
+        </div>
+        <nav class="sidebar p-0 flex-grow-1 overflow-auto" id="appSidebarNav">
+            <div class="card mb-1 ms-2 me-1 sidebar-quick-section d-none" id="sidebarFavoritesCard" data-sidebar-section="favorites">
+                <div class="card-header d-flex align-items-center py-1">
+                    <i class="fas fa-star flex-shrink-0 text-warning" aria-hidden="true"></i>
+                    <div class="ps-3 text-truncate flex-grow-1 min-w-0">{{ _('Favorites') }}</div>
+                </div>
+                <div class="card-body px-0 py-0">
+                    <div class="list-group list-group-flush" id="sidebarFavoritesList"></div>
+                </div>
+            </div>
+            <div class="card mb-1 ms-2 me-1 sidebar-quick-section d-none" id="sidebarRecentsCard" data-sidebar-section="recents">
+                <div class="card-header d-flex align-items-center py-1">
+                    <i class="fas fa-clock flex-shrink-0" aria-hidden="true"></i>
+                    <div class="ps-3 text-truncate flex-grow-1 min-w-0">{{ _('Recent') }}</div>
+                </div>
+                <div class="card-body px-0 py-0">
+                    <div class="list-group list-group-flush" id="sidebarRecentsList"></div>
+                </div>
+            </div>
+            {% for key, group in sidebar().items() %}
+            <div class="card mb-1 ms-2 me-1 sidebar-category-card" data-category="{{ group[0].category }}">
+                <button type="button" class="card-header d-flex justify-content-between align-items-center py-1 border-0 w-100 text-start sidebar-category-toggle" data-bs-toggle="collapse" data-bs-target="#collapse{{ loop.index }}" aria-expanded="false" aria-controls="collapse{{ loop.index }}" id="heading{{ loop.index }}">
+                    <i class="fas {{ category_icon(group[0].category) }} flex-shrink-0" aria-hidden="true"></i>
                     <div class="ps-3 text-truncate flex-grow-1 min-w-0">
                         {{ key }}
                     </div>
-                    <i class="fas fa-chevron-down collapse-indicator ms-2 flex-shrink-0" style="transition: transform 0.3s ease;"></i>
-                </div>
-                <div class="collapse" id="collapse{{ key }}">
+                    <i class="fas fa-chevron-down collapse-indicator ms-2 flex-shrink-0" aria-hidden="true"></i>
+                </button>
+                <div class="collapse" id="collapse{{ loop.index }}" aria-labelledby="heading{{ loop.index }}">
                     <div class="card-body px-0 py-0">
                         <div class="list-group list-group-flush">
                             {% for item in group %}
-                            <a href="{{ item.route }}" class="list-group-item list-group-item-action{% if item.route in request.path %} list-group-item-primary {% endif %} d-flex justify-content-between align-items-start sidebar-module-link" data-module-name="{{ item.name }}">
-                                <img class="flex-shrink-0" src="/{{item.name}}/static/{{item.name}}.png" height="24" alt="" onError="this.src='{{ config.ASSETS_ROOT }}/images/module.png'">
-                                <div class="ms-2 me-auto sidebar-item-title text-truncate">
-                                    {{ item.title }}
-                                </div>
-                                {%if item.notify%}
-                                <span class="badge bg-warning text-black rounded-pill mt-1 flex-shrink-0" data-notify-count="{{ item.notify }}">{{item.notify}}</span>
-                                {%else%}
-                                <span class="badge bg-warning text-black rounded-pill mt-1 flex-shrink-0" data-notify-count="0" style="display: none;"></span>
-                                {%endif%}
-                            </a>
-                            {%endfor%}
+                            {% set is_active = request.path == item.route or request.path.startswith(item.route + '/') %}
+                            <div class="list-group-item list-group-item-action{% if is_active %} list-group-item-primary{% endif %} d-flex align-items-center gap-1 sidebar-module-item" data-module-name="{{ item.name }}" data-module-title="{{ item.title }}">
+                                <a href="{{ item.route }}" class="d-flex align-items-center flex-grow-1 min-w-0 text-decoration-none text-reset sidebar-module-link" data-module-name="{{ item.name }}" data-module-title="{{ item.title }}" title="{{ item.title }}">
+                                    <img class="flex-shrink-0" src="/{{ item.name }}/static/{{ item.name }}.png" height="24" width="24" alt="" onError="this.src='{{ config.ASSETS_ROOT }}/images/module.png'">
+                                    <div class="ms-2 me-auto sidebar-item-title text-truncate">
+                                        {{ item.title }}
+                                    </div>
+                                    <span class="badge bg-warning text-black rounded-pill flex-shrink-0" data-notify-count="{{ item.notify if item.notify else 0 }}"{% if not item.notify %} style="display: none;"{% endif %}>{{ item.notify if item.notify else '' }}</span>
+                                </a>
+                                <button type="button" class="btn btn-link btn-sm p-0 px-1 sidebar-pin-btn flex-shrink-0" data-module-name="{{ item.name }}" title="{{ _('Pin to favorites') }}" aria-label="{{ _('Pin to favorites') }}">
+                                    <i class="far fa-star" aria-hidden="true"></i>
+                                </button>
+                            </div>
+                            {% endfor %}
                         </div>
                     </div>
                 </div>
             </div>
-            {%endfor%}
+            {% endfor %}
+            <div class="sidebar-empty-filter text-muted text-center small py-3 px-2 d-none" id="sidebarEmptyFilter">{{ _('No modules found') }}</div>
         </nav>
     </div>
     <div class="sidebar-resizer d-none d-lg-block" id="appSidebarResizer" aria-hidden="true"></div>
 </div>
 <script>
     var ADMIN_SIDEBAR_LG = 992;
+    var SIDEBAR_FAVORITES_KEY = 'sidebarFavorites';
+    var SIDEBAR_RECENTS_KEY = 'sidebarRecents';
+    var SIDEBAR_COMPACT_KEY = 'sidebarCompact';
+    var SIDEBAR_WIDTH_KEY = 'sidebarWidth';
+    var SIDEBAR_COLLAPSE_KEY = 'collapseSidebar';
+    var SIDEBAR_RECENTS_MAX = 8;
+    var SIDEBAR_I18N = {
+      pin: {{ _('Pin to favorites')|tojson }},
+      unpin: {{ _('Unpin from favorites')|tojson }},
+      compactOn: {{ _('Compact sidebar')|tojson }},
+      compactOff: {{ _('Expand sidebar')|tojson }},
+      dragReorder: {{ _('Drag to reorder')|tojson }}
+    };
 
     function isSidebarDesktop() {
       return window.innerWidth >= ADMIN_SIDEBAR_LG;
@@ -49,6 +110,10 @@
 
     function getSidebarContainer() {
       return document.getElementById('appSidebar');
+    }
+
+    function getSidebarNav() {
+      return document.getElementById('appSidebarNav');
     }
 
     function getSidebarWidthLimits() {
@@ -65,9 +130,14 @@
       }
     }
 
+    function isSidebarCompact() {
+      var container = getSidebarContainer();
+      return !!(container && container.classList.contains('sidebar-compact'));
+    }
+
     function applySidebarWidth(width) {
       var container = getSidebarContainer();
-      if (!container || !isSidebarDesktop()) {
+      if (!container || !isSidebarDesktop() || isSidebarCompact()) {
         return;
       }
 
@@ -81,13 +151,503 @@
         resetSidebarMobileWidth();
         return;
       }
+      if (isSidebarCompact()) {
+        return;
+      }
 
       try {
-        var savedWidth = localStorage.getItem('sidebarWidth');
+        var savedWidth = localStorage.getItem(SIDEBAR_WIDTH_KEY);
         applySidebarWidth(savedWidth ? parseInt(savedWidth, 10) : 320);
       } catch (e) {
         applySidebarWidth(320);
       }
+    }
+
+    function readJsonStorage(key, fallback) {
+      try {
+        var raw = localStorage.getItem(key);
+        if (!raw) {
+          return fallback;
+        }
+        var parsed = JSON.parse(raw);
+        return parsed != null ? parsed : fallback;
+      } catch (e) {
+        return fallback;
+      }
+    }
+
+    function writeJsonStorage(key, value) {
+      try {
+        localStorage.setItem(key, JSON.stringify(value));
+      } catch (e) {}
+    }
+
+    function getFavorites() {
+      var list = readJsonStorage(SIDEBAR_FAVORITES_KEY, []);
+      return Array.isArray(list) ? list : [];
+    }
+
+    function setFavorites(list) {
+      writeJsonStorage(SIDEBAR_FAVORITES_KEY, list);
+    }
+
+    function getRecents() {
+      var list = readJsonStorage(SIDEBAR_RECENTS_KEY, []);
+      return Array.isArray(list) ? list : [];
+    }
+
+    function setRecents(list) {
+      writeJsonStorage(SIDEBAR_RECENTS_KEY, list);
+    }
+
+    function escapeSelectorValue(value) {
+      if (window.CSS && typeof CSS.escape === 'function') {
+        return CSS.escape(value);
+      }
+      return String(value).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+    }
+
+    function findPrimaryModuleItem(moduleName) {
+      var nav = getSidebarNav();
+      if (!nav) {
+        return null;
+      }
+      return nav.querySelector('.sidebar-category-card .sidebar-module-item[data-module-name="' + escapeSelectorValue(moduleName) + '"]');
+    }
+
+    function cloneModuleItem(sourceItem, options) {
+      options = options || {};
+      var clone = sourceItem.cloneNode(true);
+      clone.classList.remove('list-group-item-primary');
+      if (options.stripPin) {
+        var pin = clone.querySelector('.sidebar-pin-btn');
+        if (pin) {
+          pin.remove();
+        }
+      }
+      return clone;
+    }
+
+    function updatePinButtons() {
+      var favorites = getFavorites();
+      document.querySelectorAll('.sidebar-category-card .sidebar-pin-btn').forEach(function(btn) {
+        var name = btn.getAttribute('data-module-name');
+        var pinned = favorites.indexOf(name) !== -1;
+        var icon = btn.querySelector('i');
+        btn.classList.toggle('is-pinned', pinned);
+        btn.setAttribute('title', pinned ? SIDEBAR_I18N.unpin : SIDEBAR_I18N.pin);
+        btn.setAttribute('aria-label', pinned ? SIDEBAR_I18N.unpin : SIDEBAR_I18N.pin);
+        btn.setAttribute('aria-pressed', pinned ? 'true' : 'false');
+        if (icon) {
+          icon.className = pinned ? 'fas fa-star' : 'far fa-star';
+        }
+      });
+    }
+
+    function renderQuickSection(cardId, listId, names, options) {
+      var card = document.getElementById(cardId);
+      var list = document.getElementById(listId);
+      if (!card || !list) {
+        return;
+      }
+
+      list.innerHTML = '';
+      var filter = (document.getElementById('sidebarFilterInput') || {}).value || '';
+      filter = filter.trim().toLowerCase();
+      var added = 0;
+
+      names.forEach(function(name) {
+        var source = findPrimaryModuleItem(name);
+        if (!source) {
+          return;
+        }
+        if (filter) {
+          var title = (source.getAttribute('data-module-title') || source.textContent || '').toLowerCase();
+          var moduleName = (source.getAttribute('data-module-name') || '').toLowerCase();
+          if (title.indexOf(filter) === -1 && moduleName.indexOf(filter) === -1) {
+            return;
+          }
+        }
+        list.appendChild(cloneModuleItem(source, options));
+        added += 1;
+      });
+
+      card.classList.toggle('d-none', added === 0);
+    }
+
+    function getRecentsExcludingFavorites() {
+      var favorites = getFavorites();
+      return getRecents().filter(function(name) {
+        return favorites.indexOf(name) === -1;
+      });
+    }
+
+    // Имя активного модуля с сервера — не теряем при перерисовке избранного/недавних
+    var sidebarActiveModuleName = (function() {
+      var el = document.querySelector('.sidebar-category-card .sidebar-module-item.list-group-item-primary');
+      return el ? el.getAttribute('data-module-name') : null;
+    })();
+
+    function getActiveModuleName() {
+      if (sidebarActiveModuleName) {
+        return sidebarActiveModuleName;
+      }
+      var active = document.querySelector('#appSidebarNav .sidebar-module-item.list-group-item-primary');
+      return active ? active.getAttribute('data-module-name') : null;
+    }
+
+    function syncActiveHighlight() {
+      var name = getActiveModuleName();
+      if (!name) {
+        return { inQuick: false, active: null, name: null };
+      }
+      sidebarActiveModuleName = name;
+
+      var inFavorites = getFavorites().indexOf(name) !== -1;
+      var inRecents = !inFavorites && getRecentsExcludingFavorites().indexOf(name) !== -1;
+      var inQuick = inFavorites || inRecents;
+
+      document.querySelectorAll('#appSidebarNav .sidebar-module-item.list-group-item-primary').forEach(function(el) {
+        el.classList.remove('list-group-item-primary');
+      });
+
+      // Подсветка в категории всегда (в т.ч. в свёрнутой группе)
+      var categoryItem = findPrimaryModuleItem(name);
+      if (categoryItem) {
+        categoryItem.classList.add('list-group-item-primary');
+      }
+
+      var scrollTarget = categoryItem;
+      if (inQuick) {
+        var listId = inFavorites ? 'sidebarFavoritesList' : 'sidebarRecentsList';
+        var quickItem = document.querySelector('#' + listId + ' .sidebar-module-item[data-module-name="' + escapeSelectorValue(name) + '"]');
+        if (quickItem) {
+          quickItem.classList.add('list-group-item-primary');
+          scrollTarget = quickItem;
+        }
+      }
+
+      return { inQuick: inQuick, active: scrollTarget, name: name };
+    }
+
+    function isSidebarFilterActive() {
+      var input = document.getElementById('sidebarFilterInput');
+      return !!(input && input.value && input.value.trim());
+    }
+
+    function refreshFavoritesDragState() {
+      var list = document.getElementById('sidebarFavoritesList');
+      if (!list) {
+        return;
+      }
+      var canDrag = !isSidebarFilterActive() && !isSidebarCompact();
+      list.querySelectorAll('.sidebar-module-item').forEach(function(item) {
+        // Без отдельной иконки — тот же вид, что у остальных пунктов
+        item.draggable = canDrag;
+        item.classList.toggle('sidebar-module-item--draggable', canDrag);
+        var moduleTitle = item.getAttribute('data-module-title') || '';
+        var tip = canDrag
+          ? (moduleTitle ? moduleTitle + ' — ' + SIDEBAR_I18N.dragReorder : SIDEBAR_I18N.dragReorder)
+          : moduleTitle;
+        if (tip) {
+          item.setAttribute('title', tip);
+        } else {
+          item.removeAttribute('title');
+        }
+        var link = item.querySelector('.sidebar-module-link');
+        if (link) {
+          if (tip) {
+            link.setAttribute('title', tip);
+          } else {
+            link.removeAttribute('title');
+          }
+        }
+        item.querySelectorAll('a, img').forEach(function(el) {
+          el.setAttribute('draggable', 'false');
+        });
+      });
+    }
+
+    function persistFavoritesOrderFromDom() {
+      var list = document.getElementById('sidebarFavoritesList');
+      if (!list || isSidebarFilterActive()) {
+        return;
+      }
+      var names = [];
+      list.querySelectorAll('.sidebar-module-item').forEach(function(item) {
+        var name = item.getAttribute('data-module-name');
+        if (name) {
+          names.push(name);
+        }
+      });
+      if (names.length) {
+        setFavorites(names);
+      }
+    }
+
+    function initFavoritesDrag() {
+      var list = document.getElementById('sidebarFavoritesList');
+      if (!list || list.dataset.dragInit === '1') {
+        return;
+      }
+      list.dataset.dragInit = '1';
+
+      var dragItem = null;
+      var didReorder = false;
+
+      list.addEventListener('dragstart', function(e) {
+        var item = e.target.closest('.sidebar-module-item');
+        if (!item || !list.contains(item) || !item.draggable) {
+          e.preventDefault();
+          return;
+        }
+        // Звезда — только pin, не старт drag
+        if (e.target.closest('.sidebar-pin-btn')) {
+          e.preventDefault();
+          return;
+        }
+        dragItem = item;
+        didReorder = false;
+        item.classList.add('sidebar-dragging');
+        try {
+          e.dataTransfer.effectAllowed = 'move';
+          e.dataTransfer.setData('text/plain', item.getAttribute('data-module-name') || '');
+        } catch (err) {}
+      });
+
+      list.addEventListener('dragend', function() {
+        if (dragItem) {
+          dragItem.classList.remove('sidebar-dragging');
+        }
+        list.querySelectorAll('.sidebar-drag-over').forEach(function(el) {
+          el.classList.remove('sidebar-drag-over');
+        });
+        if (didReorder) {
+          persistFavoritesOrderFromDom();
+        }
+        dragItem = null;
+      });
+
+      list.addEventListener('dragover', function(e) {
+        if (!dragItem) {
+          return;
+        }
+        e.preventDefault();
+        try {
+          e.dataTransfer.dropEffect = 'move';
+        } catch (err) {}
+
+        var target = e.target.closest('.sidebar-module-item');
+        if (!target || target === dragItem || !list.contains(target)) {
+          return;
+        }
+        list.querySelectorAll('.sidebar-drag-over').forEach(function(el) {
+          el.classList.remove('sidebar-drag-over');
+        });
+        var rect = target.getBoundingClientRect();
+        var before = (e.clientY - rect.top) < rect.height / 2;
+        var next = before ? target : target.nextSibling;
+        if (dragItem.nextSibling !== next) {
+          list.insertBefore(dragItem, next);
+          didReorder = true;
+        }
+        target.classList.add('sidebar-drag-over');
+      });
+
+      list.addEventListener('drop', function(e) {
+        e.preventDefault();
+      });
+
+      // После drag не открывать ссылку «кликом»
+      list.addEventListener('click', function(e) {
+        if (!didReorder) {
+          return;
+        }
+        var link = e.target.closest('a.sidebar-module-link');
+        if (link && list.contains(link)) {
+          e.preventDefault();
+          e.stopPropagation();
+        }
+        didReorder = false;
+      }, true);
+    }
+
+    function renderFavoritesAndRecents() {
+      renderQuickSection('sidebarFavoritesCard', 'sidebarFavoritesList', getFavorites(), { stripPin: false });
+      renderQuickSection('sidebarRecentsCard', 'sidebarRecentsList', getRecentsExcludingFavorites(), { stripPin: true });
+      // В избранном кнопка pin тоже работает — синхронизируем иконки после клонирования
+      updatePinButtons();
+      document.querySelectorAll('#sidebarFavoritesList .sidebar-pin-btn').forEach(function(btn) {
+        btn.classList.add('is-pinned');
+        var icon = btn.querySelector('i');
+        if (icon) {
+          icon.className = 'fas fa-star';
+        }
+        btn.setAttribute('title', SIDEBAR_I18N.unpin);
+        btn.setAttribute('aria-label', SIDEBAR_I18N.unpin);
+        btn.setAttribute('aria-pressed', 'true');
+      });
+      refreshFavoritesDragState();
+      syncActiveHighlight();
+    }
+
+    function toggleFavorite(moduleName) {
+      var favorites = getFavorites();
+      var idx = favorites.indexOf(moduleName);
+      if (idx === -1) {
+        favorites.push(moduleName);
+        // Убрать из недавних, чтобы не дублировать
+        setRecents(getRecents().filter(function(item) { return item !== moduleName; }));
+      } else {
+        favorites.splice(idx, 1);
+      }
+      setFavorites(favorites);
+      renderFavoritesAndRecents();
+      applySidebarFilter();
+    }
+
+    function trackRecentFromActive() {
+      var active = document.querySelector('.sidebar-category-card .sidebar-module-item.list-group-item-primary');
+      if (!active) {
+        return;
+      }
+      var name = active.getAttribute('data-module-name');
+      if (!name) {
+        return;
+      }
+      // В избранном — не дублируем в недавних
+      if (getFavorites().indexOf(name) !== -1) {
+        var cleaned = getRecents().filter(function(item) { return item !== name; });
+        setRecents(cleaned);
+        return;
+      }
+      var recents = getRecents().filter(function(item) { return item !== name; });
+      recents.unshift(name);
+      if (recents.length > SIDEBAR_RECENTS_MAX) {
+        recents = recents.slice(0, SIDEBAR_RECENTS_MAX);
+      }
+      setRecents(recents);
+    }
+
+    function applySidebarFilter() {
+      var input = document.getElementById('sidebarFilterInput');
+      var filter = ((input && input.value) || '').trim().toLowerCase();
+      var emptyEl = document.getElementById('sidebarEmptyFilter');
+      var anyVisible = false;
+
+      document.querySelectorAll('.sidebar-category-card').forEach(function(card) {
+        var items = card.querySelectorAll('.sidebar-module-item');
+        var visibleInGroup = 0;
+        items.forEach(function(item) {
+          var title = (item.getAttribute('data-module-title') || '').toLowerCase();
+          var name = (item.getAttribute('data-module-name') || '').toLowerCase();
+          var match = !filter || title.indexOf(filter) !== -1 || name.indexOf(filter) !== -1;
+          item.classList.toggle('d-none', !match);
+          if (match) {
+            visibleInGroup += 1;
+          }
+        });
+
+        card.classList.toggle('d-none', visibleInGroup === 0);
+        if (visibleInGroup > 0) {
+          anyVisible = true;
+          if (filter) {
+            var collapseEl = card.querySelector('.collapse');
+            if (collapseEl && !collapseEl.classList.contains('show') && typeof bootstrap !== 'undefined') {
+              bootstrap.Collapse.getOrCreateInstance(collapseEl, { toggle: false }).show();
+            }
+          }
+        }
+      });
+
+      renderFavoritesAndRecents();
+
+      var favVisible = !document.getElementById('sidebarFavoritesCard').classList.contains('d-none');
+      var recentVisible = !document.getElementById('sidebarRecentsCard').classList.contains('d-none');
+      if (emptyEl) {
+        emptyEl.classList.toggle('d-none', !filter || anyVisible || favVisible || recentVisible);
+      }
+    }
+
+    function setAllCollapses(expand) {
+      document.querySelectorAll('.sidebar-category-card .collapse').forEach(function(el) {
+        if (typeof bootstrap === 'undefined') {
+          el.classList.toggle('show', expand);
+          return;
+        }
+        var instance = bootstrap.Collapse.getOrCreateInstance(el, { toggle: false });
+        if (expand) {
+          instance.show();
+        } else {
+          instance.hide();
+        }
+      });
+      setTimeout(persistCollapseState, 350);
+    }
+
+    function persistCollapseState() {
+      var collapseState = [];
+      $('#appSidebarNav .sidebar-category-card .collapse').each(function() {
+        collapseState.push({ id: $(this).attr('id'), collapsed: !$(this).hasClass('show') });
+      });
+      writeJsonStorage(SIDEBAR_COLLAPSE_KEY, collapseState);
+    }
+
+    function updateCollapseIndicators() {
+      document.querySelectorAll('.sidebar-category-card .collapse').forEach(function(collapseElement) {
+        var header = collapseElement.previousElementSibling;
+        if (!header) {
+          return;
+        }
+        var indicator = header.querySelector('.collapse-indicator');
+        var expanded = collapseElement.classList.contains('show');
+        header.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+        if (indicator) {
+          indicator.style.transform = expanded ? 'rotate(180deg)' : 'rotate(0deg)';
+        }
+      });
+    }
+
+    function applyCompactMode(enabled) {
+      var container = getSidebarContainer();
+      var toggle = document.getElementById('sidebarCompactToggle');
+      if (!container) {
+        return;
+      }
+
+      container.classList.toggle('sidebar-compact', !!enabled);
+      if (toggle) {
+        toggle.setAttribute('aria-pressed', enabled ? 'true' : 'false');
+        toggle.setAttribute('title', enabled ? SIDEBAR_I18N.compactOff : SIDEBAR_I18N.compactOn);
+        toggle.setAttribute('aria-label', enabled ? SIDEBAR_I18N.compactOff : SIDEBAR_I18N.compactOn);
+        var icon = toggle.querySelector('i');
+        if (icon) {
+          icon.className = enabled ? 'fas fa-angles-right' : 'fas fa-angles-left';
+        }
+      }
+
+      try {
+        localStorage.setItem(SIDEBAR_COMPACT_KEY, enabled ? '1' : '0');
+      } catch (e) {}
+
+      if (enabled) {
+        container.style.width = '';
+      } else {
+        loadSidebarWidth();
+      }
+      refreshFavoritesDragState();
+    }
+
+    function loadCompactMode() {
+      if (!isSidebarDesktop()) {
+        applyCompactMode(false);
+        return;
+      }
+      var saved = false;
+      try {
+        saved = localStorage.getItem(SIDEBAR_COMPACT_KEY) === '1';
+      } catch (e) {}
+      applyCompactMode(saved);
     }
 
     function initSidebarResizer() {
@@ -101,55 +661,74 @@
       var startX = 0;
       var startWidth = 0;
 
-      function handleMouseMove(e) {
-        if (!isResizing) {
-          return;
+      function clientXFromEvent(e) {
+        if (e.touches && e.touches.length) {
+          return e.touches[0].clientX;
         }
-
-        e.preventDefault();
-        var newWidth = startWidth + (e.clientX - startX);
-        applySidebarWidth(newWidth);
+        if (e.changedTouches && e.changedTouches.length) {
+          return e.changedTouches[0].clientX;
+        }
+        return e.clientX;
       }
 
-      function handleMouseUp() {
+      function handleMove(e) {
         if (!isResizing) {
           return;
         }
+        e.preventDefault();
+        applySidebarWidth(startWidth + (clientXFromEvent(e) - startX));
+      }
 
+      function handleEnd() {
+        if (!isResizing) {
+          return;
+        }
         isResizing = false;
         resizer.classList.remove('dragging');
         document.body.style.cursor = '';
         document.body.style.userSelect = '';
 
         try {
-          localStorage.setItem('sidebarWidth', parseInt(container.offsetWidth, 10));
+          localStorage.setItem(SIDEBAR_WIDTH_KEY, parseInt(container.offsetWidth, 10));
         } catch (e) {}
 
-        document.removeEventListener('mousemove', handleMouseMove);
-        document.removeEventListener('mouseup', handleMouseUp);
+        document.removeEventListener('mousemove', handleMove);
+        document.removeEventListener('mouseup', handleEnd);
+        document.removeEventListener('touchmove', handleMove);
+        document.removeEventListener('touchend', handleEnd);
+        document.removeEventListener('touchcancel', handleEnd);
       }
 
-      resizer.addEventListener('mousedown', function(e) {
-        if (!isSidebarDesktop()) {
+      function handleStart(e) {
+        if (!isSidebarDesktop() || isSidebarCompact()) {
           return;
         }
-
         e.preventDefault();
         isResizing = true;
-        startX = e.clientX;
+        startX = clientXFromEvent(e);
         startWidth = container.offsetWidth;
         resizer.classList.add('dragging');
         document.body.style.cursor = 'col-resize';
         document.body.style.userSelect = 'none';
 
-        document.addEventListener('mousemove', handleMouseMove, { passive: false });
-        document.addEventListener('mouseup', handleMouseUp);
-      });
+        document.addEventListener('mousemove', handleMove, { passive: false });
+        document.addEventListener('mouseup', handleEnd);
+        document.addEventListener('touchmove', handleMove, { passive: false });
+        document.addEventListener('touchend', handleEnd);
+        document.addEventListener('touchcancel', handleEnd);
+      }
+
+      resizer.addEventListener('mousedown', handleStart);
+      resizer.addEventListener('touchstart', handleStart, { passive: false });
 
       window.addEventListener('resize', function() {
         if (isSidebarDesktop()) {
-          loadSidebarWidth();
+          loadCompactMode();
+          if (!isSidebarCompact()) {
+            loadSidebarWidth();
+          }
         } else {
+          getSidebarContainer().classList.remove('sidebar-compact');
           resetSidebarMobileWidth();
         }
       });
@@ -161,80 +740,182 @@
         return;
       }
 
-      container.querySelectorAll('.sidebar-module-link').forEach(function(link) {
-        link.addEventListener('click', function() {
-          if (!isSidebarDesktop()) {
-            var instance = bootstrap.Offcanvas.getInstance(container);
-            if (instance) {
-              instance.hide();
-            }
+      container.addEventListener('click', function(e) {
+        var link = e.target.closest('.sidebar-module-link');
+        if (!link || !container.contains(link)) {
+          return;
+        }
+        if (!isSidebarDesktop()) {
+          var instance = bootstrap.Offcanvas.getInstance(container);
+          if (instance) {
+            instance.hide();
           }
-        });
+        }
       });
     }
 
-    function updateCollapseIndicators() {
-      $('[id^="collapse"]').each(function() {
-        var collapseElement = $(this);
-        var header = collapseElement.prev('.card-header');
-        var indicator = header.find('.collapse-indicator');
-        if (collapseElement.hasClass('show')) {
-          indicator.css('transform', 'rotate(180deg)');
-        } else {
-          indicator.css('transform', 'rotate(0deg)');
+    function initSidebarPins() {
+      var nav = getSidebarNav();
+      if (!nav) {
+        return;
+      }
+      nav.addEventListener('click', function(e) {
+        var pinBtn = e.target.closest('.sidebar-pin-btn');
+        if (!pinBtn || !nav.contains(pinBtn)) {
+          return;
+        }
+        e.preventDefault();
+        e.stopPropagation();
+        var name = pinBtn.getAttribute('data-module-name');
+        if (name) {
+          toggleFavorite(name);
         }
       });
+    }
+
+    function initSidebarFilter() {
+      var input = document.getElementById('sidebarFilterInput');
+      if (input) {
+        input.addEventListener('input', applySidebarFilter);
+      }
+      var expandBtn = document.getElementById('sidebarExpandAll');
+      var collapseBtn = document.getElementById('sidebarCollapseAll');
+      if (expandBtn) {
+        expandBtn.addEventListener('click', function() { setAllCollapses(true); });
+      }
+      if (collapseBtn) {
+        collapseBtn.addEventListener('click', function() { setAllCollapses(false); });
+      }
+      var compactBtn = document.getElementById('sidebarCompactToggle');
+      if (compactBtn) {
+        compactBtn.addEventListener('click', function() {
+          applyCompactMode(!isSidebarCompact());
+        });
+      }
+
+      document.addEventListener('keydown', function(e) {
+        if (e.key !== '/' || e.ctrlKey || e.metaKey || e.altKey) {
+          return;
+        }
+        var tag = (e.target && e.target.tagName) ? e.target.tagName.toLowerCase() : '';
+        if (tag === 'input' || tag === 'textarea' || tag === 'select' || (e.target && e.target.isContentEditable)) {
+          return;
+        }
+        if (e.target && e.target.closest && e.target.closest('.monaco-editor, .ace_editor, .CodeMirror')) {
+          return;
+        }
+        if (!input) {
+          return;
+        }
+        e.preventDefault();
+        input.focus();
+        input.select();
+      });
+    }
+
+    function revealActiveModule() {
+      var info = syncActiveHighlight();
+      if (!info.active) {
+        return;
+      }
+
+      // Если модуль в избранном/недавних — только подсветка там, группу не раскрываем
+      if (info.inQuick) {
+        setTimeout(function() {
+          info.active.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+        }, 50);
+        return;
+      }
+
+      var collapseEl = info.active.closest('.collapse');
+      if (collapseEl && !collapseEl.classList.contains('show')) {
+        if (typeof bootstrap !== 'undefined') {
+          bootstrap.Collapse.getOrCreateInstance(collapseEl, { toggle: false }).show();
+        } else {
+          collapseEl.classList.add('show');
+        }
+      }
+      setTimeout(function() {
+        info.active.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+      }, 50);
     }
 
     function loadConfSidebar() {
-      if (typeof(Storage) !== "undefined") {
-        if (localStorage.getItem('collapseSidebar')) {
-          var collapseState = JSON.parse(localStorage.getItem('collapseSidebar'));
-          collapseState.forEach(function(item) {
-            var element = $('#' + item.id);
-            if (!item.collapsed) {
-              element.addClass('show');
-            } else {
-              element.removeClass('show');
-            }
-          });
-        } else {
-          var collapseState = [];
-          $('[id^="collapse"]').each(function() {
-            collapseState.push({id: $(this).attr('id'), collapsed: !$(this).hasClass('show')});
-          });
-          localStorage.setItem('collapseSidebar', JSON.stringify(collapseState));
-        }
-
-        updateCollapseIndicators();
-
-        $('[id^="collapse"]').on('show.bs.collapse', function () {
-          var header = $(this).prev('.card-header');
-          header.find('.collapse-indicator').css('transform', 'rotate(180deg)');
-        });
-
-        $('[id^="collapse"]').on('hide.bs.collapse', function () {
-          var header = $(this).prev('.card-header');
-          header.find('.collapse-indicator').css('transform', 'rotate(0deg)');
-        });
-
-        $('[data-bs-toggle="collapse"]').on('click', function () {
-          setTimeout(function() {
-            var collapseState = [];
-            $('[id^="collapse"]').each(function() {
-              collapseState.push({id: $(this).attr('id'), collapsed: !$(this).hasClass('show')});
-            });
-            localStorage.setItem('collapseSidebar', JSON.stringify(collapseState));
-          }, 350);
-        });
+      if (typeof Storage === 'undefined') {
+        return;
       }
+
+      var collapseState = readJsonStorage(SIDEBAR_COLLAPSE_KEY, null);
+      if (collapseState && Array.isArray(collapseState)) {
+        collapseState.forEach(function(item) {
+          var element = document.getElementById(item.id);
+          if (!element || !element.closest('#appSidebarNav')) {
+            return;
+          }
+          if (!item.collapsed) {
+            element.classList.add('show');
+          } else {
+            element.classList.remove('show');
+          }
+        });
+      } else {
+        persistCollapseState();
+      }
+
+      updateCollapseIndicators();
+
+      document.querySelectorAll('.sidebar-category-card .collapse').forEach(function(el) {
+        el.addEventListener('show.bs.collapse', function() {
+          var header = el.previousElementSibling;
+          if (header) {
+            header.setAttribute('aria-expanded', 'true');
+            var indicator = header.querySelector('.collapse-indicator');
+            if (indicator) {
+              indicator.style.transform = 'rotate(180deg)';
+            }
+          }
+        });
+        el.addEventListener('hide.bs.collapse', function() {
+          var header = el.previousElementSibling;
+          if (header) {
+            header.setAttribute('aria-expanded', 'false');
+            var indicator = header.querySelector('.collapse-indicator');
+            if (indicator) {
+              indicator.style.transform = 'rotate(0deg)';
+            }
+          }
+        });
+        el.addEventListener('shown.bs.collapse', persistCollapseState);
+        el.addEventListener('hidden.bs.collapse', persistCollapseState);
+      });
     }
 
-    $(document).ready(function() {
-      loadConfSidebar();
+    // Быстрая отрисовка избранного/недавних сразу после разметки nav
+    // (не ждём DOMContentLoaded — иначе секции «всплывают» после загрузки страницы)
+    function paintSidebarQuickAccess() {
+      trackRecentFromActive();
+      renderFavoritesAndRecents();
+      updatePinButtons();
+      // Подсветка в избранном/недавних без раскрытия категории
+      revealActiveModule();
+    }
+
+    paintSidebarQuickAccess();
+    loadConfSidebar();
+    loadCompactMode();
+    if (!isSidebarCompact()) {
       loadSidebarWidth();
+    }
+    initFavoritesDrag();
+    initSidebarPins();
+    initSidebarFilter();
+
+    $(document).ready(function() {
+      // Bootstrap и остальной DOM уже доступны
       initSidebarResizer();
       initSidebarOffcanvasNav();
+      applySidebarFilter();
+      revealActiveModule();
     });
 </script>
 <!-- [ navigation menu ] end -->
