@@ -145,6 +145,24 @@ class ConfigLoader(object):
         self.POOL_MAX_SIZE = None  # Максимальный размер пула потоков (по умолчанию 5*POOL_SIZE)
         self.POOL_TIMEOUT_THRESHOLD = 60.0  # Порог таймаута задач в секундах
         self.BATCH_WRITER_FLUSH_INTERVAL = 0.5  # Интервал записи батча в секундах
+        self.BATCH_WRITER_MAX_SIZE = 0  # 0 — только по таймеру; иначе flush при N записях
+
+        # Логирование (при DEBUG уровень по умолчанию DEBUG)
+        self.LOG_MIN_LEVEL = 'INFO'
+        self.LOG_FILE_ENABLED = True
+        self.LOG_CONSOLE_ENABLED = True
+        self.LOG_DIRECTORY = 'logs'
+        self.LOG_PER_MODULE_FILES = True
+        self.LOG_MEMORY_HANDLER_CAPACITY = 0  # 0 — без буфера; иначе MemoryHandler
+        self.LOG_BACKUP_COUNT = 7
+
+        # SQLite PRAGMA (применяются только для sqlite URI)
+        self.SQLITE_JOURNAL_MODE = 'WAL'
+        self.SQLITE_SYNCHRONOUS = None  # None — не менять; иначе FULL|NORMAL|OFF
+        self.SQLITE_TEMP_STORE = None
+        self.SQLITE_CACHE_SIZE = None
+        self.SQLITE_MMAP_SIZE = None
+        self.SQLITE_WAL_AUTOCHECKPOINT = None
 
         self.REACTIVE_MAX_DEPTH = 20
         self.REACTIVE_LOOP_NOTIFY = True
@@ -293,6 +311,7 @@ class ConfigLoader(object):
         self.POOL_MAX_SIZE = app_config.get('pool_max_size', None)
         self.POOL_TIMEOUT_THRESHOLD = app_config.get('pool_timeout_threshold', 60.0)
         self.BATCH_WRITER_FLUSH_INTERVAL = app_config.get('batch_writer_flush_interval', 0.5)
+        self.BATCH_WRITER_MAX_SIZE = int(app_config.get('batch_writer_max_size', 0) or 0)
         self.REACTIVE_MAX_DEPTH = app_config.get('reactive_max_depth', 20)
         self.REACTIVE_LOOP_NOTIFY = app_config.get('reactive_loop_notify', True)
         self.OBJECT_PRELOAD_ENABLED = app_config.get('object_preload_enabled', True)
@@ -330,12 +349,35 @@ class ConfigLoader(object):
         db_config = self._config_data.get('database', {})
         self.SQLALCHEMY_ECHO = db_config.get('sqlalchemy_echo', False)
         self.SQLALCHEMY_POOL_SIZE = db_config.get('pool_size', 20)
-        if 'connection_string' in db_config:
-            self.SQLALCHEMY_DATABASE_URI = db_config['connection_string']
+        # connection_string: null / '' / отсутствует → SQLite по db_name
+        connection_string = db_config.get('connection_string', None)
+        if isinstance(connection_string, str):
+            connection_string = connection_string.strip() or None
+        if connection_string:
+            self.SQLALCHEMY_DATABASE_URI = connection_string
         else:
             DB_NAME = db_config.get('db_name', 'app.db')
             DB_PATH = os.path.join(self.APP_DIR, DB_NAME)
             self.SQLALCHEMY_DATABASE_URI = f'sqlite:///{DB_PATH}'
+
+        sqlite_cfg = db_config.get('sqlite') or {}
+        self.SQLITE_JOURNAL_MODE = sqlite_cfg.get('journal_mode', 'WAL')
+        self.SQLITE_SYNCHRONOUS = sqlite_cfg.get('synchronous', None)
+        self.SQLITE_TEMP_STORE = sqlite_cfg.get('temp_store', None)
+        self.SQLITE_CACHE_SIZE = sqlite_cfg.get('cache_size', None)
+        self.SQLITE_MMAP_SIZE = sqlite_cfg.get('mmap_size', None)
+        self.SQLITE_WAL_AUTOCHECKPOINT = sqlite_cfg.get('wal_autocheckpoint', None)
+
+        log_config = self._config_data.get('logging') or {}
+        self.LOG_MIN_LEVEL = str(log_config.get('min_level', 'INFO')).upper()
+        self.LOG_FILE_ENABLED = bool(log_config.get('file_enabled', True))
+        self.LOG_CONSOLE_ENABLED = bool(log_config.get('console_enabled', True))
+        self.LOG_DIRECTORY = log_config.get('directory', 'logs')
+        self.LOG_PER_MODULE_FILES = bool(log_config.get('per_module_files', True))
+        self.LOG_MEMORY_HANDLER_CAPACITY = int(
+            log_config.get('memory_handler_capacity', 0) or 0
+        )
+        self.LOG_BACKUP_COUNT = int(log_config.get('backup_count', 7) or 7)
 
         debug_tools_config = self._config_data.get('debug_tools', {})
         self.DEBUG_TOOLS_ENABLED = debug_tools_config.get('enabled', False)

@@ -193,12 +193,18 @@ class ValueUpdate:
 class BatchWriter:
     """Батчер для групповой записи значений и истории в БД"""
 
-    def __init__(self, flush_interval: float = 0.5):
+    def __init__(
+        self,
+        flush_interval: float = 0.5,
+        max_size: int = 0,
+    ):
         """
         Args:
             flush_interval: Интервал в секундах для принудительной записи батча
+            max_size: Flush при достижении N записей в батче (0 — только по таймеру)
         """
         self.flush_interval = flush_interval
+        self.max_size = int(max_size or 0)
         self._lock = threading.Lock()
         self._batch: list[ValueUpdate] = []
         self._stop_event = threading.Event()
@@ -238,12 +244,17 @@ class BatchWriter:
         self._worker_thread.start()
 
     def add(self, value_update: ValueUpdate):
-        """Добавляет запись в батч"""
+        """Добавляет запись в батч; при max_size > 0 может запустить асинхронный flush."""
+        should_flush = False
         with self._lock:
             self._batch.append(value_update)
             self._total_added += 1
             if value_update.internal:
                 self._total_internal_added += 1
+            if self.max_size > 0 and len(self._batch) >= self.max_size:
+                should_flush = True
+        if should_flush:
+            self.flush()
 
     def flush(self):
         """Принудительно записывает текущий батч (асинхронно)"""
@@ -506,25 +517,11 @@ class BatchWriter:
             flushBufferedCoreSystemStatsMetrics()
 
     def shutdown(self, wait: bool = True):
-        """Корректное завершение работы батчера"""
+        """Корректное завершение: остановить worker и синхронно сбросить батч."""
         self._stop_event.set()
-        # Принудительно записываем оставшиеся данные
-        self.flush()
-        # Ждем завершения всех задач записи
-        if wait:
-            # Даем время на завершение текущей записи
-            time.sleep(0.1)
-            # Выполняем финальную запись синхронно, если есть данные
-            with self._lock:
-                if self._batch:
-                    batch = self._batch[:]
-                    self._batch.clear()
-                else:
-                    batch = []
-            if batch:
-                self._flush_internal()
-        # Ждем завершения фонового потока
-        if self._worker_thread and self._worker_thread.is_alive():
+        # Синхронный flush — async flush() здесь гонка и может не успеть до exit
+        self.flush_sync()
+        if wait and self._worker_thread and self._worker_thread.is_alive():
             self._worker_thread.join(timeout=2.0)
     
     def get_stats(self):
@@ -549,6 +546,7 @@ class BatchWriter:
 
             return {
                 "flush_interval": self.flush_interval,
+                "max_size": self.max_size,
                 "current_batch_size": current_batch_size,
                 "worker_thread_alive": self._worker_thread.is_alive() if self._worker_thread else False,
                 "total_added": self._total_added,
@@ -581,7 +579,10 @@ class BatchWriter:
 
 
 # Глобальный экземпляр батчера
-_batch_writer = BatchWriter(flush_interval=Config.BATCH_WRITER_FLUSH_INTERVAL)
+_batch_writer = BatchWriter(
+    flush_interval=Config.BATCH_WRITER_FLUSH_INTERVAL,
+    max_size=getattr(Config, 'BATCH_WRITER_MAX_SIZE', 0),
+)
 
 
 def shutdown_batch_writer():

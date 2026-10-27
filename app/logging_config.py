@@ -6,92 +6,148 @@ import sys
 import traceback
 from app.configuration import Config
 
-# Глобальный error handler (чтобы не дублировался для каждого модуля)
+# Глобальные handlers (чтобы не дублировались для каждого модуля)
 _global_error_handler = None
+_shared_app_file_handler = None
 
 _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 def _default_log_directory():
-    return os.path.join(_PROJECT_ROOT, 'logs')
+    return _resolve_log_directory(None)
 
 
-def getLogger(moduleName, level=None, logDirectory='logs'):
+def _resolve_log_directory(logDirectory=None):
+    """Абсолютный путь к каталогу логов из аргумента или Config.LOG_DIRECTORY."""
+    if logDirectory is None:
+        logDirectory = getattr(Config, 'LOG_DIRECTORY', 'logs') or 'logs'
+    if not os.path.isabs(logDirectory):
+        return os.path.join(_PROJECT_ROOT, logDirectory)
+    return logDirectory
+
+
+def _resolve_log_level(level=None):
+    """Уровень: явный аргумент, иначе DEBUG при Config.DEBUG, иначе LOG_MIN_LEVEL."""
+    if level is not None and str(level).upper() != 'NONE':
+        return str(level).upper()
+    if Config.DEBUG:
+        return 'DEBUG'
+    return str(getattr(Config, 'LOG_MIN_LEVEL', 'INFO') or 'INFO').upper()
+
+
+def _backup_count(default=7):
+    return int(getattr(Config, 'LOG_BACKUP_COUNT', default) or default)
+
+
+def _memory_capacity():
+    return int(getattr(Config, 'LOG_MEMORY_HANDLER_CAPACITY', 0) or 0)
+
+
+def _maybe_buffer(target_handler):
+    """Оборачивает file handler в MemoryHandler при capacity > 0."""
+    capacity = _memory_capacity()
+    if capacity <= 0:
+        return target_handler
+    return logging.handlers.MemoryHandler(
+        capacity=capacity,
+        flushLevel=logging.ERROR,
+        target=target_handler,
+    )
+
+
+def _make_timed_handler(log_file, backup_count, formatter, level=None):
+    handler = logging.handlers.TimedRotatingFileHandler(
+        log_file,
+        when='midnight',
+        interval=1,
+        backupCount=backup_count,
+        encoding='utf-8',
+        utc=False,
+        delay=True,
+    )
+    handler.setFormatter(formatter)
+    if level is not None:
+        handler.setLevel(level)
+    return handler
+
+
+def getLogger(moduleName, level=None, logDirectory=None):
     """ Get logger with file rotation, console output and shared error handler.
 
     Args:
         moduleName (str): Имя логгера (обычно имя модуля).
-        level (str, optional): Уровень логирования. По умолчанию INFO (DEBUG если Config.DEBUG).
-        logDirectory (str, optional): Папка для логов. Defaults to 'logs'.
+        level (str, optional): Уровень логирования. По умолчанию LOG_MIN_LEVEL
+            (DEBUG если Config.DEBUG).
+        logDirectory (str, optional): Папка для логов. Defaults to Config.LOG_DIRECTORY.
 
     Returns:
         logging.Logger: настроенный логгер.
     """
-    global _global_error_handler
+    global _global_error_handler, _shared_app_file_handler
 
     # Если логгер уже настроен — возвращаем как есть
     logger = logging.getLogger(moduleName)
     if logger.handlers:
         return logger
 
-    # Создаём папку логов при необходимости
-    if not os.path.exists(logDirectory):
-        os.makedirs(logDirectory)
-
-    # Определяем уровень логирования
-    if level is None or str(level).upper() == 'NONE':
-        level = 'DEBUG' if Config.DEBUG else 'INFO'
-    else:
-        level = level.upper()
-
-    logFile = os.path.join(logDirectory, f'{moduleName}.log')
-    logErrors = os.path.join(logDirectory, 'errors.log')
+    level = _resolve_log_level(level)
+    file_enabled = bool(getattr(Config, 'LOG_FILE_ENABLED', True))
+    console_enabled = bool(getattr(Config, 'LOG_CONSOLE_ENABLED', True))
+    per_module = bool(getattr(Config, 'LOG_PER_MODULE_FILES', True))
+    backup = _backup_count(7)
 
     # Общий формат для всех выводов
     formatter = logging.Formatter(
         '%(asctime)s.%(msecs)03d[%(levelname)s]%(message)s',
         datefmt='%H:%M:%S'
     )
-    # Формат для ошибок
+    # Формат для ошибок / console
     formatter_error = logging.Formatter(
         '%(asctime)s.%(msecs)03d[%(levelname)s][%(name)s]%(message)s',
         datefmt='%H:%M:%S'
     )
 
-    # Индивидуальный file handler для модуля
-    file_handler = logging.handlers.TimedRotatingFileHandler(
-        logFile,
-        when='midnight',
-        interval=1,
-        backupCount=7,
-        encoding='utf-8',
-        utc=False
-    )
-    file_handler.setFormatter(formatter)
+    if file_enabled:
+        log_dir = _resolve_log_directory(logDirectory)
+        if not os.path.exists(log_dir):
+            os.makedirs(log_dir)
 
-    # Общий error handler (создаётся только один раз)
-    if _global_error_handler is None:
-        _global_error_handler = logging.handlers.TimedRotatingFileHandler(
-            logErrors,
-            when='midnight',
-            interval=1,
-            backupCount=7,
-            encoding='utf-8',
-            utc=False
-        )
-        _global_error_handler.setLevel(logging.ERROR)
-        _global_error_handler.setFormatter(formatter_error)
+        log_errors = os.path.join(log_dir, 'errors.log')
 
-    # Console handler
-    console_handler = logging.StreamHandler()
-    console_handler.setLevel(level)
-    console_handler.setFormatter(formatter_error)
+        # Общий error handler (создаётся только один раз)
+        if _global_error_handler is None:
+            err_file = _make_timed_handler(
+                log_errors, backup, formatter_error, level=logging.ERROR
+            )
+            # errors.log пишем сразу (без MemoryHandler), чтобы не терять ERROR в буфере
+            _global_error_handler = err_file
 
-    # Настраиваем логгер
+        if per_module:
+            log_file = os.path.join(log_dir, f'{moduleName}.log')
+            file_handler = _maybe_buffer(
+                _make_timed_handler(log_file, backup, formatter)
+            )
+            logger.addHandler(file_handler)
+        else:
+            if _shared_app_file_handler is None:
+                app_log = os.path.join(log_dir, 'app.log')
+                _shared_app_file_handler = _maybe_buffer(
+                    _make_timed_handler(app_log, backup, formatter_error)
+                )
+            logger.addHandler(_shared_app_file_handler)
+
+        logger.addHandler(_global_error_handler)
+
+    if console_enabled:
+        console_handler = logging.StreamHandler()
+        console_handler.setLevel(level)
+        console_handler.setFormatter(formatter_error)
+        logger.addHandler(console_handler)
+
+    if not logger.handlers:
+        logger.addHandler(logging.NullHandler())
+
     logger.setLevel(level)
-    logger.addHandler(file_handler)
-    logger.addHandler(_global_error_handler)
-    logger.addHandler(console_handler)
     logger.propagate = False
 
     return logger
@@ -100,7 +156,7 @@ def getLogger(moduleName, level=None, logDirectory='logs'):
 _security_audit_handler = None
 
 
-def get_security_audit_logger(logDirectory='logs'):
+def get_security_audit_logger(logDirectory=None):
     """Логгер для аудита безопасности: несанкционированный доступ, неудачные логины, 401/403."""
     global _security_audit_handler
 
@@ -108,29 +164,31 @@ def get_security_audit_logger(logDirectory='logs'):
     if logger.handlers:
         return logger
 
-    if not os.path.exists(logDirectory):
-        os.makedirs(logDirectory)
-
-    log_file = os.path.join(logDirectory, 'security_audit.log')
     formatter = logging.Formatter(
         '%(asctime)s.%(msecs)03d[%(levelname)s]%(message)s',
         datefmt='%H:%M:%S'
     )
 
-    _security_audit_handler = logging.handlers.TimedRotatingFileHandler(
-        log_file,
-        when='midnight',
-        interval=1,
-        backupCount=30,
-        encoding='utf-8',
-        utc=False
-    )
-    _security_audit_handler.setFormatter(formatter)
+    file_enabled = bool(getattr(Config, 'LOG_FILE_ENABLED', True))
+    if file_enabled:
+        log_dir = _resolve_log_directory(logDirectory)
+        if not os.path.exists(log_dir):
+            os.makedirs(log_dir)
+
+        log_file = os.path.join(log_dir, 'security_audit.log')
+        _security_audit_handler = _make_timed_handler(
+            log_file, _backup_count(30), formatter
+        )
+        logger.addHandler(_security_audit_handler)
+    else:
+        # Без файлов — пишем в console, чтобы не терять audit-события
+        console = logging.StreamHandler()
+        console.setFormatter(formatter)
+        logger.addHandler(console)
 
     # Уровень INFO, чтобы писать как успешные действия (LOGIN_SUCCESS, LOGOUT),
     # так и предупреждения/ошибки безопасности.
     logger.setLevel(logging.INFO)
-    logger.addHandler(_security_audit_handler)
     logger.propagate = False
     return logger
 
@@ -178,34 +236,32 @@ def get_app_exception_logger(logDirectory=None):
     """Логгер для необработанных исключений приложения (Internal Server Error)."""
     global _app_exception_handler
 
-    if logDirectory is None:
-        logDirectory = _default_log_directory()
-
     logger = logging.getLogger('app_exceptions')
     if logger.handlers:
         return logger
 
-    if not os.path.exists(logDirectory):
-        os.makedirs(logDirectory)
-
-    log_file = os.path.join(logDirectory, '500.log')
     formatter = logging.Formatter(
         '%(asctime)s.%(msecs)03d[%(levelname)s]%(message)s',
         datefmt='%H:%M:%S'
     )
 
-    _app_exception_handler = logging.handlers.TimedRotatingFileHandler(
-        log_file,
-        when='midnight',
-        interval=1,
-        backupCount=30,
-        encoding='utf-8',
-        utc=False
-    )
-    _app_exception_handler.setFormatter(formatter)
+    file_enabled = bool(getattr(Config, 'LOG_FILE_ENABLED', True))
+    if file_enabled:
+        log_dir = _resolve_log_directory(logDirectory)
+        if not os.path.exists(log_dir):
+            os.makedirs(log_dir)
+
+        log_file = os.path.join(log_dir, '500.log')
+        _app_exception_handler = _make_timed_handler(
+            log_file, _backup_count(30), formatter
+        )
+        logger.addHandler(_app_exception_handler)
+    else:
+        console = logging.StreamHandler()
+        console.setFormatter(formatter)
+        logger.addHandler(console)
 
     logger.setLevel(logging.ERROR)
-    logger.addHandler(_app_exception_handler)
     logger.propagate = False
     return logger
 

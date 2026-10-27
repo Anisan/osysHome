@@ -26,6 +26,7 @@ If you are new to the system, read the documents in this order:
 | [Production Deploy (nginx + HTTPS)](DEPLOY_PRODUCTION.md) | TLS, systemd, Docker, Let's Encrypt |
 | [Security & Access](SECURITY_ACCESS.md) | Authentication, roles, API keys |
 | [Configuration](configuration.md) | `config.yaml` reference |
+| [Disk write optimization](DISK_WRITE_OPTIMIZATION.md) | Raspberry Pi / microSD: logs, BatchWriter, SQLite |
 
 ---
 
@@ -36,6 +37,13 @@ If you are new to the system, read the documents in this order:
 | `params` (all types) | [PARAMS_DOCUMENTATION.md](PARAMS_DOCUMENTATION.md) |
 | `enum` type | [ENUM_TYPE_USAGE.md](ENUM_TYPE_USAGE.md) |
 | `color` type | [COLOR_TYPE_USAGE.md](COLOR_TYPE_USAGE.md) |
+
+## Template UI
+
+| Topic | Document |
+|-------|----------|
+| Content modal (`showContentModal`) | [CONTENT_MODAL.md](CONTENT_MODAL.md) |
+| WebSocket UI bindings | [WEBSOCKET_UI_BINDINGS.md](WEBSOCKET_UI_BINDINGS.md) |
 
 ---
 

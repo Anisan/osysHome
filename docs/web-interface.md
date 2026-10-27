@@ -100,6 +100,8 @@ The **"Classes"** tab shows all device templates. Here you can:
 - Add class-level properties and methods
 - Define a template (HTML/Jinja2) for how objects of this class are displayed
 
+Object and class templates can open content modals with arbitrary HTML via global `showContentModal` (history, settings, etc.). API and examples: [CONTENT_MODAL.md](CONTENT_MODAL.md).
+
 ---
 
 ## Modules Section (Plugins)

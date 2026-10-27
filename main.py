@@ -3,9 +3,10 @@
 from app.configuration import Config
 from app import createApp
 from app.utils import initSystemVar, startSystemVar, init_analytics_scheduler, get_current_version
-from app.core.main.PluginsHelper import start_plugins, stop_plugins
+from app.core.main.PluginsHelper import start_plugins
 from app.core.main.ObjectsStorage import objects_storage
 from app.logging_config import getLogger
+from app.graceful_shutdown import register_shutdown_handlers, graceful_shutdown
 
 _logger = getLogger('main')
 
@@ -18,6 +19,9 @@ if __name__ == '__main__':
             "Security defaults were auto-applied (sample secret_key). "
             "Review config.yaml and store secret_key safely."
         )
+
+    # SIGTERM (systemctl stop/restart), SIGINT, atexit — сброс BatchWriter/логов
+    register_shutdown_handlers(app)
 
     _logger.info("Init SystemVar")
     with app.app_context():
@@ -44,9 +48,5 @@ if __name__ == '__main__':
         threaded=True,
     )
 
-    with app.app_context():
-        objects_storage.stop_background_preload()
-        objects_storage.invoke_lifecycle_all("onStop")
-
-    _logger.info("Stop plugins")
-    stop_plugins()
+    # Нормальный выход из app.run (не SIGTERM — тот уже обработан)
+    graceful_shutdown('app.run returned')

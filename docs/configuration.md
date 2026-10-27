@@ -6,11 +6,14 @@ All osysHome configuration is stored in the `config.yaml` file at the project ro
 
 ```yaml
 application:   # Core application settings
+logging:       # File / console logging
 database:      # Database settings
 debug_tools:   # Optional heavy debug tools
 cache:         # Cache settings
 service:       # Service management
 ```
+
+Reducing disk writes (Raspberry Pi / microSD): [DISK_WRITE_OPTIMIZATION.md](DISK_WRITE_OPTIMIZATION.md) ([full RU guide](DISK_WRITE_OPTIMIZATION.ru.md)).
 
 ## `application` Section
 
@@ -49,6 +52,7 @@ application:
 | `pool_max_size` | Maximum size of the worker thread pool | `100` |
 | `pool_timeout_threshold` | Threshold in seconds after which a pool task is considered slow | `60.0` |
 | `batch_writer_flush_interval` | Forced flush interval for batched writes in seconds | `0.5` |
+| `batch_writer_max_size` | Flush when the batch reaches N items (`0` = timer only) | `0` |
 | `reactive_max_depth` | Max depth of synchronous property→method reactive chains | `20` |
 | `reactive_loop_notify` | Admin notification when a reactive loop is blocked | `true` |
 | `object_preload_enabled` | Background preload of all objects after plugin startup | `true` |
@@ -77,6 +81,29 @@ application:
 | `login` | Dedicated limit for the login page | `5 per minute` |
 | `api` | Limit for API routes | `100 per minute` |
 
+## `logging` Section
+
+```yaml
+logging:
+  min_level: INFO
+  file_enabled: true
+  console_enabled: true
+  directory: logs
+  per_module_files: true
+  memory_handler_capacity: 0
+  backup_count: 7
+```
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `min_level` | Level when `application.debug` is false | `INFO` |
+| `file_enabled` | Write log files | `true` |
+| `console_enabled` | Console output | `true` |
+| `directory` | Log directory | `logs` |
+| `per_module_files` | One file per module; otherwise shared `app.log` | `true` |
+| `memory_handler_capacity` | Buffer N records in RAM before disk flush (`0` = immediate) | `0` |
+| `backup_count` | Rotated backup count | `7` |
+
 ## `database` Section
 
 ### SQLite Example
@@ -86,9 +113,12 @@ database:
   sqlalchemy_echo: false
   pool_size: 20
   db_name: 'app.db'
+  sqlite:
+    journal_mode: WAL
+    synchronous: null
 ```
 
-The SQLite database file is created automatically in the project root on first run.
+The SQLite database file is created automatically in the project root on first run. Optional `sqlite` PRAGMAs: see [DISK_WRITE_OPTIMIZATION.md](DISK_WRITE_OPTIMIZATION.md).
 
 ### PostgreSQL Example
 
@@ -114,6 +144,7 @@ database:
 | `pool_size` | SQLAlchemy connection pool size | `20` |
 | `db_name` | SQLite filename, used when `connection_string` is not set | `app.db` |
 | `connection_string` | External database connection string for PostgreSQL/MySQL/MariaDB | not set |
+| `sqlite.*` | Optional SQLite PRAGMAs (`journal_mode`, `synchronous`, `temp_store`, `cache_size`, `mmap_size`, `wal_autocheckpoint`) | see sample_config |
 
 ## `debug_tools` Section
 

@@ -1,0 +1,24 @@
+<div class="modal fade" id="appContentModal" tabindex="-1" aria-labelledby="appContentModalTitle" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable" id="appContentModalDialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title d-flex align-items-center mb-0" id="appContentModalTitle">
+          <i class="fas fa-window-maximize me-2 text-primary" id="appContentModalIcon" aria-hidden="true"></i>
+          <span id="appContentModalTitleText"></span>
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ _('Close') }}"></button>
+      </div>
+      <div class="modal-body" id="appContentModalBody"></div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" id="appContentModalClose">{{ _('Close') }}</button>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+  window.ContentModalI18n = {
+    close: {{ _('Close')|tojson }},
+    loading: {{ _('Loading...')|tojson }},
+    error: {{ _('Error loading content')|tojson }}
+  };
+</script>
