@@ -183,7 +183,12 @@ class BasePlugin:
         self.logger.info("Stopping cycle...")
         self.event.set()
         if self.thread:
-            self.thread.join()
+            # Без таймаута зависший cyclic_task блокирует весь graceful_shutdown
+            self.thread.join(timeout=5.0)
+            if self.thread.is_alive():
+                self.logger.warning(
+                    "Cycle thread did not stop within 5s (daemon, will die on exit)"
+                )
             self.thread = None
         self.logger.info("Stopped cycle")
 

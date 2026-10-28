@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import atexit
 import logging
+import os
 import signal
 import sys
 import threading
@@ -20,6 +21,11 @@ def set_flask_app(app) -> None:
     """Сохраняет Flask app для app_context при lifecycle onStop."""
     global _flask_app
     _flask_app = app
+
+
+def is_shutting_down() -> bool:
+    """True после старта graceful_shutdown — новые futures/циклы не ставить."""
+    return _done
 
 
 def flush_logging_handlers() -> None:
@@ -105,8 +111,9 @@ def graceful_shutdown(reason: str = '') -> None:
 def _signal_handler(signum, frame):
     name = signal.Signals(signum).name if hasattr(signal, 'Signals') else str(signum)
     graceful_shutdown(f"signal {name}")
-    # Даём главному циклу завершиться; при повторном сигнале — жёсткий выход
-    sys.exit(0)
+    # os._exit: sys.exit → atexit гасит ThreadPool, а фоновые потоки ещё
+    # успевают submit → «cannot schedule new futures after shutdown».
+    os._exit(0)
 
 
 def register_shutdown_handlers(app=None) -> None:

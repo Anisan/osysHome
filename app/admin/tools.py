@@ -70,16 +70,23 @@ def can_restart_system():
 def restart_system():
     """Перезапуск службы / процесса.
 
-    Перед hard-exit и перед systemctl/docker restart обязательно
-    graceful_shutdown: os._exit обходит atexit и иначе теряет BatchWriter.
+    Перед hard-exit обязательно graceful_shutdown: os._exit обходит atexit
+    и иначе теряет BatchWriter.
+
+    Под systemd/docker нельзя вызывать systemctl/docker restart самого себя —
+    процесс ждёт systemctl, а systemctl ждёт выхода процесса (TimeoutStopSec).
+    Под супервизором выходим с кодом 1 (Restart=on-failure / restart policy).
     """
     from app.graceful_shutdown import graceful_shutdown
 
-    service_restart = Config.SERVICE_AUTORESTART
-    if service_restart:
-        # Завершаем процесс для внешнего менеджера (systemd/docker restart policy)
+    under_supervisor = (
+        bool(Config.SERVICE_AUTORESTART)
+        or _is_running_under_systemd()
+        or _is_running_in_docker()
+    )
+    if under_supervisor:
         print("Exiting with error to trigger external restart policy...")
-        graceful_shutdown('websocket restart (autorestart/os._exit)')
+        graceful_shutdown('websocket restart (supervisor/os._exit)')
         os._exit(1)
 
     docker_container = getattr(Config, "SERVICE_DOCKER_CONTAINER", None)
@@ -102,7 +109,7 @@ def restart_system():
                 graceful_shutdown('websocket restart (windows service)')
                 subprocess.run(["sc", "stop", service_name], check=True)
                 subprocess.run(["sc", "start", service_name], check=True)
-            else:  # Для Unix
+            else:  # Для Unix — только если мы НЕ под этим unit (иначе дедлок)
                 if os.geteuid() != 0:
                     raise PermissionError("Script must be run as root to restart a systemd service.")
                 graceful_shutdown('websocket restart (systemctl)')
@@ -112,12 +119,6 @@ def restart_system():
             return f"Failed to restart service {service_name}: {e}"
         except PermissionError as e:
             return str(e)
-
-    if _is_running_in_docker() or _is_running_under_systemd():
-        # fallback, если явный способ не настроен
-        print("Exiting with error to trigger external restart policy...")
-        graceful_shutdown('websocket restart (systemd/docker fallback os._exit)')
-        os._exit(1)
 
     return (
         "Restart target is not configured and launch mode is unknown. "

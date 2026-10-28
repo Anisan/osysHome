@@ -50,6 +50,12 @@ class ObjectLoggerAdapter(logging.LoggerAdapter):
         object_name = self.extra.get('object_name', 'Unknown')
         return f'[{object_name}] {msg}', kwargs
 
+def _is_pool_shutdown_error(exc: BaseException) -> bool:
+    """RuntimeError пула при завершении процесса (shutting down / after shutdown)."""
+    msg = str(exc).lower()
+    return "shutting down" in msg or "after shutdown" in msg
+
+
 # Глобальный роутер потоков для linkedProperty/proxy задач.
 # Safe-by-default: неизвестные/проблемные плагины попадают в quarantine pool.
 _poolLinkedProperty = AdaptiveThreadPoolRouter(
@@ -1778,6 +1784,16 @@ class ObjectManager:
                 or str(source or "").startswith(SYSTEM_STATS_SOURCE)
             )
 
+            try:
+                from app.graceful_shutdown import is_shutting_down
+                if is_shutting_down():
+                    # Значение уже записано; linked/proxy в пул не ставим
+                    if self.name == "SystemVar" and name == "system_stats":
+                        invalidateSystemStatsEnabledCache()
+                    return True
+            except ImportError:
+                pass
+
             # link
             if prop.linked and not is_system_stats_write:
                 for link in prop.linked:
@@ -1802,6 +1818,14 @@ class ObjectManager:
                                 name,
                                 value
                             )
+                        except RuntimeError as e:
+                            # «shutting down» не содержит подстроку «shutdown»
+                            if _is_pool_shutdown_error(e):
+                                _logger.debug(
+                                    "Skip linked submit during shutdown: %s", e
+                                )
+                            else:
+                                _logger.exception(e)
                         except Exception as e:
                             _logger.exception(e)
 
@@ -1829,6 +1853,13 @@ class ObjectManager:
                             ignore_owner_limit=True,
                         )
 
+                    except RuntimeError as e:
+                        if _is_pool_shutdown_error(e):
+                            _logger.debug(
+                                "Skip proxy submit during shutdown: %s", e
+                            )
+                        else:
+                            _logger.exception(e)
                     except Exception as e:
                         _logger.exception(e)
             if self.name == "SystemVar" and name == "system_stats":

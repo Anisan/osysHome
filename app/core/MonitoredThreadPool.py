@@ -179,6 +179,19 @@ class MonitoredThreadPool:
         **kwargs
     ) -> concurrent.futures.Future:
         """Отправляет задачу в пул с мониторингом и защитой от перегрузки"""
+        try:
+            from app.graceful_shutdown import is_shutting_down
+            if is_shutting_down():
+                raise RuntimeError(
+                    f"ThreadPool '{self._thread_name_prefix}' is shutting down"
+                )
+        except ImportError:
+            pass
+        if getattr(self._executor, "_shutdown", False):
+            raise RuntimeError(
+                f"ThreadPool '{self._thread_name_prefix}' is shutting down"
+            )
+
         # Проверка переполнения очереди
         pending = self._executor._work_queue.qsize()
         if pending >= self._max_queue_size:
@@ -638,7 +651,9 @@ class AdaptiveThreadPoolRouter:
                     pool = self._select_pool(candidate)
                     return pool.submit(owner_wrapper, task_id=task_id)
                 except RuntimeError as err:
-                    err_text = str(err)
+                    err_text = str(err).lower()
+                    if "shutting down" in err_text or "after shutdown" in err_text:
+                        raise
                     if "overloaded" in err_text or "queue size" in err_text:
                         last_error = err
                         _logger.warning(
