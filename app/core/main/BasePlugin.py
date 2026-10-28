@@ -490,9 +490,13 @@ class BasePlugin:
 
                 level = self.config.get("level_logging", None)
                 if level is None or level == "None":
-                    level = "INFO"
+                    # Как getLogger: DEBUG при Config.DEBUG, иначе logging.min_level
                     if Config.DEBUG:
                         level = "DEBUG"
+                    else:
+                        level = str(
+                            getattr(Config, 'LOG_MIN_LEVEL', 'INFO') or 'INFO'
+                        ).upper()
                 import logging
 
                 log_level = logging.getLevelName(level)
@@ -510,9 +514,12 @@ class BasePlugin:
 
                 level = self.config.get("level_logging", None)
                 if level is None or level == "None":
-                    level = "INFO"
                     if Config.DEBUG:
                         level = "DEBUG"
+                    else:
+                        level = str(
+                            getattr(Config, 'LOG_MIN_LEVEL', 'INFO') or 'INFO'
+                        ).upper()
                 import logging
 
                 log_level = logging.getLevelName(level)
