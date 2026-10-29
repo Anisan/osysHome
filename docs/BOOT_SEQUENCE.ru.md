@@ -29,11 +29,13 @@ flowchart TD
    - Повторно вызывается `sync_db(app)` для таблиц плагинов.
    - Строится Intelli-кеш.
 4. В `main.py` до `app.run(...)`:
-   - `initSystemVar()` в app context.
+   - `initSystemVar()` в app context (создаёт `SystemVar` и методы событий: `onSay`, `onPlaySound`, `onNotify`, `onSystemStart`, `onSystemStop`).
    - `start_plugins()` (вызывает `initialization()` у плагинов, затем стартует `cycle`-потоки).
-   - `startSystemVar()`.
+   - `startSystemVar()` — пишет `SystemVar.Started` / `NeedRestart`, затем синхронно `SystemVar.onSystemStart`.
    - `init_analytics_scheduler()` в app context.
 5. Стартует Flask-сервер с `threaded=True`.
+
+При graceful shutdown (`graceful_shutdown.py`): синхронно `SystemVar.onSystemStop`, затем lifecycle `onStop` объектов, затем `stop_plugins()`.
 
 ## Почему `sync_db(...)` вызывается дважды
 

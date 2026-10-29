@@ -104,18 +104,20 @@ Key helpers:
   - finds or creates `Notify` record with the same `name`/`description` and `read == False`,
   - increments counter, updates timestamps,
   - stores optional `params` dict in `Notify.params` (JSON text),
-  - updates object properties:
-    - `SystemVar.LastNotify` — last notification payload,
-    - `SystemVar.UnreadNotify` — boolean flag,
-  - sends WebSocket event to plugin `wsServer` via `callPluginFunction("wsServer", "notify", {"data": ...})`.
+  - sets `SystemVar.UnreadNotify` to `True`,
+  - dispatches plugin/`wsServer` notify and calls `SystemVar.onNotify` (`operation=added`; default hook writes `SystemVar.LastNotify`).
 - `readNotify(notify_id)`:
   - marks a single notification as read,
   - recalculates `SystemVar.UnreadNotify`,
-  - emits `"read_notify"` WebSocket event.
+  - emits `"read_notify"` WebSocket event and `SystemVar.onNotify` (`operation=confirmed`).
 - `readNotifyAll(source: Optional[str] = None)`:
   - marks all notifications as read, optionally filtered by `source`,
   - updates `SystemVar.UnreadNotify`,
-  - emits `"read_notify_all"` WebSocket event.
+  - emits `"read_notify_all"` WebSocket event and `SystemVar.onNotify` (`operation=confirmed_all`).
+- `deleteNotify(notify_id)`:
+  - deletes the notification,
+  - recalculates `SystemVar.UnreadNotify`,
+  - emits `"delete_notify"` and `SystemVar.onNotify` (`operation=deleted`).
 
 `Notify.params` is intended for structured metadata attached to a notification. Typical keys:
 
@@ -246,10 +248,11 @@ All utility endpoints are protected by API key and admin/user decorators (`api_k
 - `getModule(name)` / `getModulesByAction(action)`:
   - read from plugin registry (`PluginsHelper.plugins`) and return plugin instances.
 - `say(message, level=0, args=None)`:
-  - updates `SystemVar.LastSay`,
-  - dispatches `say(...)` calls to plugins that declare `"say"` in `actions` using `MonitoredThreadPool`.
+  - calls `SystemVar.onSay` (async; default code writes `SystemVar.LastSay`),
+  - dispatches `say(...)` to plugins with `"say"` in `actions` via `MonitoredThreadPool`.
 - `playSound(file_name, level=0, args=None)`:
-  - dispatches `playSound(...)` calls to `"playsound"` plugins.
+  - calls `SystemVar.onPlaySound` (async),
+  - dispatches `playSound(...)` to `"playsound"` plugins.
 - `requestUrl(url, method=...)`, `getUrl(url, ...)`, `postUrl(url, ...)` и др.:
   - simple `requests.get` wrapper with logging.
 - `xml_to_dict(xml_data)`:
@@ -261,6 +264,24 @@ All utility endpoints are protected by API key and admin/user decorators (`api_k
   - normalises datetimes to naive UTC and checks whether `check_dt` is inside the range with flexible boundary inclusion.
 
 These utilities are shared between core code and plugins, and form the “glue” for timers, notifications and integrations.
+
+### 5.1. SystemVar event hooks
+
+Object `SystemVar` is created in `initSystemVar()` (`app/utils.py`). Event methods are registered there; **default code is applied only on first create** (`update=True` refreshes description/params but does not overwrite user code).
+
+Calls go through `_callSystemVarHook` in `common.py` (`callMethodThread` by default; start/stop use sync `callMethod`). Errors are logged and do not abort the caller.
+
+| Method | Trigger | `params` (hook args) | Default code |
+|--------|---------|----------------------|--------------|
+| `onSay` | `say(...)` | `message`, `level`, `args` | `setProperty("SystemVar.LastSay", params.get("message"), source)` |
+| `onPlaySound` | `playSound(...)` | `file_name`, `level`, `args` | *(empty)* |
+| `onNotify` | notify add / confirm / delete | `operation`, `data` | if `operation == "added"`: write `SystemVar.LastNotify` from `data` |
+| `onSystemStart` | `startSystemVar()` after boot | `reason` (`"boot"`) | `say("System started");` |
+| `onSystemStop` | graceful shutdown | `reason` (e.g. `"shutdown"`) | *(empty)* |
+
+`onNotify.operation` values: `added`, `confirmed`, `confirmed_all`, `deleted`.
+
+Property `SystemVar.Started` is set in `startSystemVar()` and has **no** method binding; use `onSystemStart` for startup logic. Edit hook code in the Objects UI (`SystemVar` → Methods).
 
 ---
 
@@ -302,7 +323,7 @@ Async paths (`setPropertyThread`, linked plugins, proxy) are not wrapped.
 
 ### 3. Уведомления и WebSocket
 
-- `addNotify`, `readNotify`, `readNotifyAll` работают с моделью `Notify` и системными переменными `SystemVar.LastNotify` и `SystemVar.UnreadNotify`.
+- `addNotify`, `readNotify`, `readNotifyAll`, `deleteNotify` работают с моделью `Notify` и `SystemVar.UnreadNotify`; запись `LastNotify` — через хук `SystemVar.onNotify` (по умолчанию при `operation=added`).
 - Для фронтенда события дублируются в WebSocket через плагин `wsServer` (`sendWebsocket`, `sendDataToWebsocket` и `callPluginFunction`).
 - REST‑эндпоинты `/api/utils/notifications*` позволяют читать список уведомлений и статистику по ним.
 
@@ -315,8 +336,22 @@ Async paths (`setPropertyThread`, linked plugins, proxy) are not wrapped.
 
 ### 5. Утилиты общего назначения
 
-- `say` и `playSound` рассылают сообщения/звуки во все плагины, поддерживающие соответствующие действия.
+- `say` / `playSound` вызывают `SystemVar.onSay` / `onPlaySound`, затем рассылают событие плагинам с действиями `"say"` / `"playsound"`.
 - `xml_to_dict`, `requestUrl`/`getUrl`, `runCode`, `is_datetime_in_range` и другие функции упрощают написание плагинов и внутренних сервисов.
+
+### 5.1. Хуки событий SystemVar
+
+Создаются в `initSystemVar()` (`app/utils.py`). Код по умолчанию пишется **только при первом создании** метода; последующий `update` не затирает пользовательский код. Вызов — `_callSystemVarHook` (`common.py`).
+
+| Метод | Когда | Аргументы (`params`) | Код по умолчанию |
+|-------|-------|----------------------|------------------|
+| `onSay` | `say(...)` | `message`, `level`, `args` | запись в `SystemVar.LastSay` |
+| `onPlaySound` | `playSound(...)` | `file_name`, `level`, `args` | *(пустой)* |
+| `onNotify` | add / confirm / delete notify | `operation`, `data` | при `added` — `SystemVar.LastNotify` |
+| `onSystemStart` | `startSystemVar()` (sync) | `reason` (`"boot"`) | `say("System started");` |
+| `onSystemStop` | graceful shutdown (sync) | `reason` | *(пустой)* |
+
+`operation` у `onNotify`: `added`, `confirmed`, `confirmed_all`, `deleted`. Свойство `Started` без привязки метода — логика старта в `onSystemStart`.
 
 ### 6. ReactiveChain (защита от петель property→method)
 
