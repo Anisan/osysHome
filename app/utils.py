@@ -83,6 +83,15 @@ def get_user_by_api_key(apikey):
             return User(user)
     return None
 
+_ON_SAY_DEFAULT_CODE = (
+    'setProperty("SystemVar.LastSay", params.get("message"), source)\n'
+)
+_ON_NOTIFY_DEFAULT_CODE = (
+    'if params and params.get("operation") == "added":\n'
+    '    setProperty("SystemVar.LastNotify", params.get("data"), source)\n'
+)
+
+
 def initSystemVar():
 
     from app.core.lib.object import addClass, updateClass, addClassProperty, addObject, getObject, addObjectProperty, addObjectMethod, getObjectsByClass, getProperty, setProperty
@@ -90,19 +99,23 @@ def initSystemVar():
     addObject("_permissions",None,"Permission settings")
     getObject("_permissions")  # preload
 
-    # Create class users
-    cls_user = addClass('Users','Users osysHome')
-    if not cls_user['template']:
+    # Create class users (protected — нельзя удалить/сменить родителя)
+    cls_user = addClass(
+        'Users', 'Users osysHome',
+        params={"protected": True, "icon": "fas fa-users", "color": "#0d6efd"},
+        update=True,
+    )
+    if not cls_user.get('template'):
         cls_user['template'] = USERS_CLASS_TEMPLATE
         updateClass(cls_user)
 
     addClassProperty(
         'password', 'Users', 'Hash password', 0, type=PropertyType.String,
-        params={'icon': 'fas fa-key'}, update=True,
+        params={"protected": True,'icon': 'fas fa-key'}, update=True,
     )
     addClassProperty(
         'role', 'Users', 'Role user', 0, type=PropertyType.String,
-        params={'icon': 'fas fa-user-tag'}, update=True,
+        params={"protected": True, 'icon': 'fas fa-user-tag'}, update=True,
     )
     addClassProperty(
         'home_page', 'Users', 'Home page for user (default: admin)', 0, type=PropertyType.String,
@@ -124,68 +137,137 @@ def initSystemVar():
     )
 
     # Create SystemVar
-    addObject("SystemVar",None,"System variable")
-    addObjectMethod('isStarted',"SystemVar","Method for start",'say("System started");')
-    addObjectProperty('Started','SystemVar',"Datetime starting system",0,PropertyType.Datetime,"isStarted")
-    addObjectProperty('NeedRestart','SystemVar',"Need restart system",0,PropertyType.Bool)
-    addObjectProperty('core_branch', 'SystemVar', "Core update branch", 0, PropertyType.String, update=True)
-    addObjectProperty('core_url', 'SystemVar', "Core update repository URL", 0, PropertyType.String, update=True)
-    addObjectProperty('upgraded', 'SystemVar', "Last core upgrade datetime", 0, PropertyType.Datetime, update=True)
-    addObjectProperty('update', 'SystemVar', "Core update available", 0, PropertyType.Bool, update=True)
+    def _sv_params(icon, **extra):
+        p = {"protected": True, "icon": icon}
+        p.update(extra)
+        return p
+
+    addObject(
+        "SystemVar", None, "System variable",
+        params={"protected": True, "icon": "fas fa-cogs", "color": "#6f42c1"},
+        update=True,
+    )
+    # Хуки: код только при создании (update не затирает код пользователя).
+    # Старт системы — onSystemStart; Started без привязки метода.
+    for _hook_name, _hook_desc, _hook_code, _hook_icon in (
+        ("onSay", "System event: say", _ON_SAY_DEFAULT_CODE, "fas fa-comment"),
+        ("onPlaySound", "System event: playSound", "", "fas fa-volume-up"),
+        ("onNotify", "System event: notify (added/confirmed/deleted)", _ON_NOTIFY_DEFAULT_CODE, "fas fa-bell"),
+        ("onSystemStart", "System event: system start", 'say("System started");', "fas fa-play"),
+        ("onSystemStop", "System event: system stop", "", "fas fa-stop"),
+    ):
+        _hook_params = _sv_params(_hook_icon)
+        addObjectMethod(_hook_name, "SystemVar", _hook_desc, code=_hook_code, params=_hook_params)
+        addObjectMethod(_hook_name, "SystemVar", _hook_desc, params=_hook_params, update=True)
+
+    addObjectProperty(
+        'Started', 'SystemVar', "Datetime starting system", 0,
+        PropertyType.Datetime, "", params=_sv_params("fas fa-clock"), update=True,
+    )
+    addObjectProperty(
+        'NeedRestart', 'SystemVar', "Need restart system", 0,
+        PropertyType.Bool, params=_sv_params("fas fa-sync-alt"), update=True,
+    )
+    addObjectProperty(
+        'core_branch', 'SystemVar', "Core update branch", 0,
+        PropertyType.String, params=_sv_params("fas fa-code-branch"), update=True,
+    )
+    addObjectProperty(
+        'core_url', 'SystemVar', "Core update repository URL", 0,
+        PropertyType.String, params=_sv_params("fas fa-link"), update=True,
+    )
+    addObjectProperty(
+        'upgraded', 'SystemVar', "Last core upgrade datetime", 0,
+        PropertyType.Datetime, params=_sv_params("fas fa-arrow-up"), update=True,
+    )
+    addObjectProperty(
+        'update', 'SystemVar', "Core update available", 0,
+        PropertyType.Bool, params=_sv_params("fas fa-download"), update=True,
+    )
     if getProperty("SystemVar.core_branch") is None:
         setProperty("SystemVar.core_branch", "master", "osysHome")
     if getProperty("SystemVar.core_url") is None:
         setProperty("SystemVar.core_url", "https://github.com/Anisan/osysHome", "osysHome")
-    addObjectProperty('LastSay','SystemVar',"Last 'say' message",7,PropertyType.String)
-    addObjectProperty('UnreadNotify','SystemVar',"Flag indicating the presence of an unread notification",0,PropertyType.Bool)
-    addObjectProperty('LastNotify','SystemVar',"Last 'notify' message",7,PropertyType.Dictionary)
-    addObjectProperty('welcome','SystemVar',"Show welcome message on control panel (first run)",0,PropertyType.Bool)
+    addObjectProperty(
+        'LastSay', 'SystemVar', "Last 'say' message", 7,
+        PropertyType.String, params=_sv_params("fas fa-comment"), update=True,
+    )
+    addObjectProperty(
+        'UnreadNotify', 'SystemVar',
+        "Flag indicating the presence of an unread notification", 0,
+        PropertyType.Bool, params=_sv_params("fas fa-envelope"), update=True,
+    )
+    addObjectProperty(
+        'LastNotify', 'SystemVar', "Last 'notify' message", 7,
+        PropertyType.Dictionary, params=_sv_params("fas fa-bell"), update=True,
+    )
+    addObjectProperty(
+        'welcome', 'SystemVar',
+        "Show welcome message on control panel (first run)", 0,
+        PropertyType.Bool, params=_sv_params("fas fa-door-open"), update=True,
+    )
     if getProperty("SystemVar.welcome") is None:
         setProperty("SystemVar.welcome", True, "osysHome")
 
     type_editor = getProperty('SystemVar.code_editor')
-    params = {
-        "icon": 'fas fa-code',
-        "enum_values":{
-            'ace':'Ace editor',
-            'monaco':'Monaco editor',
-        }
-    }
-    addObjectProperty('code_editor','SystemVar',"Code editor",0, PropertyType.Enum, params=params, update=True)
-    if type_editor == None:
+    params = _sv_params(
+        "fas fa-code",
+        enum_values={
+            'ace': 'Ace editor',
+            'monaco': 'Monaco editor',
+        },
+    )
+    addObjectProperty('code_editor', 'SystemVar', "Code editor", 0, PropertyType.Enum, params=params, update=True)
+    if type_editor is None:
         type_editor = 'monaco'
     setProperty('SystemVar.code_editor', type_editor)
 
-    params = {
-        "icon":"fas fa-grip",
-        "enum_values":{
-            'custom':'Customizable grid',
-            'old':'Old style grid',
+    params = _sv_params(
+        "fas fa-grip",
+        enum_values={
+            'custom': 'Customizable grid',
+            'old': 'Old style grid',
         },
-        "default_value": 'custom',
-    }
-    addObjectProperty('control_panel_style','SystemVar',"Style control panel",0, PropertyType.Enum, params=params, update=True)
+        default_value='custom',
+    )
+    addObjectProperty(
+        'control_panel_style', 'SystemVar', "Style control panel", 0,
+        PropertyType.Enum, params=params, update=True,
+    )
 
     # Analytics (opt-in, like Home Assistant). Enum: disabled=no, basic=version/plugins/counts, extended=future
-    params = {
-        "icon": "fas fa-chart-bar",
-        "enum_values": {
+    params = _sv_params(
+        "fas fa-chart-bar",
+        enum_values={
             "disabled": "Disabled",
             "basic": "Basic",
             "extended": "Extended",
         },
-    }
-    addObjectProperty('analytics_enabled','SystemVar',"Analytics opt-in level",0, PropertyType.Enum, params=params, update=True)
-    addObjectProperty('analytics_uuid','SystemVar',"Unique installation ID for analytics",0, PropertyType.String, update=True)
+    )
+    addObjectProperty(
+        'analytics_enabled', 'SystemVar', "Analytics opt-in level", 0,
+        PropertyType.Enum, params=params, update=True,
+    )
+    addObjectProperty(
+        'analytics_uuid', 'SystemVar', "Unique installation ID for analytics", 0,
+        PropertyType.String, params=_sv_params("fas fa-fingerprint"), update=True,
+    )
     if not getProperty("SystemVar.analytics_uuid"):
         setProperty("SystemVar.analytics_uuid", str(uuid.uuid4()).replace("-", ""), "osysHome")
         from app.core.main.ObjectManager import _batch_writer
         _batch_writer.flush_sync()
-    addObjectProperty('analytics_uuid','SystemVar',"Unique installation ID for analytics",0, PropertyType.String, params={"read_only": True}, update=True)
+    addObjectProperty(
+        'analytics_uuid', 'SystemVar', "Unique installation ID for analytics", 0,
+        PropertyType.String,
+        params=_sv_params("fas fa-fingerprint", read_only=True),
+        update=True,
+    )
 
-    addObjectProperty('system_stats', 'SystemVar',
+    addObjectProperty(
+        'system_stats', 'SystemVar',
         "Enable local SystemStats history collection", 0,
-        PropertyType.Bool, params={"icon": "fas fa-chart-line"}, update=True)
+        PropertyType.Bool, params=_sv_params("fas fa-chart-line"), update=True,
+    )
 
     if getProperty("SystemVar.system_stats") is None:
         setProperty("SystemVar.system_stats", False, "osysHome")
@@ -195,6 +277,10 @@ def initSystemVar():
     users = getObjectsByClass('Users')
     if users:
         initPermissions()
+        # Единственный пользователь (типичный первый admin) — защитить от удаления
+        if len(users) == 1:
+            from app.core.lib.object import markObjectProtected
+            markObjectProtected(users[0].name)
 
 
 _SQL_ENDPOINT_PERMISSIONS = {
@@ -314,9 +400,11 @@ def _merge_system_stats_permissions():
 
 def startSystemVar():
     from app.core.lib.object import setProperty
+    from app.core.lib.common import _callSystemVarHook
     # Локальное «сейчас»: тип datetime в setValue сам сделает convert_local_to_utc
     setProperty("SystemVar.Started", datetime.datetime.now(), "osysHome")
     setProperty("SystemVar.NeedRestart", False, "osysHome")
+    _callSystemVarHook("onSystemStart", {"reason": "boot"}, "osysHome", async_=False)
 
 
 def init_analytics_scheduler():

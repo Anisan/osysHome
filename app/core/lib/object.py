@@ -16,6 +16,121 @@ _logger = getLogger('object')
 _UNSET = object()
 
 
+def _parse_params_json(raw) -> dict:
+    """Разбирает params из JSON-строки или dict; при ошибке — пустой dict."""
+    if not raw:
+        return {}
+    if isinstance(raw, dict):
+        return raw
+    try:
+        parsed = json.loads(raw) if isinstance(raw, str) else raw
+        return parsed if isinstance(parsed, dict) else {}
+    except Exception:
+        return {}
+
+
+def _is_params_protected(raw) -> bool:
+    return bool(_parse_params_json(raw).get("protected"))
+
+
+def _merge_entity_params(raw, patch: dict) -> str:
+    """Merge patch into entity params JSON; returns JSON string."""
+    params = _parse_params_json(raw)
+    params.update(patch)
+    return json.dumps(params)
+
+
+def getProtectedObjectNames() -> frozenset:
+    """Имена объектов, которые нельзя удалить/переименовать.
+
+    объекты с ``params.protected``.
+    """
+    names = set()   
+    with session_scope() as session:
+        for name, raw in session.query(Object.name, Object.params).all():
+            if _is_params_protected(raw):
+                names.add(name)
+    return frozenset(names)
+
+
+def getProtectedClassNames() -> frozenset:
+    """Имена классов с ``params.protected``."""
+    with session_scope() as session:
+        return frozenset(
+            name
+            for name, raw in session.query(Class.name, Class.params).all()
+            if _is_params_protected(raw)
+        )
+
+
+def isObjectProtected(name: str) -> bool:
+    """True, если объект нельзя удалить/переименовать."""
+    name = name or ""
+    with session_scope() as session:
+        obj = session.query(Object).filter(Object.name == name).one_or_none()
+        if not obj:
+            return False
+        return _is_params_protected(obj.params)
+
+
+def markObjectProtected(name: str) -> bool:
+    """Выставляет ``params.protected`` у объекта.
+
+    Args:
+        name: Имя объекта.
+
+    Returns:
+        bool: True если объект найден и защита применена/уже была.
+    """
+    name = (name or "").strip()
+    if not name:
+        return False
+    with session_scope() as session:
+        obj = session.query(Object).filter(Object.name == name).one_or_none()
+        if not obj:
+            return False
+        if _is_params_protected(obj.params):
+            return True
+        obj.params = _merge_entity_params(obj.params, {"protected": True})
+        session.commit()
+        object_id = obj.id
+    objects_storage.reload_object(object_id)
+    invalidate_objects_tree_cache()
+    return True
+
+
+def isClassProtected(name: str = None, class_id: int = None) -> bool:
+    """True, если класс нельзя удалить/переименовать/сменить родителя."""
+    with session_scope() as session:
+        cls = None
+        if class_id is not None:
+            cls = session.query(Class).filter(Class.id == class_id).one_or_none()
+        elif name:
+            cls = session.query(Class).filter(Class.name == name).one_or_none()
+        if not cls:
+            return False
+        return _is_params_protected(cls.params)
+
+
+def markClassProtected(name: str) -> bool:
+    """Выставляет ``params.protected`` у класса."""
+    name = (name or "").strip()
+    if not name:
+        return False
+    with session_scope() as session:
+        cls = session.query(Class).filter(Class.name == name).one_or_none()
+        if not cls:
+            return False
+        if _is_params_protected(cls.params):
+            return True
+        cls.params = _merge_entity_params(cls.params, {"protected": True})
+        session.commit()
+        class_id = cls.id
+    objects_storage.reload_objects_by_class(class_id)
+    invalidate_objects_tree_cache()
+    return True
+
+
 def _get_object_logger(object_name: str):
     """Return a logger adapter bound to an object name.
 
@@ -27,7 +142,13 @@ def _get_object_logger(object_name: str):
     """
     return ObjectLoggerAdapter(_logger, {'object_name': object_name})
 
-def addClass(name:str, description:str=_UNSET, parentId:int=_UNSET, update:bool=False) -> dict:
+def addClass(
+    name:str,
+    description:str=_UNSET,
+    parentId:int=_UNSET,
+    params:dict=_UNSET,
+    update:bool=False,
+) -> dict:
     """Create or update a class in the database.
 
     Args:
@@ -35,6 +156,7 @@ def addClass(name:str, description:str=_UNSET, parentId:int=_UNSET, update:bool=
         description (str, optional): Class description. Omitted fields are not
             set on create. Defaults to sentinel (unchanged / not set).
         parentId (int, optional): Parent class ID. Defaults to sentinel.
+        params (dict, optional): Class params JSON (e.g. ``protected``).
         update (bool, optional): If True, update an existing class with the
             same name. Defaults to False.
 
@@ -50,6 +172,8 @@ def addClass(name:str, description:str=_UNSET, parentId:int=_UNSET, update:bool=
                 cls.description = description
             if parentId is not _UNSET:
                 cls.parent_id = parentId
+            if params is not _UNSET:
+                cls.params = json.dumps(params) if params is not None else None
             session.add(cls)
             session.commit()
             objects_storage.reload_objects_by_class(cls.id)
@@ -59,6 +183,11 @@ def addClass(name:str, description:str=_UNSET, parentId:int=_UNSET, update:bool=
                 cls.description = description
             if parentId is not _UNSET:
                 cls.parent_id = parentId
+            if params is not _UNSET:
+                if params is None:
+                    cls.params = None
+                else:
+                    cls.params = _merge_entity_params(cls.params, params)
             session.commit()
             objects_storage.reload_objects_by_class(cls.id)
             invalidate_objects_tree_cache()
@@ -185,6 +314,7 @@ def deleteClass(name:str) -> bool:
 
     Refuses deletion (returns False) if:
       - the class does not exist;
+      - the class is protected (``params.protected``);
       - the class has child classes;
       - the class has any objects.
 
@@ -201,6 +331,8 @@ def deleteClass(name:str) -> bool:
         with session_scope() as session:
             cls = session.query(Class).filter(Class.name == name).one_or_none()
             if not cls:
+                return False
+            if _is_params_protected(cls.params):
                 return False
             if session.query(Class.id).filter(Class.parent_id == cls.id).first():
                 return False
@@ -352,7 +484,13 @@ def addClassMethod(
             objects_storage.reload_objects_by_class(cls.id)
         return method
 
-def addObject(name:str, class_name:str=_UNSET, description=_UNSET, update:bool=False) -> ObjectManager:
+def addObject(
+    name:str,
+    class_name:str=_UNSET,
+    description=_UNSET,
+    params:dict=_UNSET,
+    update:bool=False,
+) -> ObjectManager:
     """Create or update an object in the database.
 
     Loads or reloads the object in ``objects_storage`` and returns its
@@ -362,6 +500,7 @@ def addObject(name:str, class_name:str=_UNSET, description=_UNSET, update:bool=F
         name (str): Object name.
         class_name (str, optional): Class name. Defaults to sentinel.
         description (str, optional): Object description. Defaults to sentinel.
+        params (dict, optional): Object params JSON (e.g. ``protected``).
         update (bool, optional): If True, update an existing object.
             Defaults to False.
 
@@ -379,6 +518,8 @@ def addObject(name:str, class_name:str=_UNSET, description=_UNSET, update:bool=F
             obj.class_id = cls.id if cls else None
             if description is not _UNSET:
                 obj.description = description
+            if params is not _UNSET:
+                obj.params = json.dumps(params) if params is not None else None
             session.add(obj)
             session.commit()
             objects_storage.reload_object(obj.id)
@@ -389,6 +530,11 @@ def addObject(name:str, class_name:str=_UNSET, description=_UNSET, update:bool=F
                 obj.class_id = cls.id if cls else obj.class_id
             if description is not _UNSET:
                 obj.description = description
+            if params is not _UNSET:
+                if params is None:
+                    obj.params = None
+                else:
+                    obj.params = _merge_entity_params(obj.params, params)
             session.commit()
             objects_storage.reload_object(obj.id)
             invalidate_objects_tree_cache()
@@ -490,6 +636,9 @@ def deleteObjectProperty(object_property: str) -> bool:
     Returns:
         bool: True if deleted, False if the name is invalid or the property
             does not exist.
+
+    Raises:
+        PermissionError: If the property has ``params.protected``.
     """
     try:
         object_name, property_name = object_property.split('.', 1)
@@ -503,6 +652,10 @@ def deleteObjectProperty(object_property: str) -> bool:
         prop = session.query(Property).filter(Property.name == property_name, Property.object_id == obj.id).one_or_none()
         if not prop:
             return False
+        if _is_params_protected(prop.params):
+            raise PermissionError(
+                f'Property "{object_name}.{property_name}" is protected and cannot be deleted'
+            )
         values = session.query(Value).filter(Value.object_id == obj.id, Value.name == property_name).all()
         for value in values:
             session.query(History).filter(History.value_id == value.id).delete(synchronize_session=False)
@@ -526,6 +679,9 @@ def deleteClassProperty(class_property: str) -> bool:
     Returns:
         bool: True if deleted, False if the name is invalid or the property
             does not exist.
+
+    Raises:
+        PermissionError: If the property has ``params.protected``.
     """
     try:
         class_name, property_name = class_property.split('.', 1)
@@ -539,6 +695,10 @@ def deleteClassProperty(class_property: str) -> bool:
         prop = session.query(Property).filter(Property.name == property_name, Property.class_id == cls.id).one_or_none()
         if not prop:
             return False
+        if _is_params_protected(prop.params):
+            raise PermissionError(
+                f'Property "{class_name}.{property_name}" is protected and cannot be deleted'
+            )
         object_names = [
             name for (name,) in session.query(Object.name).filter(Object.class_id == cls.id).all()
         ]
@@ -641,6 +801,9 @@ def deleteObjectMethod(object_method: str) -> bool:
     Returns:
         bool: True if deleted, False if the name is invalid, the object is
             missing, or the method does not exist.
+
+    Raises:
+        PermissionError: If the method has ``params.protected``.
     """
     try:
         object_name, method_name = object_method.split('.', 1)
@@ -653,6 +816,10 @@ def deleteObjectMethod(object_method: str) -> bool:
         method = session.query(Method).filter(Method.name == method_name, Method.object_id == obj.id).one_or_none()
         if not method:
             return False
+        if _is_params_protected(method.params):
+            raise PermissionError(
+                f'Method "{object_name}.{method_name}" is protected and cannot be deleted'
+            )
         object_id = obj.id
         session.delete(method)
         session.commit()
@@ -672,6 +839,9 @@ def deleteClassMethod(class_method: str) -> bool:
     Returns:
         bool: True if deleted, False if the name is invalid or the method
             does not exist.
+
+    Raises:
+        PermissionError: If the method has ``params.protected``.
     """
     try:
         class_name, method_name = class_method.split('.', 1)
@@ -684,6 +854,10 @@ def deleteClassMethod(class_method: str) -> bool:
         method = session.query(Method).filter(Method.name == method_name, Method.class_id == cls.id).one_or_none()
         if not method:
             return False
+        if _is_params_protected(method.params):
+            raise PermissionError(
+                f'Method "{class_name}.{method_name}" is protected and cannot be deleted'
+            )
         object_names = [
             name for (name,) in session.query(Object.name).filter(Object.class_id == cls.id).all()
         ]
@@ -1459,9 +1633,15 @@ def deleteObject(name: str):
 
     Returns:
         bool: True if deleted, False if the object does not exist.
+
+    Raises:
+        PermissionError: If the object is in protected.
     """
     from app.database import db
     from app.core.lib.object_db import delete_object_from_db
+
+    if isObjectProtected(name):
+        raise PermissionError(f'Object "{name}" is protected and cannot be deleted')
 
     obj = Object.query.filter(Object.name == name).one_or_none()
     if not obj:
@@ -1489,12 +1669,16 @@ def renameObject(old_name: str, new_name: str) -> bool:
             missing.
 
     Raises:
-        PermissionError: If ``new_name`` is already taken.
+        PermissionError: If ``new_name`` is already taken or the object is
+            protected.
     """
     old_name = (old_name or "").strip()
     new_name = (new_name or "").strip()
     if not old_name or not new_name or old_name == new_name:
         return False
+
+    if isObjectProtected(old_name):
+        raise PermissionError(f'Object "{old_name}" is protected and cannot be renamed')
 
     logger = _get_object_logger(old_name)
     with session_scope() as session:

@@ -13,6 +13,7 @@ class Class(SurrogatePK, db.Model):
     description = Column(db.String(512))
     parent_id = Column(db.Integer)
     template = Column(db.Text)
+    params = Column(db.Text)  # JSON: protected, icon, …
     objects = relationship("Object", back_populates="class_")
 
 class Object(SurrogatePK, db.Model):
@@ -28,6 +29,7 @@ class Object(SurrogatePK, db.Model):
     class_id = Column(db.Integer, ForeignKey('classes.id', name='fk_object_class_id'))
     class_ = relationship("Class", back_populates="objects")
     template = Column(db.Text)
+    params = Column(db.Text)  # JSON: protected, icon, …
     properties = relationship("Property", back_populates="object_")
 
 class Property(SurrogatePK, db.Model):

@@ -843,8 +843,8 @@
           }
         }, 200);
       }
-    } else if (data.operation === 'read_notify') {
-      // Уведомление было прочитано на другой странице или на этой же
+    } else if (data.operation === 'read_notify' || data.operation === 'delete_notify') {
+      // Уведомление прочитано или удалено (эта или другая страница)
       const notifyId = data.data.id;
       const notifySource = data.data.source;
       

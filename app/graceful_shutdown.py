@@ -87,8 +87,15 @@ def graceful_shutdown(reason: str = '') -> None:
     if app is not None:
         try:
             from app.core.main.ObjectsStorage import objects_storage
+            from app.core.lib.common import _callSystemVarHook
             with app.app_context():
                 objects_storage.stop_background_preload()
+                _callSystemVarHook(
+                    "onSystemStop",
+                    {"reason": reason or "shutdown"},
+                    "osysHome",
+                    async_=False,
+                )
                 objects_storage.invoke_lifecycle_all("onStop")
         except Exception as ex:
             try:

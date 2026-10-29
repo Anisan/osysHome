@@ -127,6 +127,23 @@ class ReadNotify(Resource):
         return {"success": True}, 200
 
 
+@utils_ns.route("/notify/<int:id>")
+class DeleteNotify(Resource):
+    @api_key_required
+    @handle_admin_required
+    @utils_ns.doc(security="apikey")
+    def delete(self, id):
+        """
+        Delete notify by id
+        """
+        from app.core.lib.common import deleteNotify
+
+        result = deleteNotify(id)
+        if not result:
+            return {"success": False, "message": "Notify not found"}, 404
+        return {"success": True}, 200
+
+
 @utils_ns.route("/readnotify/all")
 class ReadNotifyAll(Resource):
     @api_key_required

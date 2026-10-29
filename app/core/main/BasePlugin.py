@@ -269,12 +269,13 @@ class BasePlugin:
     def notify(self, data: dict) -> None:
         """Handles a system notification when the module has `action="notify"`.
 
-        Called from ``addNotify()`` / ``readNotify()`` / ``readNotifyAll()`` for plugins
-        that list ``"notify"`` in ``self.actions``.
+        Called from ``addNotify()`` / ``readNotify()`` / ``readNotifyAll()`` /
+        ``deleteNotify()`` for plugins that list ``"notify"`` in ``self.actions``.
 
         Args:
             data (dict): Event payload:
                 - ``operation``: ``new_notify`` | ``read_notify`` | ``read_notify_all``
+                  | ``delete_notify``
                 - ``data``: event fields (id, name, description, category, source, count, params)
         """
         pass

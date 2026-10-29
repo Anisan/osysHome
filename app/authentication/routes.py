@@ -12,7 +12,7 @@ from . import blueprint
 from .forms import LoginForm
 from app.extensions import login_manager, limiter, cache
 from app.core.models.Users import User
-from app.core.lib.object import getObject, getObjectsByClass, addObject, setProperty
+from app.core.lib.object import getObject, getObjectsByClass, addObject, setProperty, markObjectProtected
 from app import safe_translate as _
 
 from app.logging_config import security_audit_log, log_app_exception
@@ -77,6 +77,7 @@ def _process_login(username, password, login_form, register=False):
         login_user(user)
         setProperty(username + ".password", user.password)
         setProperty(username + ".role", 'admin')
+        markObjectProtected(username)
 
         from app.utils import initPermissions
         initPermissions()

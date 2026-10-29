@@ -665,6 +665,7 @@ class PropertyManager():
         self.sort_order = None
         self.default_value = None
         self.read_only = False
+        self.protected = False
         
         if self.params and isinstance(self.params, dict):
             self.icon = self.params.get('icon')
@@ -672,6 +673,7 @@ class PropertyManager():
             self.sort_order = self.params.get('sort_order')
             self.default_value = self.params.get('default_value')
             self.read_only = self.params.get('read_only', False)
+            self.protected = bool(self.params.get('protected', False))
         
         if value:
             self.__value = self._decodeValue(value.value, True)
@@ -1285,6 +1287,8 @@ class PropertyManager():
             result["sort_order"] = self.sort_order
         if self.read_only:
             result["read_only"] = self.read_only
+        if self.protected:
+            result["protected"] = self.protected
         
         # Add params for enum type
         if self.type == 'enum' and self.params and 'enum_values' in self.params:
@@ -1363,9 +1367,19 @@ class MethodManager():
         self.exec_result = None
         self.exec_time = None
         self._call_history: list[dict] = []
+        self.params = None
+        self.protected = False
+        raw_params = methods[0].get("params") if methods else None
+        if raw_params:
+            try:
+                self.params = json.loads(raw_params) if isinstance(raw_params, str) else raw_params
+            except Exception:
+                self.params = None
+        if isinstance(self.params, dict):
+            self.protected = bool(self.params.get("protected", False))
 
     def to_dict(self):
-        return {
+        result = {
             "name": self.name,
             "description": self.description,
             "source": self.source,
@@ -1376,6 +1390,9 @@ class MethodManager():
             "exec_result": self.exec_result,
             "exec_time": self.exec_time
         }
+        if self.protected:
+            result["protected"] = True
+        return result
 
     def __str__(self):
         return f"MethodManager(name='{self.name}', description='{self.description}')"
@@ -1493,6 +1510,18 @@ class ObjectManager:
         self.object_id = obj.id
         self.name = obj.name
         self.description = obj.description
+        params = None
+        if getattr(obj, "params", None):
+            try:
+                params = json.loads(obj.params) if isinstance(obj.params, str) else obj.params
+            except Exception:
+                params = None
+        object.__setattr__(self, "params", params if isinstance(params, dict) else None)
+        object.__setattr__(
+            self,
+            "protected",
+            bool(params.get("protected")) if isinstance(params, dict) else False,
+        )
         # Create logger adapter with object name context
         self._logger = ObjectLoggerAdapter(_logger, {'object_name': self.name})
         self.properties = {}
@@ -1990,7 +2019,10 @@ class ObjectManager:
             raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{name}'")
 
     def __setattr__(self, name, value):
-        if name.startswith('_') or name in ('properties', 'methods', 'object_id', 'name', 'description', 'parents'):
+        if name.startswith('_') or name in (
+            'properties', 'methods', 'object_id', 'name', 'description', 'parents',
+            'params', 'protected',
+        ):
             super().__setattr__(name, value)
             return
 

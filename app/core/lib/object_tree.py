@@ -1,6 +1,7 @@
 """Shared structural cache for the classes/objects tree (admin UI and tools)."""
 from collections import defaultdict
 from threading import Lock
+import json
 
 from app.core.models.Clasess import Class, Object
 
@@ -19,6 +20,27 @@ def _sort_items_by_name(items):
     items.sort(key=lambda item: (item.get("name") or "").lower())
 
 
+def _entity_protected(raw_params) -> bool:
+    """True если params.protected."""
+    return bool(_entity_display_meta(raw_params).get("protected"))
+
+
+def _entity_display_meta(raw_params) -> dict:
+    """Метаданные отображения из params: protected, icon, color."""
+    result = {"protected": False, "icon": "", "color": ""}
+    if not raw_params:
+        return result
+    try:
+        params = json.loads(raw_params) if isinstance(raw_params, str) else raw_params
+        if isinstance(params, dict):
+            result["protected"] = bool(params.get("protected"))
+            result["icon"] = params.get("icon") or ""
+            result["color"] = params.get("color") or ""
+    except Exception:
+        pass
+    return result
+
+
 def _build_tree_payload(include_hidden=False):
     """Build the classes/objects tree payload from the database.
 
@@ -35,16 +57,19 @@ def _build_tree_payload(include_hidden=False):
         class_query = class_query.filter(Class.name.notlike(r'\_%', escape='\\'))
     all_classes = class_query.order_by(Class.name).all()
 
-    class_nodes = {
-        item.id: {
+    class_nodes = {}
+    for item in all_classes:
+        meta = _entity_display_meta(getattr(item, "params", None))
+        class_nodes[item.id] = {
             "id": item.id,
             "name": item.name,
             "description": item.description,
+            "protected": meta["protected"],
+            "icon": meta["icon"],
+            "color": meta["color"],
             "children_count": 0,
             "objects_count": 0,
         }
-        for item in all_classes
-    }
 
     children_by_parent = defaultdict(list)
     for item in all_classes:
@@ -58,10 +83,14 @@ def _build_tree_payload(include_hidden=False):
     objects_by_class = defaultdict(list)
     standalone_objects = []
     for obj in all_objects:
+        meta = _entity_display_meta(getattr(obj, "params", None))
         obj_dict = {
             "id": obj.id,
             "name": obj.name,
             "description": obj.description,
+            "protected": meta["protected"],
+            "icon": meta["icon"],
+            "color": meta["color"],
         }
         if obj.class_id is None:
             standalone_objects.append(obj_dict)
