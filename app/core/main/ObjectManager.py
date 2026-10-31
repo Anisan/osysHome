@@ -2067,13 +2067,15 @@ class ObjectManager:
         source_for_code = led_to
         _push_execution_source(execution_ctx)
         try:
+            # vars(self) первым: иначе self.params (метаданные объекта)
+            # затрёт аргументы вызова метода в params.
             variables = {
+                **vars(self),
                 'self': self,
                 'params': args,
                 'logger': _logger,
                 'source': source_for_code,
                 'runtime': self._runtime,
-                **vars(self)
             }
             methods = self.methods[name].methods
             output = ''
