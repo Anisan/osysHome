@@ -158,6 +158,26 @@ logging:
   # TimedRotatingFileHandler backup count (days kept for midnight rotation).
   backup_count: 7
 
+  # In-app notify when ERROR+ rate is elevated (in-memory counter; no extra log I/O).
+  # Errors are grouped by logger + normalized message: one unread series does not
+  # block notifies for a different error text / module.
+  error_rate:
+    # Enable or disable ERROR rate monitoring / notify.
+    enabled: true
+
+    # Sliding window length in seconds for counting ERROR+ of the same fingerprint.
+    # 5 minutes covers slow reconnect loops and multi-cycle API polls.
+    window_sec: 300
+
+    # Notify when this many matching ERROR+ records occur within window_sec.
+    # ~1/min sustained drip of the same error; ignores one-off blips.
+    threshold: 5
+
+    # While that fingerprint's notify is unread: min seconds between count bumps.
+    # Other fingerprints are unaffected. After the user marks it read, a new
+    # notify can fire when the threshold is reached again.
+    cooldown_sec: 600
+
 # Database connection and SQLite PRAGMA tuning.
 database:
   # Print SQL statements to the log.
