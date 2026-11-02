@@ -656,5 +656,14 @@
   "welcome_tip_4": "Systemprotokolle sind im Modul „Protokolle“ verfügbar (falls installiert). Nutzen Sie sie zur Fehlerbehebung.",
   "welcome_tip_5": "Unterschied zwischen Modulen und Objekten: Module sind System-Plugins, Objekte sind Ihre Geräte und Entitäten.",
   "welcome_tips_title": "Nützliche Tipps",
-  "whitelist": "Whitelist"
+  "whitelist": "Whitelist",
+  "Error growth: {logger}": "Fehleranstieg: {logger}",
+  "Stop notifying": "Nicht mehr benachrichtigen",
+  "Muted errors": "Stummgeschaltete Fehler",
+  "Unmute": "Stummschaltung aufheben",
+  "Error muted": "Fehlerbenachrichtigung stummgeschaltet",
+  "Error unmuted": "Stummschaltung aufgehoben",
+  "Error muting notification": "Fehler beim Stummschalten",
+  "Error unmuting notification": "Fehler beim Aufheben der Stummschaltung",
+  "No muted errors": "Keine stummgeschalteten Fehler"
 }

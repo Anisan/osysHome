@@ -12,6 +12,8 @@ Also see [configuration.md](configuration.md) and comments in `sample_config.yam
 2. `BatchWriter` commits for property values / history (`application.batch_writer_*`)
 3. SQLite WAL / fsync (`database.sqlite.*`)
 
+`logging.error_rate` (elevated ERROR rate → in-app notify) is **in-memory only** and does not add log I/O. Defaults: enabled, 5 ERROR / 300 s per fingerprint; bump same unread series every 600 s; after read, re-alert on next threshold. See [configuration.md](configuration.md).
+
 ## Strategy cheat sheet
 
 | Strategy | Intent | Typical knobs | Main risks |

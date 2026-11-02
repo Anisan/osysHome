@@ -1,16 +1,333 @@
 """ Module init logger """
+from __future__ import annotations
+
+import collections
+import hashlib
 import logging
 import logging.handlers
 import os
+import re
 import sys
+import threading
+import time
 import traceback
 from app.configuration import Config
 
 # Глобальные handlers (чтобы не дублировались для каждого модуля)
 _global_error_handler = None
 _shared_app_file_handler = None
+_error_rate_handler = None
 
 _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+# Стабильные поля notify: addNotify бампит count при том же name+description.
+# Разные fingerprint (логгер + нормализованный текст) → разные notify.
+_ERROR_RATE_NOTIFY_SOURCE = 'osysHome'
+_ERROR_RATE_NOTIFY_KIND = 'error_rate'
+_ERROR_RATE_MUTE_PROPERTY = 'SystemVar.error_rate_mute'
+_ERROR_RATE_NAME_I18N = 'Error growth: {logger}'
+_ERROR_RATE_MAX_STREAMS = 64
+_ERROR_RATE_DESC_MAX = 255  # Notify.description Column(String(255))
+_ERROR_RATE_HEX_RE = re.compile(r'\b[0-9a-fA-F]{8,}\b')
+_ERROR_RATE_DIGITS_RE = re.compile(r'\d+')
+
+# Кэш mute_id (sha256 fingerprint). None = ещё не загружали из SystemVar.
+_mute_cache_lock = threading.Lock()
+_mute_ids_cache: set[str] | None = None
+
+
+def _normalize_error_message(message: str, max_len: int = 200) -> str:
+    """Схлопывает пробелы и переменные числа/id, чтобы одна ошибка не плодила ключи."""
+    text = ' '.join((message or '').split())
+    text = _ERROR_RATE_HEX_RE.sub('#', text)
+    text = _ERROR_RATE_DIGITS_RE.sub('#', text)
+    if len(text) > max_len:
+        text = text[: max_len - 3] + '...'
+    return text or '(empty)'
+
+
+def _mute_id_from_fingerprint(fingerprint: str) -> str:
+    """Короткий стабильный id для хранения mute (не полный текст ошибки)."""
+    return hashlib.sha256((fingerprint or '').encode('utf-8')).hexdigest()
+
+
+def _localized_error_rate_name(logger_name: str) -> str:
+    """Имя notify на DEFAULT_LANGUAGE (не язык браузера — стабильный bump)."""
+    template = _ERROR_RATE_NAME_I18N
+    try:
+        from flask import has_app_context
+
+        if has_app_context():
+            from app import translate
+
+            lang = getattr(Config, 'DEFAULT_LANGUAGE', 'en') or 'en'
+            template = translate(_ERROR_RATE_NAME_I18N, lang=lang) or _ERROR_RATE_NAME_I18N
+    except Exception:
+        template = _ERROR_RATE_NAME_I18N
+    name = template.replace('{logger}', logger_name or 'unknown')
+    if len(name) > 255:
+        name = name[:252] + '...'
+    return name
+
+
+def _read_mute_dict() -> dict:
+    """Читает SystemVar.error_rate_mute как dict."""
+    try:
+        from app.core.lib.object import getProperty
+
+        raw = getProperty(_ERROR_RATE_MUTE_PROPERTY)
+        if isinstance(raw, dict):
+            return dict(raw)
+        if isinstance(raw, str) and raw.strip():
+            import json
+
+            parsed = json.loads(raw)
+            return parsed if isinstance(parsed, dict) else {}
+    except Exception:
+        pass
+    return {}
+
+
+def _write_mute_dict(data: dict) -> None:
+    from app.core.lib.object import setProperty
+
+    setProperty(_ERROR_RATE_MUTE_PROPERTY, data if isinstance(data, dict) else {}, 'osysHome')
+
+
+def reload_error_rate_mute_cache() -> set[str]:
+    """Перечитывает mute_id из SystemVar в in-memory set."""
+    global _mute_ids_cache
+    ids = {str(k) for k in _read_mute_dict().keys() if k}
+    with _mute_cache_lock:
+        _mute_ids_cache = ids
+    return set(ids)
+
+
+def _ensure_mute_cache() -> set[str]:
+    with _mute_cache_lock:
+        cached = _mute_ids_cache
+    if cached is not None:
+        return cached
+    return reload_error_rate_mute_cache()
+
+
+def is_error_rate_muted(mute_id: str) -> bool:
+    if not mute_id:
+        return False
+    return mute_id in _ensure_mute_cache()
+
+
+def list_error_rate_mutes() -> list[dict]:
+    """Список mute для UI: mute_id, logger, message, created."""
+    items = []
+    data = _read_mute_dict()
+    for mute_id, meta in data.items():
+        if not isinstance(meta, dict):
+            meta = {}
+        items.append(
+            {
+                'mute_id': str(mute_id),
+                'logger': meta.get('logger') or '',
+                'message': meta.get('message') or '',
+                'created': meta.get('created') or '',
+            }
+        )
+    items.sort(key=lambda row: row.get('created') or '', reverse=True)
+    return items
+
+
+def mute_error_rate(mute_id: str, logger_name: str = '', message: str = '') -> bool:
+    """Добавляет mute_id в SystemVar.error_rate_mute и обновляет кэш."""
+    mute_id = (mute_id or '').strip()
+    if not mute_id:
+        return False
+    from app.database import get_now_to_utc
+
+    data = _read_mute_dict()
+    data[mute_id] = {
+        'logger': logger_name or '',
+        'message': (message or '')[:_ERROR_RATE_DESC_MAX],
+        'created': get_now_to_utc().isoformat(timespec='seconds'),
+    }
+    _write_mute_dict(data)
+    reload_error_rate_mute_cache()
+    return True
+
+
+def unmute_error_rate(mute_id: str) -> bool:
+    """Удаляет mute_id из свойства и обновляет кэш."""
+    mute_id = (mute_id or '').strip()
+    if not mute_id:
+        return False
+    data = _read_mute_dict()
+    if mute_id not in data:
+        reload_error_rate_mute_cache()
+        return False
+    data.pop(mute_id, None)
+    _write_mute_dict(data)
+    reload_error_rate_mute_cache()
+    return True
+
+
+class ErrorRateNotifyHandler(logging.Handler):
+    """Считает ERROR+ по fingerprint (логгер + содержимое) за скользящее окно.
+
+    Разные тексты/модули — независимые счётчики и notify: непрочитанный алерт
+    по одной ошибке не блокирует фиксацию другой.
+    Пока notify этой ошибки непрочитан — bump count не чаще cooldown_sec.
+    После read — снова полный notify при новом наборе порога.
+    Mute по mute_id (sha256 fingerprint) suppress только notify.
+    """
+
+    def __init__(self):
+        super().__init__(level=logging.ERROR)
+        self._lock = threading.Lock()
+        # fingerprint -> deque[monotonic timestamps]
+        self._streams: dict[str, collections.deque[float]] = {}
+        # fingerprint -> last addNotify monotonic
+        self._last_notify_mono: dict[str, float] = {}
+        self._tls = threading.local()
+
+    def _settings(self):
+        enabled = bool(getattr(Config, 'LOG_ERROR_RATE_NOTIFY_ENABLED', True))
+        window = float(getattr(Config, 'LOG_ERROR_RATE_WINDOW_SEC', 300) or 300)
+        threshold = int(getattr(Config, 'LOG_ERROR_RATE_THRESHOLD', 5) or 5)
+        cooldown = float(getattr(Config, 'LOG_ERROR_RATE_COOLDOWN_SEC', 600) or 600)
+        return enabled, max(1.0, window), max(1, threshold), max(0.0, cooldown)
+
+    @staticmethod
+    def _fingerprint(record: logging.LogRecord) -> tuple[str, str, str, str]:
+        """Возвращает (key, mute_id, notify_name, notify_description)."""
+        logger_name = record.name or 'unknown'
+        normalized = _normalize_error_message(record.getMessage())
+        key = f'{logger_name}\0{normalized}'
+        mute_id = _mute_id_from_fingerprint(key)
+        name = _localized_error_rate_name(logger_name)
+        description = normalized[:_ERROR_RATE_DESC_MAX]
+        return key, mute_id, name, description
+
+    @staticmethod
+    def _has_unread_notify(name: str, description: str) -> bool:
+        """Непрочитанный notify именно этой ошибки (name+description)."""
+        try:
+            from app.database import session_scope
+            from app.core.models.Plugins import Notify
+
+            with session_scope() as session:
+                row = (
+                    session.query(Notify.id)
+                    .filter(
+                        Notify.name == name,
+                        Notify.description == description,
+                        Notify.source == _ERROR_RATE_NOTIFY_SOURCE,
+                        Notify.read == False,  # noqa: E712
+                    )
+                    .first()
+                )
+                return row is not None
+        except Exception:
+            return False
+
+    def _prune_streams_unlocked(self, now: float, window_sec: float) -> None:
+        """Удаляет пустые окна и лишние fingerprint (LRU по последней активности)."""
+        stale = []
+        for key, stamps in self._streams.items():
+            cutoff = now - window_sec
+            while stamps and stamps[0] < cutoff:
+                stamps.popleft()
+            if not stamps:
+                stale.append(key)
+        for key in stale:
+            self._streams.pop(key, None)
+            self._last_notify_mono.pop(key, None)
+
+        if len(self._streams) <= _ERROR_RATE_MAX_STREAMS:
+            return
+        # Вытесняем самые давно неактивные
+        ranked = sorted(
+            self._streams.items(),
+            key=lambda item: item[1][-1] if item[1] else 0.0,
+        )
+        overflow = len(self._streams) - _ERROR_RATE_MAX_STREAMS
+        for key, _ in ranked[:overflow]:
+            self._streams.pop(key, None)
+            self._last_notify_mono.pop(key, None)
+
+    def emit(self, record: logging.LogRecord) -> None:
+        if record.levelno < logging.ERROR:
+            return
+        if getattr(self._tls, 'notifying', False):
+            return
+
+        enabled, window_sec, threshold, cooldown_sec = self._settings()
+        if not enabled:
+            return
+
+        key, mute_id, notify_name, notify_description = self._fingerprint(record)
+        try:
+            if is_error_rate_muted(mute_id):
+                return
+        except Exception:
+            pass
+
+        now = time.monotonic()
+        count = 0
+        with self._lock:
+            stamps = self._streams.get(key)
+            if stamps is None:
+                stamps = collections.deque()
+                self._streams[key] = stamps
+            stamps.append(now)
+            cutoff = now - window_sec
+            while stamps and stamps[0] < cutoff:
+                stamps.popleft()
+            count = len(stamps)
+            self._prune_streams_unlocked(now, window_sec)
+
+        if count < threshold:
+            return
+
+        unread = self._has_unread_notify(notify_name, notify_description)
+        with self._lock:
+            last = self._last_notify_mono.get(key, 0.0)
+            since_last = now - last
+            if unread:
+                # Непрочитано: bump не чаще cooldown_sec
+                if since_last < cooldown_sec:
+                    return
+            # После read — новый алерт сразу (без паузы); гонки потоков
+            # схлопнутся в bump через одинаковые name+description в addNotify
+            self._last_notify_mono[key] = now
+            if not unread:
+                # Новый алерт по этому fingerprint — окно сбрасываем
+                self._streams[key] = collections.deque()
+
+        self._tls.notifying = True
+        try:
+            from app.core.lib.common import addNotify
+            from app.core.lib.constants import CategoryNotify
+
+            addNotify(
+                name=notify_name,
+                description=notify_description,
+                category=CategoryNotify.Warning,
+                source=_ERROR_RATE_NOTIFY_SOURCE,
+                params={
+                    'kind': _ERROR_RATE_NOTIFY_KIND,
+                    'mute_id': mute_id,
+                    'count': count,
+                    'window_sec': int(window_sec),
+                    'threshold': threshold,
+                    'logger': record.name,
+                    'level': record.levelname,
+                },
+            )
+        except Exception:
+            # Не логируем здесь — риск рекурсии через тот же handler
+            pass
+        finally:
+            self._tls.notifying = False
 
 
 def _default_log_directory():
@@ -83,7 +400,7 @@ def getLogger(moduleName, level=None, logDirectory=None):
     Returns:
         logging.Logger: настроенный логгер.
     """
-    global _global_error_handler, _shared_app_file_handler
+    global _global_error_handler, _shared_app_file_handler, _error_rate_handler
 
     # Если логгер уже настроен — возвращаем как есть
     logger = logging.getLogger(moduleName)
@@ -137,6 +454,11 @@ def getLogger(moduleName, level=None, logDirectory=None):
             logger.addHandler(_shared_app_file_handler)
 
         logger.addHandler(_global_error_handler)
+
+    # Мониторинг роста ERROR → addNotify (независимо от file_enabled)
+    if _error_rate_handler is None:
+        _error_rate_handler = ErrorRateNotifyHandler()
+    logger.addHandler(_error_rate_handler)
 
     if console_enabled:
         console_handler = logging.StreamHandler()

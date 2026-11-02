@@ -656,5 +656,14 @@
   "welcome_tip_4": "システム ログは、「ログ」モジュール (インストールされている場合) で利用できます。トラブルシューティングに使用してください。",
   "welcome_tip_5": "モジュールとオブジェクトの違い: モジュールはシステム プラグインであり、オブジェクトはデバイスとエンティティです。",
   "welcome_tips_title": "役立つヒント",
-  "whitelist": "ホワイトリスト"
+  "whitelist": "ホワイトリスト",
+  "Error growth: {logger}": "エラー増加: {logger}",
+  "Stop notifying": "通知しない",
+  "Muted errors": "ミュートしたエラー",
+  "Unmute": "ミュート解除",
+  "Error muted": "エラー通知をミュートしました",
+  "Error unmuted": "ミュートを解除しました",
+  "Error muting notification": "ミュートに失敗しました",
+  "Error unmuting notification": "ミュート解除に失敗しました",
+  "No muted errors": "ミュートしたエラーはありません"
 }

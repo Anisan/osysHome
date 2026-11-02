@@ -92,7 +92,14 @@ logging:
   per_module_files: true
   memory_handler_capacity: 0
   backup_count: 7
+  error_rate:
+    enabled: true
+    window_sec: 300
+    threshold: 5
+    cooldown_sec: 600
 ```
+
+Ошибки группируются по логгеру + нормализованному тексту (числа/id сглаживаются): у каждой серии свой notify. Пока он непрочитан — bump count (не чаще `cooldown_sec`); другая ошибка фиксируется отдельно. После read при новом пороге — снова полный notify.
 
 | Параметр | Описание | По умолчанию |
 |----------|----------|--------------|
@@ -103,6 +110,10 @@ logging:
 | `per_module_files` | Отдельный файл на модуль; иначе общий `app.log` | `true` |
 | `memory_handler_capacity` | Буфер записей в RAM перед сбросом на диск (`0` — сразу) | `0` |
 | `backup_count` | Число ротированных копий | `7` |
+| `error_rate.enabled` | Notify при росте ERROR+ (in-memory счётчик, на диск не пишет) | `true` |
+| `error_rate.window_sec` | Окно подсчёта одной серии, секунды | `300` |
+| `error_rate.threshold` | Порог ERROR+ одной серии в окне | `5` |
+| `error_rate.cooldown_sec` | Интервал bump той же серии (непрочитанной); другие fingerprint не блокирует | `600` |
 
 ## Секция `database`
 

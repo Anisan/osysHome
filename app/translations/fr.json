@@ -656,5 +656,14 @@
   "welcome_tip_4": "Les journaux système sont disponibles dans le module \"Journaux\" (si installé). Utilisez-les pour le dépannage.",
   "welcome_tip_5": "Différence entre modules et objets : les modules sont des plugins système, les objets sont vos appareils et entités.",
   "welcome_tips_title": "Conseils utiles",
-  "whitelist": "liste blanche"
+  "whitelist": "liste blanche",
+  "Error growth: {logger}": "Hausse des erreurs : {logger}",
+  "Stop notifying": "Ne plus notifier",
+  "Muted errors": "Erreurs en sourdine",
+  "Unmute": "Réactiver",
+  "Error muted": "Notification d'erreur désactivée",
+  "Error unmuted": "Sourdine désactivée",
+  "Error muting notification": "Erreur lors de la mise en sourdine",
+  "Error unmuting notification": "Erreur lors de la réactivation",
+  "No muted errors": "Aucune erreur en sourdine"
 }

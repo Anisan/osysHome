@@ -29,7 +29,15 @@
     open_link: "{{ _('Open link')|e }}",
     error_details: "{{ _('Error details')|e }}",
     no_unread_notifications: "{{ _('No unread notifications')|e }}",
-    error_loading_notifications: "{{ _('Error loading notifications')|e }}"
+    error_loading_notifications: "{{ _('Error loading notifications')|e }}",
+    stop_notifying: "{{ _('Stop notifying')|e }}",
+    muted_errors: "{{ _('Muted errors')|e }}",
+    no_muted_errors: "{{ _('No muted errors')|e }}",
+    unmute: "{{ _('Unmute')|e }}",
+    error_muted: "{{ _('Error muted')|e }}",
+    error_unmuted: "{{ _('Error unmuted')|e }}",
+    error_muting_notification: "{{ _('Error muting notification')|e }}",
+    error_unmuting_notification: "{{ _('Error unmuting notification')|e }}"
   };
   {# Имена загруженных модулей для фильтра уведомлений на контрольной панели #}
   window.NotificationSystemModules = {{ (loaded_plugin_names() if loaded_plugin_names is defined else [])|tojson }};

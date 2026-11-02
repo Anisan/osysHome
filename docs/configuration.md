@@ -92,7 +92,14 @@ logging:
   per_module_files: true
   memory_handler_capacity: 0
   backup_count: 7
+  error_rate:
+    enabled: true
+    window_sec: 300
+    threshold: 5
+    cooldown_sec: 600
 ```
+
+Errors are grouped by logger + normalized message (digits/ids smoothed): each series has its own notify. While unread, count bumps at most every `cooldown_sec`; a different error still gets its own alert. After read, a new notify fires when the threshold is reached again.
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
@@ -103,6 +110,10 @@ logging:
 | `per_module_files` | One file per module; otherwise shared `app.log` | `true` |
 | `memory_handler_capacity` | Buffer N records in RAM before disk flush (`0` = immediate) | `0` |
 | `backup_count` | Rotated backup count | `7` |
+| `error_rate.enabled` | In-app notify on elevated ERROR+ rate (in-memory; no extra log I/O) | `true` |
+| `error_rate.window_sec` | Sliding window per fingerprint, seconds | `300` |
+| `error_rate.threshold` | Matching ERROR+ count in window that triggers notify | `5` |
+| `error_rate.cooldown_sec` | Bump interval for the same unread series; other fingerprints unaffected | `600` |
 
 ## `database` Section
 

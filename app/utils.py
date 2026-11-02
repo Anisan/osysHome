@@ -202,6 +202,13 @@ def initSystemVar():
         PropertyType.Dictionary, params=_sv_params("fas fa-bell"), update=True,
     )
     addObjectProperty(
+        'error_rate_mute', 'SystemVar',
+        "Muted error-rate notify fingerprints (mute_id -> meta)", 0,
+        PropertyType.Dictionary, params=_sv_params("fas fa-bell-slash"), update=True,
+    )
+    if getProperty("SystemVar.error_rate_mute") is None:
+        setProperty("SystemVar.error_rate_mute", {}, "osysHome")
+    addObjectProperty(
         'welcome', 'SystemVar',
         "Show welcome message on control panel (first run)", 0,
         PropertyType.Bool, params=_sv_params("fas fa-door-open"), update=True,

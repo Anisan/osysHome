@@ -656,5 +656,14 @@
   "welcome_tip_4": "Os logs do sistema estão disponíveis no módulo \"Logs\" (se instalado). Use-os para solução de problemas.",
   "welcome_tip_5": "Diferença entre módulos e objetos: módulos são plugins do sistema, objetos são seus dispositivos e entidades.",
   "welcome_tips_title": "Dicas úteis",
-  "whitelist": "lista branca"
+  "whitelist": "lista branca",
+  "Error growth: {logger}": "Aumento de erros: {logger}",
+  "Stop notifying": "Não notificar mais",
+  "Muted errors": "Erros silenciados",
+  "Unmute": "Remover silêncio",
+  "Error muted": "Notificação de erro silenciada",
+  "Error unmuted": "Silêncio removido",
+  "Error muting notification": "Erro ao silenciar notificação",
+  "Error unmuting notification": "Erro ao remover silêncio",
+  "No muted errors": "Nenhum erro silenciado"
 }

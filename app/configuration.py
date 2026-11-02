@@ -155,6 +155,11 @@ class ConfigLoader(object):
         self.LOG_PER_MODULE_FILES = True
         self.LOG_MEMORY_HANDLER_CAPACITY = 0  # 0 — без буфера; иначе MemoryHandler
         self.LOG_BACKUP_COUNT = 7
+        # Алерт по fingerprint: ≥5 за 5 мин; bump той же серии раз в 10 мин
+        self.LOG_ERROR_RATE_NOTIFY_ENABLED = True
+        self.LOG_ERROR_RATE_WINDOW_SEC = 300
+        self.LOG_ERROR_RATE_THRESHOLD = 5
+        self.LOG_ERROR_RATE_COOLDOWN_SEC = 600
 
         # SQLite PRAGMA (применяются только для sqlite URI)
         self.SQLITE_JOURNAL_MODE = 'WAL'
@@ -378,6 +383,13 @@ class ConfigLoader(object):
             log_config.get('memory_handler_capacity', 0) or 0
         )
         self.LOG_BACKUP_COUNT = int(log_config.get('backup_count', 7) or 7)
+        error_rate = log_config.get('error_rate') or {}
+        self.LOG_ERROR_RATE_NOTIFY_ENABLED = bool(error_rate.get('enabled', True))
+        self.LOG_ERROR_RATE_WINDOW_SEC = int(error_rate.get('window_sec', 300) or 300)
+        self.LOG_ERROR_RATE_THRESHOLD = int(error_rate.get('threshold', 5) or 5)
+        self.LOG_ERROR_RATE_COOLDOWN_SEC = int(
+            error_rate.get('cooldown_sec', 600) or 600
+        )
 
         debug_tools_config = self._config_data.get('debug_tools', {})
         self.DEBUG_TOOLS_ENABLED = debug_tools_config.get('enabled', False)

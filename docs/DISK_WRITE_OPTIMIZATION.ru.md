@@ -27,6 +27,10 @@
 | `per_module_files` | `true` | `true` — `{module}.log`; `false` — один `app.log` + общий `errors.log`. |
 | `memory_handler_capacity` | `0` | Буфер N записей в RAM перед сбросом на диск (`0` = сразу). При `ERROR+` буфер сбрасывается. |
 | `backup_count` | `7` | Число ротированных копий (ротация в полночь). |
+| `error_rate.enabled` | `true` | In-memory счётчик ERROR+ → `addNotify` при росте; **на диск не пишет**. |
+| `error_rate.window_sec` | `300` | Окно подсчёта одной серии, секунды. |
+| `error_rate.threshold` | `5` | Порог ERROR+ одной серии в окне. |
+| `error_rate.cooldown_sec` | `600` | Bump той же непрочитанной серии; другие fingerprint не блокирует. |
 
 `security_audit.log` и `500.log` при `file_enabled: true` пишутся без MemoryHandler (ошибки и аудит не должны теряться в буфере). При `file_enabled: false` они идут в console.
 
