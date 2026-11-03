@@ -42,10 +42,12 @@ flowchart TD
 - Первый вызов синхронизирует базовую схему ядра.
 - После загрузки плагинов становятся доступны их модели.
 - Второй вызов синхронизирует таблицы плагинов.
+- Каждый проход также вызывает `sync_model_triggers` (ставит `__db_triggers__` с зарегистрированных моделей, включая плагины на втором проходе). См. [DB_TRIGGERS.ru.md](DB_TRIGGERS.ru.md).
 
 ## См. также
 
 - [Architecture](ARCHITECTURE.md)
+- [Триггеры БД](DB_TRIGGERS.ru.md)
 - [Core Runtime](CORE_RUNTIME.md)
 - [Безопасность и доступ](SECURITY_ACCESS.ru.md)
 - [Согласованность и часовые пояса](CONSISTENCY_TIMEZONES.ru.md)
@@ -55,4 +57,4 @@ flowchart TD
 - `main.py`
 - `app/__init__.py` (`createApp`)
 - `app/core/main/PluginsHelper.py`
-- `app/database.py` (`sync_db`)
+- `app/db_tools/` (`sync_db`, `sync_model_triggers`)

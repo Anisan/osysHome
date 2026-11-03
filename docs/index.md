@@ -71,6 +71,7 @@ osysHome
 - **PluginsHelper** — plugin discovery, loading, and startup
 - **Plugin system** — extension mechanism for protocols and integrations
 - **Web UI** — browser interface for managing system state
+- **DB triggers** — model `__db_triggers__` installed by `sync_db` ([DB_TRIGGERS.md](DB_TRIGGERS.md))
 
 ---
 

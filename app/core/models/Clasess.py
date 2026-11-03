@@ -1,5 +1,6 @@
 from sqlalchemy import ForeignKey, func, desc, asc, Index
 from app.database import Column, SurrogatePK, db, relationship
+from app.db_tools import protected_triggers
 
 class Class(SurrogatePK, db.Model):
     """ Model Class
@@ -9,6 +10,9 @@ class Class(SurrogatePK, db.Model):
         db (_type_): _description_
     """
     __tablename__ = 'classes'
+    __db_triggers__ = protected_triggers(
+        immutable_columns=("name", "parent_id"),
+    )
     name = Column(db.String(255), unique=True, nullable=False)
     description = Column(db.String(512))
     parent_id = Column(db.Integer)
@@ -24,6 +28,9 @@ class Object(SurrogatePK, db.Model):
         db (_type_): _description_
     """
     __tablename__ = 'objects'
+    __db_triggers__ = protected_triggers(
+        immutable_columns=("name", "class_id"),
+    )
     name = Column(db.String(255), unique=True, nullable=False)
     description = Column(db.String(512))
     class_id = Column(db.Integer, ForeignKey('classes.id', name='fk_object_class_id'))
@@ -40,6 +47,9 @@ class Property(SurrogatePK, db.Model):
         db (_type_): _description_
     """
     __tablename__ = 'properties'
+    __db_triggers__ = protected_triggers(
+        immutable_columns=("name", "class_id", "object_id", "type"),
+    )
     name = Column(db.String(255), nullable=False)
     description = Column(db.String(512))
     class_id = Column(db.Integer)
@@ -53,6 +63,9 @@ class Property(SurrogatePK, db.Model):
 
 class Method(SurrogatePK, db.Model):
     __tablename__ = 'methods'
+    __db_triggers__ = protected_triggers(
+        immutable_columns=("name", "class_id", "object_id"),
+    )
     name = Column(db.String(255), nullable=False)
     description = Column(db.String(512))
     class_id = Column(db.Integer)
