@@ -20,14 +20,30 @@ def _sort_items_by_name(items):
     items.sort(key=lambda item: (item.get("name") or "").lower())
 
 
+def _sort_items_for_display(items):
+    """Сортировка: обычные → advanced; внутри — по имени."""
+    items.sort(
+        key=lambda item: (
+            1 if item.get("advanced") else 0,
+            (item.get("name") or "").lower(),
+        )
+    )
+
+
 def _entity_protected(raw_params) -> bool:
     """True если params.protected."""
     return bool(_entity_display_meta(raw_params).get("protected"))
 
 
 def _entity_display_meta(raw_params) -> dict:
-    """Метаданные отображения из params: protected, icon, color."""
-    result = {"protected": False, "icon": "", "color": ""}
+    """Метаданные отображения из params: protected, icon, color, advanced, hidden."""
+    result = {
+        "protected": False,
+        "icon": "",
+        "color": "",
+        "advanced": False,
+        "hidden": False,
+    }
     if not raw_params:
         return result
     try:
@@ -36,6 +52,8 @@ def _entity_display_meta(raw_params) -> dict:
             result["protected"] = bool(params.get("protected"))
             result["icon"] = params.get("icon") or ""
             result["color"] = params.get("color") or ""
+            result["advanced"] = bool(params.get("advanced"))
+            result["hidden"] = bool(params.get("hidden"))
     except Exception:
         pass
     return result
@@ -67,6 +85,8 @@ def _build_tree_payload(include_hidden=False):
             "protected": meta["protected"],
             "icon": meta["icon"],
             "color": meta["color"],
+            "advanced": meta["advanced"],
+            "hidden": meta["hidden"],
             "children_count": 0,
             "objects_count": 0,
         }
@@ -91,6 +111,8 @@ def _build_tree_payload(include_hidden=False):
             "protected": meta["protected"],
             "icon": meta["icon"],
             "color": meta["color"],
+            "advanced": meta["advanced"],
+            "hidden": meta["hidden"],
         }
         if obj.class_id is None:
             standalone_objects.append(obj_dict)
@@ -98,18 +120,18 @@ def _build_tree_payload(include_hidden=False):
             objects_by_class[obj.class_id].append(obj_dict)
 
     for parent_id, children in children_by_parent.items():
-        _sort_items_by_name(children)
+        _sort_items_for_display(children)
         if parent_id in class_nodes:
             class_nodes[parent_id]["children_count"] = len(children)
 
     for class_id, objects in objects_by_class.items():
-        _sort_items_by_name(objects)
+        _sort_items_for_display(objects)
         if class_id in class_nodes:
             class_nodes[class_id]["objects_count"] = len(objects)
 
     root_classes = _copy_items(children_by_parent.get(None, []))
-    _sort_items_by_name(root_classes)
-    _sort_items_by_name(standalone_objects)
+    _sort_items_for_display(root_classes)
+    _sort_items_for_display(standalone_objects)
 
     return {
         "root_classes": root_classes,

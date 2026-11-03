@@ -49,6 +49,7 @@ def getClassInfo(cls):
         'description': cls.description,
         'template': cls.template,
         'parent': None,
+        'params': cls.params,
     }
     if cls.parent_id:
         parent_class = Class.get_by_id(cls.parent_id)
@@ -74,7 +75,17 @@ def getClassInfo(cls):
             'class':cls.name,
             'params':p.params
             })
-    methods_data = [{'name': m.name, 'description':m.description, 'code': m.code, 'call_parent':m.call_parent, 'class':cls.name} for m in methods]
+    methods_data = [
+        {
+            'name': m.name,
+            'description': m.description,
+            'code': m.code,
+            'call_parent': m.call_parent,
+            'class': cls.name,
+            'params': m.params,
+        }
+        for m in methods
+    ]
 
     data['classes'].append(class_data)
     data['properties'] += properties_data
@@ -92,6 +103,7 @@ def getObjectInfo(object_id):
         'name': obj.name,
         'description': obj.description,
         'template': obj.template,
+        'params': obj.params,
     }
     if obj.class_id:
         parent_class = Class.get_by_id(obj.class_id)
@@ -116,12 +128,23 @@ def getObjectInfo(object_id):
             prop['method'] = method.name
             if method.class_id:
                 cl = Class.get_by_id(method.class_id)
-                prop['method_class'] = cl.name
+                # class_method — ключ, который читает импорт
+                prop['class_method'] = cl.name
             if method.object_id:
                 ob = Object.get_by_id(method.object_id)
-                prop['method_object'] = ob.name
+                prop['object_method'] = ob.name
         properties_data.append(prop)
-    methods_data = [{'name': m.name, 'description':m.description, 'code': m.code, 'call_parent':m.call_parent, 'object':obj.name} for m in methods]
+    methods_data = [
+        {
+            'name': m.name,
+            'description': m.description,
+            'code': m.code,
+            'call_parent': m.call_parent,
+            'object': obj.name,
+            'params': m.params,
+        }
+        for m in methods
+    ]
     values_data = [{'name': v.name, 'value': v.value, 'object':obj.name} for v in values]
     data['object'] = object_data
     data['properties'] = properties_data
