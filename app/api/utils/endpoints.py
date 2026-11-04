@@ -127,6 +127,23 @@ class ReadNotify(Resource):
         return {"success": True}, 200
 
 
+@utils_ns.route("/notify/<int:id>")
+class DeleteNotify(Resource):
+    @api_key_required
+    @handle_admin_required
+    @utils_ns.doc(security="apikey")
+    def delete(self, id):
+        """
+        Delete notify by id
+        """
+        from app.core.lib.common import deleteNotify
+
+        result = deleteNotify(id)
+        if not result:
+            return {"success": False, "message": "Notify not found"}, 404
+        return {"success": True}, 200
+
+
 @utils_ns.route("/readnotify/all")
 class ReadNotifyAll(Resource):
     @api_key_required
@@ -147,6 +164,86 @@ class ReadNotifyAll(Resource):
 
         readNotifyAll(source, control_panel=control_panel)
         return {"success": True}, 200
+
+
+@utils_ns.route("/error-rate-mute")
+class ErrorRateMuteList(Resource):
+    @api_key_required
+    @handle_admin_required
+    @utils_ns.doc(security="apikey")
+    def get(self):
+        """Список заглушенных error-rate fingerprint (mute_id)."""
+        from app.logging_config import list_error_rate_mutes
+
+        items = list_error_rate_mutes()
+        return {"success": True, "items": items, "count": len(items)}, 200
+
+    @api_key_required
+    @handle_admin_required
+    @utils_ns.doc(security="apikey")
+    @utils_ns.param("mute_id", "Mute id (sha256 of fingerprint)")
+    def delete(self):
+        """Снять mute по mute_id (query или JSON body)."""
+        from app.logging_config import unmute_error_rate
+
+        mute_id = request.args.get("mute_id")
+        if not mute_id and request.is_json:
+            mute_id = (request.get_json(silent=True) or {}).get("mute_id")
+        if not mute_id:
+            return {"success": False, "message": "mute_id required"}, 400
+        removed = unmute_error_rate(str(mute_id))
+        if not removed:
+            return {"success": False, "message": "Mute not found"}, 404
+        return {"success": True}, 200
+
+
+@utils_ns.route("/error-rate-mute/<int:notify_id>")
+class ErrorRateMuteFromNotify(Resource):
+    @api_key_required
+    @handle_admin_required
+    @utils_ns.doc(security="apikey")
+    def post(self, notify_id):
+        """Mute по карточке notify (kind=error_rate) и отметить прочитанным."""
+        import json
+        from app.core.lib.common import readNotify
+        from app.logging_config import (
+            _ERROR_RATE_NOTIFY_KIND,
+            _ERROR_RATE_NOTIFY_SOURCE,
+            _mute_id_from_fingerprint,
+            mute_error_rate,
+        )
+
+        with session_scope() as session:
+            row = session.query(Notify).filter(Notify.id == notify_id).one_or_none()
+            if row is None:
+                return {"success": False, "message": "Notify not found"}, 404
+            if row.source != _ERROR_RATE_NOTIFY_SOURCE:
+                return {"success": False, "message": "Not an error-rate notify"}, 400
+
+            params = {}
+            if row.params:
+                try:
+                    parsed = json.loads(row.params) if isinstance(row.params, str) else row.params
+                    if isinstance(parsed, dict):
+                        params = parsed
+                except Exception:
+                    params = {}
+
+            if params.get("kind") != _ERROR_RATE_NOTIFY_KIND:
+                return {"success": False, "message": "Not an error-rate notify"}, 400
+
+            logger_name = params.get("logger") or ""
+            message = row.description or ""
+            mute_id = params.get("mute_id")
+            if not mute_id and logger_name:
+                mute_id = _mute_id_from_fingerprint(f"{logger_name}\0{message}")
+            if not mute_id:
+                return {"success": False, "message": "mute_id missing"}, 400
+
+        mute_error_rate(str(mute_id), logger_name=str(logger_name), message=str(message))
+        readNotify(notify_id)
+        return {"success": True, "mute_id": mute_id}, 200
+
 
 @utils_ns.route("/validate-python")
 class ValidateCode(Resource):

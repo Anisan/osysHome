@@ -87,12 +87,43 @@ def reference_col(tablename, nullable=False, pk_name='id', **kwargs):
 # define the database
 engine = create_engine(Config.SQLALCHEMY_DATABASE_URI, pool_size=Config.SQLALCHEMY_POOL_SIZE, max_overflow=Config.SQLALCHEMY_POOL_SIZE + 10)
 
-# Enable WAL for SQLite: better concurrency, fewer "database is locked" errors
+# SQLite PRAGMA из config.yaml (database.sqlite.*); WAL по умолчанию
+_SQLITE_JOURNAL_MODES = {'DELETE', 'TRUNCATE', 'PERSIST', 'MEMORY', 'WAL', 'OFF'}
+_SQLITE_SYNCHRONOUS = {'OFF', 'NORMAL', 'FULL', 'EXTRA', '0', '1', '2', '3'}
+_SQLITE_TEMP_STORE = {'DEFAULT', 'FILE', 'MEMORY', '0', '1', '2'}
+
 if 'sqlite' in Config.SQLALCHEMY_DATABASE_URI:
     @event.listens_for(engine, "connect")
     def _set_sqlite_pragma(dbapi_connection, connection_record):
         cursor = dbapi_connection.cursor()
-        cursor.execute("PRAGMA journal_mode=WAL")
+        journal_mode = str(getattr(Config, 'SQLITE_JOURNAL_MODE', None) or 'WAL').upper()
+        if journal_mode in _SQLITE_JOURNAL_MODES:
+            cursor.execute(f"PRAGMA journal_mode={journal_mode}")
+
+        synchronous = getattr(Config, 'SQLITE_SYNCHRONOUS', None)
+        if synchronous is not None and str(synchronous).strip() != '':
+            sync_val = str(synchronous).strip().upper()
+            if sync_val in _SQLITE_SYNCHRONOUS:
+                cursor.execute(f"PRAGMA synchronous={sync_val}")
+
+        temp_store = getattr(Config, 'SQLITE_TEMP_STORE', None)
+        if temp_store is not None and str(temp_store).strip() != '':
+            temp_val = str(temp_store).strip().upper()
+            if temp_val in _SQLITE_TEMP_STORE:
+                cursor.execute(f"PRAGMA temp_store={temp_val}")
+
+        cache_size = getattr(Config, 'SQLITE_CACHE_SIZE', None)
+        if cache_size is not None:
+            cursor.execute(f"PRAGMA cache_size={int(cache_size)}")
+
+        mmap_size = getattr(Config, 'SQLITE_MMAP_SIZE', None)
+        if mmap_size is not None:
+            cursor.execute(f"PRAGMA mmap_size={int(mmap_size)}")
+
+        wal_autocheckpoint = getattr(Config, 'SQLITE_WAL_AUTOCHECKPOINT', None)
+        if wal_autocheckpoint is not None:
+            cursor.execute(f"PRAGMA wal_autocheckpoint={int(wal_autocheckpoint)}")
+
         cursor.close()
 
 Base.metadata.create_all(engine)

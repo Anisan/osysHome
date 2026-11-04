@@ -304,6 +304,20 @@ def callPluginFunction(plugin: str, func: str, args=None):
     return None
 
 
+def _callSystemVarHook(method_name: str, args: Optional[dict] = None, source: str = "osysHome", async_: bool = True):
+    """Вызывает хук SystemVar.<method_name>; ошибки только логируются."""
+    from .object import callMethod, callMethodThread
+    qualified = f"SystemVar.{method_name}"
+    payload = args or {}
+    try:
+        if async_:
+            callMethodThread(qualified, payload, source)
+        else:
+            callMethod(qualified, payload, source)
+    except Exception:
+        _logger.exception("SystemVar.%s failed", method_name)
+
+
 def say(message: str, level: int = 0, args: dict = None):
     """Broadcast text-to-speech to plugins with the ``say`` action.
 
@@ -314,9 +328,14 @@ def say(message: str, level: int = 0, args: dict = None):
         args (Optional[dict]): Extra options; ``source`` defaults to
             ``osysHome``.
     """
-    from .object import setProperty
     source = args.get("source", "osysHome") if args else "osysHome"
-    setProperty("SystemVar.LastSay", message, source)
+    # LastSay не пишем здесь — при необходимости SystemVar.onSay
+    _callSystemVarHook(
+        "onSay",
+        {"message": message, "level": level, "args": args},
+        source,
+        async_=True,
+    )
     modules_with_say = getModulesByAction("say")
     for plugin in modules_with_say:
         try:
@@ -334,6 +353,13 @@ def playSound(file_name: str, level: int = 0, args: dict = None):
             Defaults to 0.
         args (Optional[dict]): Extra options passed to each plugin.
     """
+    source = args.get("source", "osysHome") if args else "osysHome"
+    _callSystemVarHook(
+        "onPlaySound",
+        {"file_name": file_name, "level": level, "args": args},
+        source,
+        async_=True,
+    )
     modules_with_playsound = getModulesByAction("playsound")
     for plugin in modules_with_playsound:
         try:
@@ -428,28 +454,28 @@ def addNotify(
 
     notify_params = _normalize_notify_params(params) or {}
     from .object import setProperty
-    data = {
-        "name": name,
-        "description": description,
-        "category": category.value,
-        "source": source,
-        "params": notify_params,
-    }
-    setProperty("SystemVar.LastNotify", data, source)
+    # LastNotify не пишем здесь — при необходимости SystemVar.onNotify
     setProperty("SystemVar.UnreadNotify", True, source)
 
+    event_data = {
+        "id": notify_id,
+        "name": name,
+        "description": description,
+        "category": category.value if hasattr(category, "value") else category,
+        "source": source,
+        "count": notify_count,
+        "params": notify_params,
+    }
     _dispatchNotify({
         "operation": "new_notify",
-        "data": {
-            "id": notify_id,
-            "name": name,
-            "description": description,
-            "category": category.value if hasattr(category, "value") else category,
-            "source": source,
-            "count": notify_count,
-            "params": notify_params,
-        },
+        "data": event_data,
     })
+    _callSystemVarHook(
+        "onNotify",
+        {"operation": "added", "data": event_data},
+        source or "osysHome",
+        async_=True,
+    )
 
 
 def _dispatchNotify(data: dict):
@@ -495,15 +521,73 @@ def readNotify(notify_id: int):
         else:
             updateProperty("SystemVar.UnreadNotify", False)
 
+    event_data = {
+        "id": notify_id,
+        "source": notify_source or "",
+    }
     _dispatchNotify({
         "operation": "read_notify",
-        "data": {
-            "id": notify_id,
-            "source": notify_source or "",
-        },
+        "data": event_data,
     })
+    _callSystemVarHook(
+        "onNotify",
+        {"operation": "confirmed", "data": event_data},
+        "osysHome",
+        async_=True,
+    )
 
     return True
+
+
+def deleteNotify(notify_id: int):
+    """Delete a notification and dispatch ``delete_notify`` / SystemVar.onNotify.
+
+    Args:
+        notify_id (int): Notification database id.
+
+    Returns:
+        Optional[bool]: ``True`` if deleted; ``None`` if id invalid or missing.
+    """
+    notify_id = parse_int_id(notify_id)
+    if notify_id is None:
+        return
+
+    notify_payload = None
+    with session_scope() as session:
+        notify = session.query(Notify).filter(Notify.id == notify_id).first()
+        if not notify:
+            return
+        notify_payload = {
+            "id": notify.id,
+            "name": notify.name,
+            "description": notify.description or "",
+            "category": notify.category.value if hasattr(notify.category, "value") else notify.category,
+            "source": notify.source or "",
+            "count": notify.count or 1,
+            "params": _normalize_notify_params(notify.params) or {},
+        }
+        session.delete(notify)
+        session.commit()
+
+        findUnread = session.query(Notify).filter(Notify.read == False).first()  # noqa
+        from .object import updateProperty
+        if findUnread:
+            updateProperty("SystemVar.UnreadNotify", True)
+        else:
+            updateProperty("SystemVar.UnreadNotify", False)
+
+    _dispatchNotify({
+        "operation": "delete_notify",
+        "data": notify_payload,
+    })
+    _callSystemVarHook(
+        "onNotify",
+        {"operation": "deleted", "data": notify_payload},
+        notify_payload.get("source") or "osysHome",
+        async_=True,
+    )
+    return True
+
 
 def getPluginModuleNames() -> set:
     """Return names of plugins loaded in the current process.
@@ -571,12 +655,19 @@ def readNotifyAll(source: Optional[str] = None, control_panel: bool = False):
         else:
             updateProperty("SystemVar.UnreadNotify", False)
 
+    event_data = {
+        "source": event_source,
+    }
     _dispatchNotify({
         "operation": "read_notify_all",
-        "data": {
-            "source": event_source,
-        },
+        "data": event_data,
     })
+    _callSystemVarHook(
+        "onNotify",
+        {"operation": "confirmed_all", "data": event_data},
+        "osysHome",
+        async_=True,
+    )
 
 
 def requestUrl(

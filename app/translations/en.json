@@ -656,5 +656,14 @@
   "welcome_tip_4": "System logs are available in the \"Logs\" module (if installed). Use them for troubleshooting.",
   "welcome_tip_5": "Difference between modules and objects: modules are system plugins, objects are your devices and entities.",
   "welcome_tips_title": "Useful Tips",
-  "whitelist": "whitelist"
+  "whitelist": "whitelist",
+  "Error growth: {logger}": "Error growth: {logger}",
+  "Stop notifying": "Stop notifying",
+  "Muted errors": "Muted errors",
+  "Unmute": "Unmute",
+  "Error muted": "Error muted",
+  "Error unmuted": "Error unmuted",
+  "Error muting notification": "Error muting notification",
+  "Error unmuting notification": "Error unmuting notification",
+  "No muted errors": "No muted errors"
 }

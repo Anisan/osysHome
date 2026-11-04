@@ -642,6 +642,26 @@
     socket.emit('restart_system');
   }
 
+  socket.on('system_restarting', function (data) {
+    var msg = (data && data.message) ? data.message : 'System is restarting...';
+    if (typeof notificationManager !== 'undefined' && notificationManager) {
+      notificationManager.show({
+        level: 'warning',
+        message: msg,
+        title: 'Restart'
+      });
+    }
+    // Полноэкранный оверлей: иначе после «Stopped cycle» кажется, что UI завис
+    if (!document.getElementById('osyshome-restart-overlay')) {
+      var overlay = document.createElement('div');
+      overlay.id = 'osyshome-restart-overlay';
+      overlay.setAttribute('role', 'status');
+      overlay.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.55);color:#fff;display:flex;align-items:center;justify-content:center;font-size:1.25rem;text-align:center;padding:1.5rem;';
+      overlay.textContent = msg;
+      document.body.appendChild(overlay);
+    }
+  });
+
   function setProperty(name, value) {
     socket.emit('setProperty', name, value);
   }
@@ -823,8 +843,8 @@
           }
         }, 200);
       }
-    } else if (data.operation === 'read_notify') {
-      // Уведомление было прочитано на другой странице или на этой же
+    } else if (data.operation === 'read_notify' || data.operation === 'delete_notify') {
+      // Уведомление прочитано или удалено (эта или другая страница)
       const notifyId = data.data.id;
       const notifySource = data.data.source;
       

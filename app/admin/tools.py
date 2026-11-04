@@ -68,15 +68,31 @@ def can_restart_system():
 
 
 def restart_system():
-    service_restart = Config.SERVICE_AUTORESTART
-    if service_restart:
-        # Завершаем процесс для внешнего менеджера (systemd/docker restart policy)
+    """Перезапуск службы / процесса.
+
+    Перед hard-exit обязательно graceful_shutdown: os._exit обходит atexit
+    и иначе теряет BatchWriter.
+
+    Под systemd/docker нельзя вызывать systemctl/docker restart самого себя —
+    процесс ждёт systemctl, а systemctl ждёт выхода процесса (TimeoutStopSec).
+    Под супервизором выходим с кодом 1 (Restart=on-failure / restart policy).
+    """
+    from app.graceful_shutdown import graceful_shutdown
+
+    under_supervisor = (
+        bool(Config.SERVICE_AUTORESTART)
+        or _is_running_under_systemd()
+        or _is_running_in_docker()
+    )
+    if under_supervisor:
         print("Exiting with error to trigger external restart policy...")
+        graceful_shutdown('websocket restart (supervisor/os._exit)')
         os._exit(1)
 
     docker_container = getattr(Config, "SERVICE_DOCKER_CONTAINER", None)
     if docker_container:
         try:
+            graceful_shutdown('websocket restart (docker)')
             subprocess.run(["docker", "restart", docker_container], check=True)
             return f"Docker container {docker_container} restarted successfully."
         except FileNotFoundError:
@@ -90,22 +106,19 @@ def restart_system():
             if os.name == 'nt':  # Для Windows
                 if not is_admin():
                     raise PermissionError("Script must be run as administrator to restart a service.")
+                graceful_shutdown('websocket restart (windows service)')
                 subprocess.run(["sc", "stop", service_name], check=True)
                 subprocess.run(["sc", "start", service_name], check=True)
-            else:  # Для Unix
+            else:  # Для Unix — только если мы НЕ под этим unit (иначе дедлок)
                 if os.geteuid() != 0:
                     raise PermissionError("Script must be run as root to restart a systemd service.")
+                graceful_shutdown('websocket restart (systemctl)')
                 subprocess.run(["/usr/bin/systemctl", "restart", service_name], check=True)
             return f"Service {service_name} restarted successfully."
         except subprocess.CalledProcessError as e:
             return f"Failed to restart service {service_name}: {e}"
         except PermissionError as e:
             return str(e)
-
-    if _is_running_in_docker() or _is_running_under_systemd():
-        # fallback, если явный способ не настроен
-        print("Exiting with error to trigger external restart policy...")
-        os._exit(1)
 
     return (
         "Restart target is not configured and launch mode is unknown. "

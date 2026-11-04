@@ -656,5 +656,14 @@
   "welcome_tip_4": "Logi systemowe dostępne są w module „Logi” (jeśli są zainstalowane). Użyj ich do rozwiązywania problemów.",
   "welcome_tip_5": "Różnica między modułami a obiektami: moduły to wtyczki systemowe, obiekty to Twoje urządzenia i byty.",
   "welcome_tips_title": "Przydatne wskazówki",
-  "whitelist": "biała lista"
+  "whitelist": "biała lista",
+  "Error growth: {logger}": "Wzrost błędów: {logger}",
+  "Stop notifying": "Nie powiadamiaj więcej",
+  "Muted errors": "Wyciszone błędy",
+  "Unmute": "Wyłącz wyciszenie",
+  "Error muted": "Powiadomienie o błędzie wyciszone",
+  "Error unmuted": "Wyciszenie usunięte",
+  "Error muting notification": "Błąd wyciszania powiadomienia",
+  "Error unmuting notification": "Błąd usuwania wyciszenia",
+  "No muted errors": "Brak wyciszonych błędów"
 }

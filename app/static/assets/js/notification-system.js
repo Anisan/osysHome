@@ -37,6 +37,7 @@
         MAX_RETRIES: 3,
         RETRY_DELAY: 200,
         NOTIFY_COLLAPSE_STORAGE_KEY: 'osyshome_notify_block_collapsed',
+        MUTED_ERRORS_VISIBLE: false,
         
         /**
          * Инициализация системы
@@ -47,6 +48,43 @@
             }
             
             this.isInitialized = true;
+            this.bindMutedErrorsToggle();
+        },
+
+        /**
+         * Кнопка-переключатель: muted-режим / обычные уведомления
+         */
+        bindMutedErrorsToggle: function() {
+            const toggle = document.getElementById('notificationsModalMutedToggle');
+            if (!toggle || toggle.dataset.bound === '1') {
+                return;
+            }
+            toggle.dataset.bound = '1';
+            this.syncMutedErrorsToggleButton();
+            toggle.addEventListener('click', () => {
+                this.MUTED_ERRORS_VISIBLE = !this.MUTED_ERRORS_VISIBLE;
+                this.syncMutedErrorsToggleButton();
+                this.refreshNotificationsModal();
+            });
+        },
+
+        /**
+         * Подсветка кнопки muted и состояние Read all
+         */
+        syncMutedErrorsToggleButton: function() {
+            const toggle = document.getElementById('notificationsModalMutedToggle');
+            const readAllBtn = document.getElementById('notificationsModalReadAll');
+            const active = !!this.MUTED_ERRORS_VISIBLE;
+            if (toggle) {
+                toggle.setAttribute('aria-pressed', active ? 'true' : 'false');
+                toggle.classList.toggle('btn-secondary', active);
+                toggle.classList.toggle('active', active);
+                toggle.classList.toggle('btn-outline-secondary', !active);
+            }
+            if (readAllBtn) {
+                readAllBtn.classList.toggle('d-none', active);
+                readAllBtn.disabled = active;
+            }
         },
 
         isNotifyBlockCollapsed: function() {
@@ -231,6 +269,24 @@
                 '</a>'
             );
         },
+
+        /**
+         * Кнопка mute для error_rate notify
+         */
+        renderErrorRateMuteButtonHTML: function(notif, className) {
+            const params = this.parseNotifyParams(notif);
+            if (params.kind !== 'error_rate') {
+                return '';
+            }
+            const label = this.escapeHtml(t('stop_notifying', 'Stop notifying'));
+            const btnClass = className || 'btn btn-sm btn-outline-secondary text-nowrap';
+            return (
+                '<button type="button" class="' + btnClass + '" title="' + label + '" aria-label="' + label + '"' +
+                ' onclick="if(typeof NotificationSystem !== \'undefined\') NotificationSystem.muteErrorRateNotify(' + notif.id + ')">' +
+                '<i class="fas fa-bell-slash me-1" aria-hidden="true"></i>' + label +
+                '</button>'
+            );
+        },
         
         /**
          * Поиск элемента уведомления по ID (унифицированный метод)
@@ -298,6 +354,8 @@
                 return;
             }
 
+            this.bindMutedErrorsToggle();
+            this.syncMutedErrorsToggleButton();
             this.refreshNotificationsModal();
 
             if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
@@ -309,11 +367,19 @@
 
         /**
          * Загрузить и отрисовать уведомления в модальном окне
+         * (или только muted, если включён режим кнопки)
          */
         refreshNotificationsModal: function() {
             const body = $('#notificationsModalBody');
             const readAllBtn = $('#notificationsModalReadAll');
             if (body.length === 0) {
+                return;
+            }
+
+            this.syncMutedErrorsToggleButton();
+
+            if (this.MUTED_ERRORS_VISIBLE) {
+                this.refreshMutedErrorsSection();
                 return;
             }
 
@@ -331,12 +397,15 @@
                 data: { unread_only: true },
                 timeout: 10000,
                 success: (data) => {
+                    if (this.MUTED_ERRORS_VISIBLE) {
+                        return;
+                    }
                     if (data && data.success && data.notifications && data.notifications.length > 0) {
                         this._renderNotificationsModal(data.notifications);
                         readAllBtn.prop('disabled', false);
                     } else {
                         body.html(
-                            '<div class="text-center text-muted py-4">' +
+                            '<div class="text-center text-muted py-4" id="notificationsModalEmpty">' +
                             '<i class="fas fa-bell-slash me-2"></i>' +
                             this.escapeHtml(t('no_unread_notifications', 'No unread notifications')) +
                             '</div>'
@@ -346,6 +415,9 @@
                 },
                 error: (xhr, status, error) => {
                     console.error('NotificationSystem: Error loading notifications modal:', error, xhr);
+                    if (this.MUTED_ERRORS_VISIBLE) {
+                        return;
+                    }
                     body.html(
                         '<div class="alert alert-danger mb-0">' +
                         this.escapeHtml(t('error_loading_notifications', 'Error loading notifications')) +
@@ -391,6 +463,7 @@
                 </a>`
                 : '';
             const paramsLinkButtonHtml = this.renderNotifyParamsLinkButtonHTML(notif);
+            const muteButtonHtml = this.renderErrorRateMuteButtonHTML(notif);
             const paramsContentHtml = this.renderNotifyParamsContentHTML(notif);
             const confirmLabel = this.escapeHtml(t('confirm', 'Confirm'));
 
@@ -414,6 +487,7 @@
                                     <button type="button" class="btn btn-sm btn-outline-success text-nowrap" title="${confirmLabel}" aria-label="${confirmLabel}" onclick="if(typeof NotificationSystem !== 'undefined') NotificationSystem.readNotify(${notif.id})">
                                         <i class="fas fa-check me-1" aria-hidden="true"></i>${confirmLabel}
                                     </button>
+                                    ${muteButtonHtml}
                                     ${paramsLinkButtonHtml}
                                     ${goToModuleButtonHtml}
                                 </div>
@@ -441,9 +515,149 @@
         },
 
         /**
+         * Список только заглушенных ошибок (режим кнопки Muted errors)
+         */
+        refreshMutedErrorsSection: function() {
+            const body = $('#notificationsModalBody');
+            if (body.length === 0 || !this.MUTED_ERRORS_VISIBLE) {
+                return;
+            }
+
+            body.html(
+                '<div class="text-center text-muted py-4">' +
+                '<i class="fa-solid fa-spinner fa-spin me-2"></i>' +
+                this.escapeHtml(t('loading', 'Loading...')) +
+                '</div>'
+            );
+
+            $.ajax({
+                url: '/api/utils/error-rate-mute',
+                method: 'GET',
+                timeout: 10000,
+                success: (data) => {
+                    if (!this.MUTED_ERRORS_VISIBLE) {
+                        return;
+                    }
+                    const items = (data && data.success && Array.isArray(data.items)) ? data.items : [];
+                    if (items.length === 0) {
+                        body.html(
+                            '<div class="text-center text-muted py-4">' +
+                            '<i class="fas fa-bell-slash me-2"></i>' +
+                            this.escapeHtml(t('no_muted_errors', 'No muted errors')) +
+                            '</div>'
+                        );
+                        return;
+                    }
+                    const unmuteLabel = this.escapeHtml(t('unmute', 'Unmute'));
+                    let html = '';
+                    items.forEach((item) => {
+                        const muteId = this.escapeHtml(item.mute_id || '');
+                        const logger = this.escapeHtml(item.logger || '');
+                        const message = this.escapeHtml(item.message || '');
+                        const created = item.created ? this.escapeHtml(new Date(item.created).toLocaleString()) : '';
+                        html +=
+                            '<div class="alert alert-secondary mb-2" data-mute-id="' + muteId + '">' +
+                            '<div class="d-flex flex-column flex-md-row align-items-md-start justify-content-md-between gap-2">' +
+                            '<div class="min-width-0">' +
+                            '<div class="d-flex flex-wrap align-items-center gap-2 mb-1">' +
+                            '<strong class="mb-0">' + logger + '</strong>' +
+                            '<span class="badge text-bg-secondary"><i class="fas fa-bell-slash me-1"></i>' +
+                            this.escapeHtml(t('muted_errors', 'Muted errors')) +
+                            '</span></div>' +
+                            '<div class="small text-break">' + message + '</div>' +
+                            (created ? '<div class="small text-muted mt-1">' + created + '</div>' : '') +
+                            '</div>' +
+                            '<button type="button" class="btn btn-sm btn-outline-primary text-nowrap" title="' + unmuteLabel + '"' +
+                            ' onclick="if(typeof NotificationSystem !== \'undefined\') NotificationSystem.unmuteErrorRate(\'' + muteId + '\')">' +
+                            '<i class="fas fa-bell me-1" aria-hidden="true"></i>' + unmuteLabel +
+                            '</button></div></div>';
+                    });
+                    body.html(html);
+                },
+                error: (xhr, status, error) => {
+                    console.error('NotificationSystem: Error loading muted errors:', error, xhr);
+                    if (this.MUTED_ERRORS_VISIBLE) {
+                        body.html(
+                            '<div class="alert alert-danger mb-0">' +
+                            this.escapeHtml(t('error_loading_notifications', 'Error loading notifications')) +
+                            '</div>'
+                        );
+                    }
+                }
+            });
+        },
+
+        /**
+         * Mute error-rate notify и убрать карточку
+         */
+        muteErrorRateNotify: function(id) {
+            if (!id) {
+                return;
+            }
+            $.ajax({
+                url: '/api/utils/error-rate-mute/' + id,
+                method: 'POST',
+                timeout: 10000,
+                success: (data) => {
+                    if (data && data.success) {
+                        this.removeNotifyFromDOM(id, () => {
+                            this.checkAndHideNotifyBlock();
+                            this.checkAndHideNotificationsModalList();
+                        });
+                        if (typeof notificationManager !== 'undefined') {
+                            notificationManager.success(t('error_muted', 'Error muted'));
+                        }
+                        this.updateNotificationIndicators();
+                        const source = this.getCurrentSource();
+                        if (source) {
+                            this.refreshNotifyBlock(source, true);
+                        }
+                    }
+                },
+                error: (xhr, status, error) => {
+                    console.error('NotificationSystem: Error muting notify:', error, xhr);
+                    if (typeof notificationManager !== 'undefined') {
+                        notificationManager.error(t('error_muting_notification', 'Error muting notification'));
+                    }
+                }
+            });
+        },
+
+        /**
+         * Снять mute по mute_id
+         */
+        unmuteErrorRate: function(muteId) {
+            if (!muteId) {
+                return;
+            }
+            $.ajax({
+                url: '/api/utils/error-rate-mute?mute_id=' + encodeURIComponent(muteId),
+                method: 'DELETE',
+                timeout: 10000,
+                success: (data) => {
+                    if (data && data.success) {
+                        if (typeof notificationManager !== 'undefined') {
+                            notificationManager.success(t('error_unmuted', 'Error unmuted'));
+                        }
+                        this.refreshMutedErrorsSection();
+                    }
+                },
+                error: (xhr, status, error) => {
+                    console.error('NotificationSystem: Error unmuting:', error, xhr);
+                    if (typeof notificationManager !== 'undefined') {
+                        notificationManager.error(t('error_unmuting_notification', 'Error unmuting notification'));
+                    }
+                }
+            });
+        },
+
+        /**
          * Проверка и очистка модального списка, если пуст
          */
         checkAndHideNotificationsModalList: function() {
+            if (this.MUTED_ERRORS_VISIBLE) {
+                return;
+            }
             const body = $('#notificationsModalBody');
             if (body.length === 0) {
                 return;
@@ -452,7 +666,7 @@
             const remaining = body.find('[data-notify-id]');
             if (remaining.length === 0) {
                 body.html(
-                    '<div class="text-center text-muted py-4">' +
+                    '<div class="text-center text-muted py-4" id="notificationsModalEmpty">' +
                     '<i class="fas fa-bell-slash me-2"></i>' +
                     this.escapeHtml(t('no_unread_notifications', 'No unread notifications')) +
                     '</div>'
@@ -537,6 +751,7 @@
                 : '';
             const paramsContentHtml = this.renderNotifyParamsContentHTML(notif);
             const paramsLinkHtml = this.renderNotifyParamsLinkButtonHTML(notif, 'btn btn-sm btn-outline-primary mt-2');
+            const muteButtonHtml = this.renderErrorRateMuteButtonHTML(notif, 'btn btn-sm btn-outline-secondary mt-2');
             
             return `
                 <div class="alert alert-${color} alert-dismissible fade show p-2 my-1" role="alert" data-notify-id="${notif.id}" data-notify-source="${this.escapeHtml(source)}">
@@ -551,7 +766,10 @@
                                 ${descriptionHtml}
                             </div>
                             ${paramsContentHtml}
-                            ${paramsLinkHtml}
+                            <div class="d-flex flex-wrap gap-2">
+                                ${paramsLinkHtml}
+                                ${muteButtonHtml}
+                            </div>
                             <div class="small text-muted mt-1">${dateInfo}</div>
                         </div>
                     </div>

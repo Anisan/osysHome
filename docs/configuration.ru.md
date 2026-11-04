@@ -6,11 +6,14 @@
 
 ```yaml
 application:   # Основные параметры приложения
+logging:       # Файловые / console-логи
 database:      # Настройки базы данных
 debug_tools:   # Дополнительные тяжёлые инструменты отладки
 cache:         # Настройки кеша
 service:       # Управление сервисом
 ```
+
+Снижение записи на диск (Raspberry Pi / microSD): [DISK_WRITE_OPTIMIZATION.ru.md](DISK_WRITE_OPTIMIZATION.ru.md).
 
 ## Секция `application`
 
@@ -49,6 +52,7 @@ application:
 | `pool_max_size` | Максимальный размер пула рабочих потоков | `100` |
 | `pool_timeout_threshold` | Порог в секундах, после которого задача в пуле считается долгой | `60.0` |
 | `batch_writer_flush_interval` | Интервал принудительного сброса batched-записей в секундах | `0.5` |
+| `batch_writer_max_size` | Сброс батча при N записях (`0` — только по таймеру) | `0` |
 | `reactive_max_depth` | Максимальная глубина синхронной цепочки property→method | `20` |
 | `reactive_loop_notify` | Уведомление админу при обнаружении реактивной петли | `true` |
 | `object_preload_enabled` | Фоновая подгрузка всех объектов после старта плагинов | `true` |
@@ -77,6 +81,40 @@ application:
 | `login` | Отдельный лимит для страницы входа | `5 per minute` |
 | `api` | Лимит для API-маршрутов | `100 per minute` |
 
+## Секция `logging`
+
+```yaml
+logging:
+  min_level: INFO
+  file_enabled: true
+  console_enabled: true
+  directory: logs
+  per_module_files: true
+  memory_handler_capacity: 0
+  backup_count: 7
+  error_rate:
+    enabled: true
+    window_sec: 300
+    threshold: 5
+    cooldown_sec: 600
+```
+
+Ошибки группируются по логгеру + нормализованному тексту (числа/id сглаживаются): у каждой серии свой notify. Пока он непрочитан — bump count (не чаще `cooldown_sec`); другая ошибка фиксируется отдельно. После read при новом пороге — снова полный notify.
+
+| Параметр | Описание | По умолчанию |
+|----------|----------|--------------|
+| `min_level` | Уровень при `application.debug: false` (`DEBUG`/`INFO`/`WARNING`/…) | `INFO` |
+| `file_enabled` | Писать файлы логов | `true` |
+| `console_enabled` | Вывод в console | `true` |
+| `directory` | Каталог логов | `logs` |
+| `per_module_files` | Отдельный файл на модуль; иначе общий `app.log` | `true` |
+| `memory_handler_capacity` | Буфер записей в RAM перед сбросом на диск (`0` — сразу) | `0` |
+| `backup_count` | Число ротированных копий | `7` |
+| `error_rate.enabled` | Notify при росте ERROR+ (in-memory счётчик, на диск не пишет) | `true` |
+| `error_rate.window_sec` | Окно подсчёта одной серии, секунды | `300` |
+| `error_rate.threshold` | Порог ERROR+ одной серии в окне | `5` |
+| `error_rate.cooldown_sec` | Интервал bump той же серии (непрочитанной); другие fingerprint не блокирует | `600` |
+
 ## Секция `database`
 
 ### Пример для SQLite
@@ -86,9 +124,16 @@ database:
   sqlalchemy_echo: false
   pool_size: 20
   db_name: 'app.db'
+  sqlite:
+    journal_mode: WAL
+    synchronous: null
+    temp_store: null
+    cache_size: null
+    mmap_size: null
+    wal_autocheckpoint: null
 ```
 
-SQLite-файл базы данных создаётся автоматически в корне проекта при первом запуске.
+SQLite-файл базы данных создаётся автоматически в корне проекта при первом запуске. Блок `sqlite` задаёт PRAGMA (см. [DISK_WRITE_OPTIMIZATION.ru.md](DISK_WRITE_OPTIMIZATION.ru.md)).
 
 ### Пример для PostgreSQL
 
@@ -114,6 +159,12 @@ database:
 | `pool_size` | Размер пула соединений SQLAlchemy | `20` |
 | `db_name` | Имя SQLite-файла, используется если не задан `connection_string` | `app.db` |
 | `connection_string` | Строка подключения к внешней БД PostgreSQL/MySQL/MariaDB | не задано |
+| `sqlite.journal_mode` | PRAGMA journal_mode (только SQLite) | `WAL` |
+| `sqlite.synchronous` | PRAGMA synchronous (`FULL`/`NORMAL`/`OFF`); `null` — не менять | не задано |
+| `sqlite.temp_store` | PRAGMA temp_store | не задано |
+| `sqlite.cache_size` | PRAGMA cache_size | не задано |
+| `sqlite.mmap_size` | PRAGMA mmap_size | не задано |
+| `sqlite.wal_autocheckpoint` | PRAGMA wal_autocheckpoint | не задано |
 
 ## Секция `debug_tools`
 

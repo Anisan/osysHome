@@ -26,6 +26,7 @@
 | [Production-развёртывание (nginx + HTTPS)](DEPLOY_PRODUCTION.ru.md) | TLS, systemd, Docker, Let's Encrypt |
 | [Безопасность и доступ](SECURITY_ACCESS.ru.md) | Аутентификация, роли, API-ключи |
 | [Конфигурация](configuration.ru.md) | Справочник `config.yaml` |
+| [Оптимизация записи на диск](DISK_WRITE_OPTIMIZATION.ru.md) | Raspberry Pi / microSD: логи, BatchWriter, SQLite |
 
 ---
 
@@ -36,6 +37,13 @@
 | Параметры `params` (все типы) | [PARAMS_DOCUMENTATION.md](PARAMS_DOCUMENTATION.md) |
 | Тип `enum` | [ENUM_TYPE_USAGE.md](ENUM_TYPE_USAGE.md) |
 | Тип `color` | [COLOR_TYPE_USAGE.ru.md](COLOR_TYPE_USAGE.ru.md) |
+
+## UI шаблонов
+
+| Тема | Документ |
+|------|----------|
+| Content modal (`showContentModal`) | [CONTENT_MODAL.ru.md](CONTENT_MODAL.ru.md) |
+| WebSocket UI-биндинги | [WEBSOCKET_UI_BINDINGS.md](WEBSOCKET_UI_BINDINGS.md) |
 
 ---
 

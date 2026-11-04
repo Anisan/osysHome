@@ -656,5 +656,14 @@
   "welcome_tip_4": "系统日志可在“日志”模块（如果已安装）中找到。使用它们进行故障排除。",
   "welcome_tip_5": "模块和对象之间的区别：模块是系统插件，对象是您的设备和实体。",
   "welcome_tips_title": "有用的提示",
-  "whitelist": "白名单"
+  "whitelist": "白名单",
+  "Error growth: {logger}": "错误增长：{logger}",
+  "Stop notifying": "不再通知",
+  "Muted errors": "已静音的错误",
+  "Unmute": "取消静音",
+  "Error muted": "已静音错误通知",
+  "Error unmuted": "已取消静音",
+  "Error muting notification": "静音失败",
+  "Error unmuting notification": "取消静音失败",
+  "No muted errors": "没有已静音的错误"
 }

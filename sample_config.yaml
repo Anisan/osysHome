@@ -17,10 +17,15 @@
 # generates a random secret_key, applies recommended security settings, and updates
 # config.yaml in place (your comments in this file are preserved). After you set
 # secret_key manually, auto-config never runs again.
+#
+# Form editor (XRAY → Config): lines starting with "choices:" list allowed values
+# for dropdowns and are not shown as help text.
 
+# Core application / Flask runtime settings.
 application:
   # Default UI language.
   # Examples: 'en', 'ru', 'de'.
+  # choices: en, ru, de, es, fr, it, ja, ko, pl, pt, uk, zh
   default_language: 'en'
 
   # Default timezone for displaying dates and times.
@@ -42,6 +47,7 @@ application:
 
   # Application environment name.
   # Common values are 'production' and 'development'.
+  # choices: production, development
   env: 'production'
 
   # Base size of the internal worker thread pool.
@@ -57,26 +63,39 @@ application:
 
   # Forced flush interval for batched writes, in seconds.
   # Lower values write data sooner but increase write frequency.
+  # On Raspberry Pi + microSD prefer 2.0–5.0 (see docs/DISK_WRITE_OPTIMIZATION.ru.md).
   batch_writer_flush_interval: 0.5
 
-  # Reactive property->method chain: max depth and admin notify on loop.
+  # Flush when the in-memory batch reaches this size (0 = timer only).
+  batch_writer_max_size: 0
+
+  # Max depth of reactive property→method chains (guards against infinite loops).
   reactive_max_depth: 20
+
+  # Notify admin when a reactive loop is detected.
   reactive_loop_notify: true
 
   # Background preload of all objects after startup (lazy onInit without blocking boot).
   object_preload_enabled: true
+
+  # How many objects to preload per batch tick.
   object_preload_batch_size: 10
+
+  # Pause in seconds between object preload batches.
   object_preload_interval_sec: 0.5
 
   # In-memory history for property value changes (Objects UI «Memory history»).
   # Not the DB History table — RAM only, cleared on object reload / process restart.
   # Window in seconds; entries older than this are pruned.
   memory_history_window_sec: 3600
-  # Hard cap on entries kept per property (newest kept).
+
+  # Hard cap on history entries kept per property (newest kept).
   memory_history_max_entries: 100
 
-  # In-memory history for method calls (same UI, method buttons).
+  # In-memory history window for method calls (same UI, method buttons), in seconds.
   memory_method_calls_window_sec: 3600
+
+  # Hard cap on method-call history entries kept per method (newest kept).
   memory_method_calls_max_entries: 100
 
   # User session lifetime in days.
@@ -94,6 +113,7 @@ application:
 
   # SameSite policy for the session cookie.
   # 'Lax' is a good default for most deployments.
+  # choices: Lax, Strict, None
   session_cookie_samesite: 'Lax'
 
   # Rate limiting to protect against brute-force attempts and overload.
@@ -101,7 +121,7 @@ application:
     # Enable or disable rate limiting globally.
     enabled: true
 
-    # Default rate limit for all routes.
+    # Default rate limit for all routes (Flask-Limiter style string).
     default: '100 per minute'
 
     # Dedicated rate limit for the login page.
@@ -111,6 +131,54 @@ application:
     # Used when no more specific API limit is configured elsewhere.
     api: '100 per minute'
 
+# File / console logging (see docs/DISK_WRITE_OPTIMIZATION.ru.md for Pi profiles).
+logging:
+  # Minimum log level when application.debug is false.
+  # When debug is true, the effective default is DEBUG.
+  # choices: DEBUG, INFO, WARNING, ERROR, CRITICAL
+  min_level: INFO
+
+  # Write rotating log files under directory.
+  # false = console/journal only (less SD wear on Raspberry Pi).
+  file_enabled: true
+
+  # Also emit log records to the process console / stdout.
+  console_enabled: true
+
+  # Log directory: relative to project root, or absolute (e.g. a tmpfs mount).
+  directory: logs
+
+  # true: one file per module (moduleName.log). false: single app.log + errors.log.
+  per_module_files: true
+
+  # Buffer N records in RAM before flushing to disk (0 = immediate).
+  # Always flushes immediately on ERROR and above.
+  memory_handler_capacity: 0
+
+  # TimedRotatingFileHandler backup count (days kept for midnight rotation).
+  backup_count: 7
+
+  # In-app notify when ERROR+ rate is elevated (in-memory counter; no extra log I/O).
+  # Errors are grouped by logger + normalized message: one unread series does not
+  # block notifies for a different error text / module.
+  error_rate:
+    # Enable or disable ERROR rate monitoring / notify.
+    enabled: true
+
+    # Sliding window length in seconds for counting ERROR+ of the same fingerprint.
+    # 5 minutes covers slow reconnect loops and multi-cycle API polls.
+    window_sec: 300
+
+    # Notify when this many matching ERROR+ records occur within window_sec.
+    # ~1/min sustained drip of the same error; ignores one-off blips.
+    threshold: 5
+
+    # While that fingerprint's notify is unread: min seconds between count bumps.
+    # Other fingerprints are unaffected. After the user marks it read, a new
+    # notify can fire when the threshold is reached again.
+    cooldown_sec: 600
+
+# Database connection and SQLite PRAGMA tuning.
 database:
   # Print SQL statements to the log.
   # Useful for SQL debugging, but noisy and slower in production.
@@ -121,19 +189,52 @@ database:
   pool_size: 20
 
   # SQLite database filename.
-  # Used only when connection_string is not set.
+  # Used when connection_string is null, empty, or omitted.
+  # On Pi prefer USB/SSD path via absolute path in connection_string if possible.
   db_name: 'app.db'
 
   # External database connection string.
-  # Usually not needed for SQLite, where db_name is used instead.
+  # null / empty / omitted → SQLite with db_name above.
   # PostgreSQL example:
-  # connection_string: 'postgresql+psycopg2://osyshome:password@localhost/osyshome'
+  #   'postgresql+psycopg2://osyshome:password@localhost/osyshome'
   # MySQL example:
-  # connection_string: 'mysql://osyshome:password@localhost/app'
+  #   'mysql://osyshome:password@localhost/app'
+  # Server-side tips (not applied by osysHome): keep PG/MySQL data dir off microSD;
+  # PostgreSQL: synchronous_commit=off (risk on power loss); MariaDB/MySQL:
+  # innodb_flush_log_at_trx_commit=2, sync_binlog=0.
+  connection_string: null
 
+  # SQLite PRAGMA applied on each connection (ignored for other engines).
+  sqlite:
+    # SQLite journal mode (WAL is usually best for concurrent reads).
+    # choices: DELETE, TRUNCATE, PERSIST, MEMORY, WAL, OFF
+    journal_mode: WAL
+
+    # How aggressively SQLite syncs to disk.
+    # FULL (safest) | NORMAL (good for Pi) | OFF (min writes, risk on power loss).
+    # Omit or null to leave SQLite default after journal_mode.
+    # choices: null, FULL, NORMAL, OFF, EXTRA
+    synchronous: null
+
+    # Where SQLite keeps temporary tables and indices.
+    # choices: null, DEFAULT, FILE, MEMORY
+    temp_store: null
+
+    # Page cache size hint for SQLite (PRAGMA cache_size).
+    # Negative values are KiB (e.g. -65536 ≈ 64 MiB). null = do not set.
+    cache_size: null
+
+    # Memory-map I/O size in bytes (PRAGMA mmap_size). null = do not set.
+    mmap_size: null
+
+    # WAL autocheckpoint interval in pages (PRAGMA wal_autocheckpoint).
+    # null = do not set (SQLite default).
+    wal_autocheckpoint: null
+
+# Extra debugging tools (Flask Debug Toolbar and related).
+# Usually kept disabled even when application.debug is true.
 debug_tools:
-  # Enable extra heavy debugging tools.
-  # These are usually kept disabled even when application.debug is true.
+  # Master switch for heavy debugging tools / Debug Toolbar integration.
   enabled: false
 
   # Enable the template editor inside Flask Debug Toolbar.
@@ -144,7 +245,7 @@ debug_tools:
   # This can noticeably slow page rendering.
   profiler_enabled: false
 
-  # Output filename used by the profiler.
+  # Output filename used by the profiler when profiling is enabled.
   profiler_dump_filename: 'dump.prof'
 
   # Intercept HTTP redirects in Debug Toolbar instead of following them normally.
@@ -154,18 +255,21 @@ debug_tools:
   # Useful for investigating slow pages, but adds overhead.
   sqlalchemy_record_queries: false
 
+# Application cache backend (Flask-Caching style).
 cache:
   # Path to the cache directory.
-  # Used by file-based cache backends.
+  # Used by file-based cache backends (e.g. filesystem).
   file_path: 'cache'
 
   # Cache backend type.
-  # 'SimpleCache' stores data in process memory.
-  type: 'SimpleCache'
+  # 'simple' stores data in process memory — prefer on Raspberry Pi (avoid filesystem cache on SD).
+  # choices: simple, filesystem, redis, memcached, null
+  type: 'simple'
 
-  # Cache entry lifetime in seconds.
+  # Cache entry lifetime (TTL) in seconds.
   timeout: 300
 
+# Service / process management hints used by restart helpers.
 service:
   # Allow automatic restart handling through built-in restart actions.
   autorestart: False

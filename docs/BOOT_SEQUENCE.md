@@ -29,11 +29,13 @@ flowchart TD
    - `sync_db(app)` is called again (plugin tables).
    - Intelli cache is built.
 4. In `main.py` before `app.run(...)`:
-   - `initSystemVar()` inside app context.
+   - `initSystemVar()` inside app context (creates `SystemVar` and event methods: `onSay`, `onPlaySound`, `onNotify`, `onSystemStart`, `onSystemStop`).
    - `start_plugins()` (calls plugin `initialization()`, then starts `cycle` threads).
-   - `startSystemVar()`.
+   - `startSystemVar()` — sets `SystemVar.Started` / `NeedRestart`, then sync `SystemVar.onSystemStart`.
    - `init_analytics_scheduler()` inside app context.
 5. Flask server starts with `threaded=True`.
+
+On graceful shutdown (`graceful_shutdown.py`): sync `SystemVar.onSystemStop`, then object `onStop` lifecycle, then `stop_plugins()`.
 
 ## Why Two `sync_db(...)` Calls
 

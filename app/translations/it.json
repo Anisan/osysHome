@@ -656,5 +656,14 @@
   "welcome_tip_4": "I log di sistema sono disponibili nel modulo \"Log\" (se installato). Usali per la risoluzione dei problemi.",
   "welcome_tip_5": "Differenza tra moduli e oggetti: i moduli sono plugin di sistema, gli oggetti sono i tuoi dispositivi ed entità.",
   "welcome_tips_title": "Consigli utili",
-  "whitelist": "lista bianca"
+  "whitelist": "lista bianca",
+  "Error growth: {logger}": "Crescita errori: {logger}",
+  "Stop notifying": "Non notificare più",
+  "Muted errors": "Errori silenziati",
+  "Unmute": "Riattiva",
+  "Error muted": "Notifica errore silenziata",
+  "Error unmuted": "Silenzio rimosso",
+  "Error muting notification": "Errore nel silenziare la notifica",
+  "Error unmuting notification": "Errore nel riattivare la notifica",
+  "No muted errors": "Nessun errore silenziato"
 }

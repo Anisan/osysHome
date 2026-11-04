@@ -50,6 +50,12 @@ class ObjectLoggerAdapter(logging.LoggerAdapter):
         object_name = self.extra.get('object_name', 'Unknown')
         return f'[{object_name}] {msg}', kwargs
 
+def _is_pool_shutdown_error(exc: BaseException) -> bool:
+    """RuntimeError пула при завершении процесса (shutting down / after shutdown)."""
+    msg = str(exc).lower()
+    return "shutting down" in msg or "after shutdown" in msg
+
+
 # Глобальный роутер потоков для linkedProperty/proxy задач.
 # Safe-by-default: неизвестные/проблемные плагины попадают в quarantine pool.
 _poolLinkedProperty = AdaptiveThreadPoolRouter(
@@ -193,12 +199,18 @@ class ValueUpdate:
 class BatchWriter:
     """Батчер для групповой записи значений и истории в БД"""
 
-    def __init__(self, flush_interval: float = 0.5):
+    def __init__(
+        self,
+        flush_interval: float = 0.5,
+        max_size: int = 0,
+    ):
         """
         Args:
             flush_interval: Интервал в секундах для принудительной записи батча
+            max_size: Flush при достижении N записей в батче (0 — только по таймеру)
         """
         self.flush_interval = flush_interval
+        self.max_size = int(max_size or 0)
         self._lock = threading.Lock()
         self._batch: list[ValueUpdate] = []
         self._stop_event = threading.Event()
@@ -238,12 +250,17 @@ class BatchWriter:
         self._worker_thread.start()
 
     def add(self, value_update: ValueUpdate):
-        """Добавляет запись в батч"""
+        """Добавляет запись в батч; при max_size > 0 может запустить асинхронный flush."""
+        should_flush = False
         with self._lock:
             self._batch.append(value_update)
             self._total_added += 1
             if value_update.internal:
                 self._total_internal_added += 1
+            if self.max_size > 0 and len(self._batch) >= self.max_size:
+                should_flush = True
+        if should_flush:
+            self.flush()
 
     def flush(self):
         """Принудительно записывает текущий батч (асинхронно)"""
@@ -506,25 +523,11 @@ class BatchWriter:
             flushBufferedCoreSystemStatsMetrics()
 
     def shutdown(self, wait: bool = True):
-        """Корректное завершение работы батчера"""
+        """Корректное завершение: остановить worker и синхронно сбросить батч."""
         self._stop_event.set()
-        # Принудительно записываем оставшиеся данные
-        self.flush()
-        # Ждем завершения всех задач записи
-        if wait:
-            # Даем время на завершение текущей записи
-            time.sleep(0.1)
-            # Выполняем финальную запись синхронно, если есть данные
-            with self._lock:
-                if self._batch:
-                    batch = self._batch[:]
-                    self._batch.clear()
-                else:
-                    batch = []
-            if batch:
-                self._flush_internal()
-        # Ждем завершения фонового потока
-        if self._worker_thread and self._worker_thread.is_alive():
+        # Синхронный flush — async flush() здесь гонка и может не успеть до exit
+        self.flush_sync()
+        if wait and self._worker_thread and self._worker_thread.is_alive():
             self._worker_thread.join(timeout=2.0)
     
     def get_stats(self):
@@ -549,6 +552,7 @@ class BatchWriter:
 
             return {
                 "flush_interval": self.flush_interval,
+                "max_size": self.max_size,
                 "current_batch_size": current_batch_size,
                 "worker_thread_alive": self._worker_thread.is_alive() if self._worker_thread else False,
                 "total_added": self._total_added,
@@ -581,7 +585,10 @@ class BatchWriter:
 
 
 # Глобальный экземпляр батчера
-_batch_writer = BatchWriter(flush_interval=Config.BATCH_WRITER_FLUSH_INTERVAL)
+_batch_writer = BatchWriter(
+    flush_interval=Config.BATCH_WRITER_FLUSH_INTERVAL,
+    max_size=getattr(Config, 'BATCH_WRITER_MAX_SIZE', 0),
+)
 
 
 def shutdown_batch_writer():
@@ -658,6 +665,7 @@ class PropertyManager():
         self.sort_order = None
         self.default_value = None
         self.read_only = False
+        self.protected = False
         
         if self.params and isinstance(self.params, dict):
             self.icon = self.params.get('icon')
@@ -665,6 +673,7 @@ class PropertyManager():
             self.sort_order = self.params.get('sort_order')
             self.default_value = self.params.get('default_value')
             self.read_only = self.params.get('read_only', False)
+            self.protected = bool(self.params.get('protected', False))
         
         if value:
             self.__value = self._decodeValue(value.value, True)
@@ -1278,6 +1287,8 @@ class PropertyManager():
             result["sort_order"] = self.sort_order
         if self.read_only:
             result["read_only"] = self.read_only
+        if self.protected:
+            result["protected"] = self.protected
         
         # Add params for enum type
         if self.type == 'enum' and self.params and 'enum_values' in self.params:
@@ -1356,9 +1367,19 @@ class MethodManager():
         self.exec_result = None
         self.exec_time = None
         self._call_history: list[dict] = []
+        self.params = None
+        self.protected = False
+        raw_params = methods[0].get("params") if methods else None
+        if raw_params:
+            try:
+                self.params = json.loads(raw_params) if isinstance(raw_params, str) else raw_params
+            except Exception:
+                self.params = None
+        if isinstance(self.params, dict):
+            self.protected = bool(self.params.get("protected", False))
 
     def to_dict(self):
-        return {
+        result = {
             "name": self.name,
             "description": self.description,
             "source": self.source,
@@ -1369,6 +1390,9 @@ class MethodManager():
             "exec_result": self.exec_result,
             "exec_time": self.exec_time
         }
+        if self.protected:
+            result["protected"] = True
+        return result
 
     def __str__(self):
         return f"MethodManager(name='{self.name}', description='{self.description}')"
@@ -1486,6 +1510,18 @@ class ObjectManager:
         self.object_id = obj.id
         self.name = obj.name
         self.description = obj.description
+        params = None
+        if getattr(obj, "params", None):
+            try:
+                params = json.loads(obj.params) if isinstance(obj.params, str) else obj.params
+            except Exception:
+                params = None
+        object.__setattr__(self, "params", params if isinstance(params, dict) else None)
+        object.__setattr__(
+            self,
+            "protected",
+            bool(params.get("protected")) if isinstance(params, dict) else False,
+        )
         # Create logger adapter with object name context
         self._logger = ObjectLoggerAdapter(_logger, {'object_name': self.name})
         self.properties = {}
@@ -1777,6 +1813,16 @@ class ObjectManager:
                 or str(source or "").startswith(SYSTEM_STATS_SOURCE)
             )
 
+            try:
+                from app.graceful_shutdown import is_shutting_down
+                if is_shutting_down():
+                    # Значение уже записано; linked/proxy в пул не ставим
+                    if self.name == "SystemVar" and name == "system_stats":
+                        invalidateSystemStatsEnabledCache()
+                    return True
+            except ImportError:
+                pass
+
             # link
             if prop.linked and not is_system_stats_write:
                 for link in prop.linked:
@@ -1801,6 +1847,14 @@ class ObjectManager:
                                 name,
                                 value
                             )
+                        except RuntimeError as e:
+                            # «shutting down» не содержит подстроку «shutdown»
+                            if _is_pool_shutdown_error(e):
+                                _logger.debug(
+                                    "Skip linked submit during shutdown: %s", e
+                                )
+                            else:
+                                _logger.exception(e)
                         except Exception as e:
                             _logger.exception(e)
 
@@ -1828,6 +1882,13 @@ class ObjectManager:
                             ignore_owner_limit=True,
                         )
 
+                    except RuntimeError as e:
+                        if _is_pool_shutdown_error(e):
+                            _logger.debug(
+                                "Skip proxy submit during shutdown: %s", e
+                            )
+                        else:
+                            _logger.exception(e)
                     except Exception as e:
                         _logger.exception(e)
             if self.name == "SystemVar" and name == "system_stats":
@@ -1958,7 +2019,10 @@ class ObjectManager:
             raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{name}'")
 
     def __setattr__(self, name, value):
-        if name.startswith('_') or name in ('properties', 'methods', 'object_id', 'name', 'description', 'parents'):
+        if name.startswith('_') or name in (
+            'properties', 'methods', 'object_id', 'name', 'description', 'parents',
+            'params', 'protected',
+        ):
             super().__setattr__(name, value)
             return
 
@@ -2003,13 +2067,15 @@ class ObjectManager:
         source_for_code = led_to
         _push_execution_source(execution_ctx)
         try:
+            # vars(self) первым: иначе self.params (метаданные объекта)
+            # затрёт аргументы вызова метода в params.
             variables = {
+                **vars(self),
                 'self': self,
                 'params': args,
                 'logger': _logger,
                 'source': source_for_code,
                 'runtime': self._runtime,
-                **vars(self)
             }
             methods = self.methods[name].methods
             output = ''

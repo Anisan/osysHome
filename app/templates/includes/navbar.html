@@ -179,7 +179,10 @@
           <i class="fa-solid fa-spinner fa-spin me-2"></i>{{ _('Loading...')}}
         </div>
       </div>
-      <div class="modal-footer flex-nowrap">
+      <div class="modal-footer flex-wrap gap-2">
+        <button type="button" class="btn btn-outline-secondary me-auto" id="notificationsModalMutedToggle" aria-pressed="false">
+          <i class="fas fa-bell-slash me-1" aria-hidden="true"></i>{{ _('Muted errors')}}
+        </button>
         <button type="button" class="btn btn-outline-secondary" id="notificationsModalReadAll" onclick="if(typeof NotificationSystem !== 'undefined') NotificationSystem.readNotifyAll()">
           {{ _('Read all')}}
         </button>

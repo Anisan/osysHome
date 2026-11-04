@@ -656,5 +656,14 @@
   "welcome_tip_4": "Los registros del sistema están disponibles en el módulo \"Registros\" (si está instalado). Úselos para solucionar problemas.",
   "welcome_tip_5": "Diferencia entre módulos y objetos: los módulos son complementos del sistema, los objetos son sus dispositivos y entidades.",
   "welcome_tips_title": "Consejos útiles",
-  "whitelist": "lista blanca"
+  "whitelist": "lista blanca",
+  "Error growth: {logger}": "Aumento de errores: {logger}",
+  "Stop notifying": "No notificar más",
+  "Muted errors": "Errores silenciados",
+  "Unmute": "Quitar silencio",
+  "Error muted": "Notificación de error silenciada",
+  "Error unmuted": "Silencio eliminado",
+  "Error muting notification": "Error al silenciar la notificación",
+  "Error unmuting notification": "Error al quitar el silencio",
+  "No muted errors": "No hay errores silenciados"
 }

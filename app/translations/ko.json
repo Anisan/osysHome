@@ -656,5 +656,14 @@
   "welcome_tip_4": "시스템 로그는 \"로그\" 모듈(설치된 경우)에서 확인할 수 있습니다. 문제 해결에 사용하세요.",
   "welcome_tip_5": "모듈과 개체의 차이점: 모듈은 시스템 플러그인이고 개체는 장치 및 엔터티입니다.",
   "welcome_tips_title": "유용한 팁",
-  "whitelist": "화이트리스트"
+  "whitelist": "화이트리스트",
+  "Error growth: {logger}": "오류 증가: {logger}",
+  "Stop notifying": "알림 중지",
+  "Muted errors": "음소거된 오류",
+  "Unmute": "음소거 해제",
+  "Error muted": "오류 알림이 음소거됨",
+  "Error unmuted": "음소거가 해제됨",
+  "Error muting notification": "음소거 중 오류",
+  "Error unmuting notification": "음소거 해제 중 오류",
+  "No muted errors": "음소거된 오류 없음"
 }

@@ -183,7 +183,12 @@ class BasePlugin:
         self.logger.info("Stopping cycle...")
         self.event.set()
         if self.thread:
-            self.thread.join()
+            # Без таймаута зависший cyclic_task блокирует весь graceful_shutdown
+            self.thread.join(timeout=5.0)
+            if self.thread.is_alive():
+                self.logger.warning(
+                    "Cycle thread did not stop within 5s (daemon, will die on exit)"
+                )
             self.thread = None
         self.logger.info("Stopped cycle")
 
@@ -264,12 +269,13 @@ class BasePlugin:
     def notify(self, data: dict) -> None:
         """Handles a system notification when the module has `action="notify"`.
 
-        Called from ``addNotify()`` / ``readNotify()`` / ``readNotifyAll()`` for plugins
-        that list ``"notify"`` in ``self.actions``.
+        Called from ``addNotify()`` / ``readNotify()`` / ``readNotifyAll()`` /
+        ``deleteNotify()`` for plugins that list ``"notify"`` in ``self.actions``.
 
         Args:
             data (dict): Event payload:
                 - ``operation``: ``new_notify`` | ``read_notify`` | ``read_notify_all``
+                  | ``delete_notify``
                 - ``data``: event fields (id, name, description, category, source, count, params)
         """
         pass
@@ -490,9 +496,13 @@ class BasePlugin:
 
                 level = self.config.get("level_logging", None)
                 if level is None or level == "None":
-                    level = "INFO"
+                    # Как getLogger: DEBUG при Config.DEBUG, иначе logging.min_level
                     if Config.DEBUG:
                         level = "DEBUG"
+                    else:
+                        level = str(
+                            getattr(Config, 'LOG_MIN_LEVEL', 'INFO') or 'INFO'
+                        ).upper()
                 import logging
 
                 log_level = logging.getLevelName(level)
@@ -510,9 +520,12 @@ class BasePlugin:
 
                 level = self.config.get("level_logging", None)
                 if level is None or level == "None":
-                    level = "INFO"
                     if Config.DEBUG:
                         level = "DEBUG"
+                    else:
+                        level = str(
+                            getattr(Config, 'LOG_MIN_LEVEL', 'INFO') or 'INFO'
+                        ).upper()
                 import logging
 
                 log_level = logging.getLevelName(level)
