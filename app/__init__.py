@@ -105,7 +105,7 @@ def createApp(config_object):
     # importlib: "import app.core..." would shadow local Flask variable "app"
     import importlib
     importlib.import_module('app.core.models.CustomFunctions')
-    from app.database import sync_db
+    from app.db_tools import sync_db
     sync_db(app)  # sync system tables
     registerPlugins(app)
     sync_db(app)  # sync plugins tables

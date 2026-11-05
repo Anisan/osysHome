@@ -387,7 +387,7 @@
 
         monaco.languages.registerCompletionItemProvider('python', {
             triggerCharacters: ['.', '(', '"', "'"],
-            provideCompletionItems: function(model, position) {
+            provideCompletionItems: function(model, position, _context, token) {
                 var api = getMonacoLspApi(model);
                 if (!api) {
                     return { suggestions: [] };
@@ -397,15 +397,34 @@
                     line: position.lineNumber,
                     column: Math.max(0, position.column - 1)
                 };
-                return api.lspRequest('completion', payload)
-                    .then(function(resp) {
-                        var items = resp.items || [];
-                        return { suggestions: items.map(api.toCompletion) };
-                    })
-                    .catch(function(err) {
-                        console.warn('LSP completion failed', err);
-                        return { suggestions: [] };
-                    });
+                // Дебаунс ~250 мс — меньше запросов к pylsp на слабом ARM
+                return new Promise(function(resolve) {
+                    var timer = setTimeout(function() {
+                        if (token && token.isCancellationRequested) {
+                            resolve({ suggestions: [] });
+                            return;
+                        }
+                        api.lspRequest('completion', payload)
+                            .then(function(resp) {
+                                if (token && token.isCancellationRequested) {
+                                    resolve({ suggestions: [] });
+                                    return;
+                                }
+                                var items = resp.items || [];
+                                resolve({ suggestions: items.map(api.toCompletion) });
+                            })
+                            .catch(function(err) {
+                                console.warn('LSP completion failed', err);
+                                resolve({ suggestions: [] });
+                            });
+                    }, 250);
+                    if (token && typeof token.onCancellationRequested === 'function') {
+                        token.onCancellationRequested(function() {
+                            clearTimeout(timer);
+                            resolve({ suggestions: [] });
+                        });
+                    }
+                });
             }
         });
 
@@ -536,7 +555,7 @@
                 var timer = setTimeout(function() {
                     delete lspPending[requestId];
                     reject(new Error('LSP websocket timeout'));
-                }, 5000);
+                }, 15000);
                 lspPending[requestId] = { resolve: resolve, reject: reject, timeout: timer };
                 try {
                     window.socket.emit('lsp', message);

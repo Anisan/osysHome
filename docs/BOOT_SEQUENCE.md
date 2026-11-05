@@ -42,10 +42,12 @@ On graceful shutdown (`graceful_shutdown.py`): sync `SystemVar.onSystemStop`, th
 - First pass ensures core schema exists.
 - After plugin import/registration, plugin models become visible.
 - Second pass synchronizes plugin-related tables.
+- Each pass also runs `sync_model_triggers` (installs `__db_triggers__` from registered models, including plugin models on the second pass). See [DB_TRIGGERS.md](DB_TRIGGERS.md).
 
 ## Related Docs
 
 - [Architecture](ARCHITECTURE.md)
+- [Database triggers](DB_TRIGGERS.md)
 - [Core Runtime](CORE_RUNTIME.md)
 - [Security & Access](SECURITY_ACCESS.md)
 - [Consistency & Timezones](CONSISTENCY_TIMEZONES.md)
@@ -55,4 +57,4 @@ On graceful shutdown (`graceful_shutdown.py`): sync `SystemVar.onSystemStop`, th
 - `main.py`
 - `app/__init__.py` (`createApp`)
 - `app/core/main/PluginsHelper.py`
-- `app/database.py` (`sync_db`)
+- `app/db_tools/` (`sync_db`, `sync_model_triggers`)

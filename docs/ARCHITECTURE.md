@@ -57,7 +57,8 @@ flowchart TB
   - `Object`, `Property`, `Value`, `History`, `Users`, `Plugins`, etc.
 - `app/database.py`
   - Session management (`session_scope` context manager).
-  - DB initialization and migrations helpers (`sync_db`).
+  - DB tools in `app/db_tools/`: `sync_db`, `__db_triggers__` / `DbTrigger` /
+    `sync_model_triggers`, `protected_triggers` (see [DB_TRIGGERS.md](DB_TRIGGERS.md)).
 
 **Plugins system**
 
@@ -148,7 +149,7 @@ flowchart TB
   - управляет объектами, свойствами, методами;
   - применяет валидацию (`PARAMS_DOCUMENTATION.md`, `ENUM_TYPE_USAGE.md`);
   - пишет историю значений через `BatchWriter`.
-- **Слой БД** — модели SQLAlchemy (`app/core/models/*.py`), сессии и инициализация в `app/database.py`.
+- **Слой БД** — модели SQLAlchemy (`app/core/models/*.py`), сессии в `app/database.py`; инструменты схемы/триггеров в `app/db_tools/` (`sync_db`, см. [DB_TRIGGERS.ru.md](DB_TRIGGERS.ru.md)).
 - **Система плагинов** — базовый класс `BasePlugin`, автопоиск и запуск в `PluginsHelper`, плагины в каталоге `plugins/`.
 - **Внешние устройства/сервисы** — реализуются отдельными репозиториями‑плагинами (`osysHome-*`).
 

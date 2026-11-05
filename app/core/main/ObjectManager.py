@@ -2005,6 +2005,49 @@ class ObjectManager:
         """
         return self.getProperty(name, 'changed')
 
+    def getParam(self, name: str, key: str = None):
+        """Читает ключ из ``params`` объекта, свойства или метода.
+
+        Args:
+            name (str): Ключ params объекта, либо имя свойства/метода
+                если передан ``key``.
+            key (str, optional): Ключ params свойства/метода. Если None —
+                ``name`` трактуется как ключ params самого объекта.
+
+        Returns:
+            Any: Значение ``params[key]``, либо None.
+        """
+        if not isinstance(name, str) or not name:
+            return None
+        try:
+            if key is None:
+                params = getattr(self, "params", None)
+                if isinstance(params, dict):
+                    return params.get(name)
+                return None
+
+            if not isinstance(key, str) or not key:
+                return None
+
+            prop = self.properties.get(name) if self.properties else None
+            if prop is not None:
+                params = getattr(prop, "params", None)
+                if isinstance(params, dict):
+                    return params.get(key)
+                return None
+
+            method = self.methods.get(name) if self.methods else None
+            if method is not None:
+                params = getattr(method, "params", None)
+                if isinstance(params, dict):
+                    return params.get(key)
+                return None
+
+            return None
+        except Exception as ex:
+            self._logger.exception("getParam %s %s: %s", name, key, ex)
+        return None
+
     def __getattr__(self, name):
         if name in self.methods:
             def dynamic_method(args=None, source: str = '') -> str:

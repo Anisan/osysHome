@@ -15,6 +15,10 @@ from app.core.main.ObjectsStorage import objects_storage
 
 logger = getLogger("lsp")
 
+# Таймауты под слабый ARM (Orange Pi / Raspberry Pi)
+REQUEST_TIMEOUT = 12.0
+TIMEOUT_RESTART_THRESHOLD = 3
+
 # Explicit imports for CustomFunction editor — pylsp often misses `import *` names.
 _CF_EDITOR_API_PRELUDE = [
     "from app.core.lib.common import callPluginFunction, getModule, runCode, say, playSound, requestUrl",
@@ -726,6 +730,7 @@ class PylspClient:
         self.proc: Optional[subprocess.Popen] = None
         self.reader_thread: Optional[threading.Thread] = None
         self.lock = threading.Lock()
+        self._action_lock = threading.Lock()  # один in-flight анализ для pylsp
         self.pending = {}  # id -> dict | list
         self.pending_cond = threading.Condition(self.lock)
         self.diag_store: Dict[str, List[Dict[str, Any]]] = {}
@@ -734,6 +739,7 @@ class PylspClient:
         self.version = 0
         self.running = False
         self.stderr_lines: deque[str] = deque(maxlen=50)
+        self._timeout_streak = 0
 
         # Кэши для оптимизации производительности
         self._prepared_code_cache: Dict[Tuple[str, Optional[str]], Tuple[str, int]] = {}
@@ -748,6 +754,32 @@ class PylspClient:
     def _make_uri(self) -> str:
         tmp = os.path.join(tempfile.gettempdir(), "pylsp_inline.py")
         return f"file:///{tmp.replace(os.sep, '/')}"
+
+    def stop(self):
+        """Останавливает процесс pylsp и сбрасывает состояние документа."""
+        logger.warning("перезапуск pylsp после серии таймаутов")
+        proc = self.proc
+        self.running = False
+        self.proc = None
+        with self.pending_cond:
+            self.pending.clear()
+            self.diag_store.clear()
+            self.version = 0
+            self._last_document_text = None
+            self._last_document_version = 0
+            self.pending_cond.notify_all()
+        self._completion_cache.clear()
+        self._hover_cache.clear()
+        self._context_cache.clear()
+        if proc is not None:
+            try:
+                proc.terminate()
+                proc.wait(timeout=2.0)
+            except Exception:
+                try:
+                    proc.kill()
+                except Exception:
+                    pass
 
     def start(self):
         if self.running:
@@ -789,15 +821,31 @@ class PylspClient:
             "workspaceFolders": None,
         }, timeout=15.0)
         self._notify("initialized", {})
-        # Настройка pylsp: игнорировать W292 (no newline at end of file)
+        # Лёгкий профиль для SBC: jedi + pyflakes, без pylint/flake8/rope
         self._notify("workspace/didChangeConfiguration", {
             "settings": {
                 "pylsp": {
                     "plugins": {
+                        "jedi_completion": {"enabled": True},
+                        "jedi_hover": {"enabled": True},
+                        "jedi_signature_help": {"enabled": True},
+                        "jedi_symbols": {"enabled": True},
+                        "jedi_definition": {"enabled": False},
+                        "jedi_references": {"enabled": False},
+                        "pyflakes": {"enabled": True},
                         "pycodestyle": {
+                            "enabled": True,
                             "ignore": ["W292"],
-                            "maxLineLength": 160
-                        }
+                            "maxLineLength": 160,
+                        },
+                        "pylint": {"enabled": False},
+                        "flake8": {"enabled": False},
+                        "mccabe": {"enabled": False},
+                        "yapf": {"enabled": False},
+                        "autopep8": {"enabled": False},
+                        "rope_completion": {"enabled": False},
+                        "rope_autoimport": {"enabled": False},
+                        "rope_rename": {"enabled": False},
                     }
                 }
             }
@@ -892,7 +940,8 @@ class PylspClient:
         self._object_shapes_cache.clear()
         logger.debug("lsp caches cleared")
 
-    def _request(self, method: str, params: Dict[str, Any], timeout: float = 5.0) -> Any:
+    def _request(self, method: str, params: Dict[str, Any], timeout: float = REQUEST_TIMEOUT) -> Any:
+        need_restart = False
         with self.lock:
             msg_id = self.next_id
             self.next_id += 1
@@ -903,13 +952,27 @@ class PylspClient:
             while True:
                 remaining = timeout - (time.time() - start)
                 if remaining <= 0:
-                    raise TimeoutError(f"pylsp timeout on {method}")
+                    self._timeout_streak += 1
+                    logger.warning(
+                        "таймаут pylsp на %s (%d подряд)",
+                        method,
+                        self._timeout_streak,
+                    )
+                    if self._timeout_streak >= TIMEOUT_RESTART_THRESHOLD:
+                        self._timeout_streak = 0
+                        need_restart = True
+                    break
                 self.pending_cond.wait(timeout=remaining)
                 if msg_id in self.pending:
                     resp = self.pending.pop(msg_id)
+                    self._timeout_streak = 0
                     if "error" in resp:
                         raise RuntimeError(resp["error"])
                     return resp.get("result")
+
+        if need_restart:
+            self.stop()
+        raise TimeoutError(f"pylsp timeout on {method}")
 
     def _notify(self, method: str, params: Dict[str, Any]):
         with self.lock:
@@ -964,104 +1027,108 @@ class PylspClient:
                 })
 
     def completion(self, text: str, line: int, column: int) -> List[Dict[str, Any]]:
-        # Создаем ключ для кэширования
-        cache_key = f"{hash(text)}:{line}:{column}:{self._last_document_version}"
+        with self._action_lock:
+            # Создаем ключ для кэширования
+            cache_key = f"{hash(text)}:{line}:{column}:{self._last_document_version}"
 
-        # Проверяем кэш
-        if cache_key in self._completion_cache:
-            return self._completion_cache[cache_key]
+            # Проверяем кэш
+            if cache_key in self._completion_cache:
+                return self._completion_cache[cache_key]
 
-        self.update_document(text)
-        result = self._request("textDocument/completion", {
-            "textDocument": {"uri": self.uri},
-            "position": {"line": line - 1, "character": column},
-        }) or {}
-        items = result.get("items", result) if isinstance(result, dict) else result
-        mapped_items = self._map_completions(items)
+            self.update_document(text)
+            result = self._request("textDocument/completion", {
+                "textDocument": {"uri": self.uri},
+                "position": {"line": line - 1, "character": column},
+            }, timeout=REQUEST_TIMEOUT) or {}
+            items = result.get("items", result) if isinstance(result, dict) else result
+            mapped_items = self._map_completions(items)
 
-        # Кэшируем результат (ограничиваем размер кэша)
-        if len(self._completion_cache) > 50:
-            # Удаляем самый старый элемент
-            oldest_key = next(iter(self._completion_cache))
-            del self._completion_cache[oldest_key]
+            # Кэшируем результат (ограничиваем размер кэша)
+            if len(self._completion_cache) > 50:
+                # Удаляем самый старый элемент
+                oldest_key = next(iter(self._completion_cache))
+                del self._completion_cache[oldest_key]
 
-        self._completion_cache[cache_key] = mapped_items
-        return mapped_items
+            self._completion_cache[cache_key] = mapped_items
+            return mapped_items
 
     def hover(self, text: str, line: int, column: int) -> Optional[Dict[str, Any]]:
-        # Создаем ключ для кэширования
-        cache_key = f"{hash(text)}:{line}:{column}:{self._last_document_version}"
+        with self._action_lock:
+            # Создаем ключ для кэширования
+            cache_key = f"{hash(text)}:{line}:{column}:{self._last_document_version}"
 
-        # Проверяем кэш
-        if cache_key in self._hover_cache:
-            return self._hover_cache[cache_key]
+            # Проверяем кэш
+            if cache_key in self._hover_cache:
+                return self._hover_cache[cache_key]
 
-        self.update_document(text)
-        result = self._request("textDocument/hover", {
-            "textDocument": {"uri": self.uri},
-            "position": {"line": line - 1, "character": column},
-        })
+            self.update_document(text)
+            result = self._request("textDocument/hover", {
+                "textDocument": {"uri": self.uri},
+                "position": {"line": line - 1, "character": column},
+            }, timeout=REQUEST_TIMEOUT)
 
-        hover_result = None
-        if result:
-            contents = result.get("contents")
-            value = ""
-            if isinstance(contents, dict):
-                value = contents.get("value") or ""
-            elif isinstance(contents, list):
-                value = "\n".join(c.get("value", c) if isinstance(c, dict) else str(c) for c in contents)
-            else:
-                value = str(contents)
-            rng = result.get("range")
-            hover_result = {"contents": value, "range": rng}
+            hover_result = None
+            if result:
+                contents = result.get("contents")
+                value = ""
+                if isinstance(contents, dict):
+                    value = contents.get("value") or ""
+                elif isinstance(contents, list):
+                    value = "\n".join(c.get("value", c) if isinstance(c, dict) else str(c) for c in contents)
+                else:
+                    value = str(contents)
+                rng = result.get("range")
+                hover_result = {"contents": value, "range": rng}
 
-        # Кэшируем результат (ограничиваем размер кэша)
-        if len(self._hover_cache) > 50:
-            # Удаляем самый старый элемент
-            oldest_key = next(iter(self._hover_cache))
-            del self._hover_cache[oldest_key]
+            # Кэшируем результат (ограничиваем размер кэша)
+            if len(self._hover_cache) > 50:
+                # Удаляем самый старый элемент
+                oldest_key = next(iter(self._hover_cache))
+                del self._hover_cache[oldest_key]
 
-        self._hover_cache[cache_key] = hover_result
-        return hover_result
+            self._hover_cache[cache_key] = hover_result
+            return hover_result
 
     def diagnostics(self, text: str, timeout: float = 2.5) -> List[Dict[str, Any]]:
-        self.update_document(text)
-        # ждём publishDiagnostics
-        until = time.time() + timeout
-        with self.pending_cond:
-            while time.time() < until:
-                self.pending_cond.wait(timeout=0.2)
-                if self.uri in self.diag_store:
-                    diags = self.diag_store.get(self.uri, [])
-                    logger.debug("lsp diagnostics: got %d diagnostics after document update", len(diags))
-                    return diags
-        # Если не дождались - возвращаем пустой список вместо старой диагностики
-        logger.debug("lsp diagnostics: timeout waiting for fresh diagnostics")
-        return []
+        with self._action_lock:
+            self.update_document(text)
+            # ждём publishDiagnostics
+            until = time.time() + timeout
+            with self.pending_cond:
+                while time.time() < until:
+                    self.pending_cond.wait(timeout=0.2)
+                    if self.uri in self.diag_store:
+                        diags = self.diag_store.get(self.uri, [])
+                        logger.debug("lsp diagnostics: got %d diagnostics after document update", len(diags))
+                        return diags
+            # Если не дождались - возвращаем пустой список вместо старой диагностики
+            logger.debug("lsp diagnostics: timeout waiting for fresh diagnostics")
+            return []
 
     def signature_help(self, text: str, line: int, column: int) -> Optional[Dict[str, Any]]:
-        self.update_document(text)
-        result = self._request("textDocument/signatureHelp", {
-            "textDocument": {"uri": self.uri},
-            "position": {"line": line - 1, "character": column},
-        })
-        if not result or not result.get("signatures"):
-            return None
-        active_sig = result.get("activeSignature", 0) or 0
-        active_param = result.get("activeParameter", 0) or 0
-        sigs = result.get("signatures", [])
-        sig = sigs[active_sig] if active_sig < len(sigs) else sigs[0]
-        label = sig.get("label", "")
-        doc = sig.get("documentation", "")
-        if isinstance(doc, dict):
-            doc = doc.get("value", "")
-        params = sig.get("parameters", [])
-        return {
-            "label": label,
-            "doc": doc or "",
-            "activeParameter": active_param,
-            "parameters": [p.get("label", "") for p in params]
-        }
+        with self._action_lock:
+            self.update_document(text)
+            result = self._request("textDocument/signatureHelp", {
+                "textDocument": {"uri": self.uri},
+                "position": {"line": line - 1, "character": column},
+            }, timeout=REQUEST_TIMEOUT)
+            if not result or not result.get("signatures"):
+                return None
+            active_sig = result.get("activeSignature", 0) or 0
+            active_param = result.get("activeParameter", 0) or 0
+            sigs = result.get("signatures", [])
+            sig = sigs[active_sig] if active_sig < len(sigs) else sigs[0]
+            label = sig.get("label", "")
+            doc = sig.get("documentation", "")
+            if isinstance(doc, dict):
+                doc = doc.get("value", "")
+            params = sig.get("parameters", [])
+            return {
+                "label": label,
+                "doc": doc or "",
+                "activeParameter": active_param,
+                "parameters": [p.get("label", "") for p in params]
+            }
 
     def _map_completions(self, items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         kind_map = {
@@ -1130,7 +1197,11 @@ def run_lsp_action(
     adj_line = safe_line + line_offset
 
     if normalized_action == "completion":
-        items = pylsp_client.completion(prepared_code, adj_line, safe_column) or []
+        try:
+            items = pylsp_client.completion(prepared_code, adj_line, safe_column) or []
+        except TimeoutError as ex:
+            logger.warning("LSP completion: %s", ex)
+            items = []
         # Дополняем подсказками из shape, чтобы у методов был description
         prefix = pylsp_client._prefix_at(code, safe_line, safe_column)
         if obj_shape and object_name and pylsp_client._is_self_context(code, safe_line, safe_column):
@@ -1229,7 +1300,11 @@ def run_lsp_action(
             if cf_hover:
                 return {"action": "hover", "hover": {"contents": cf_hover}}
 
-        hover = pylsp_client.hover(prepared_code, adj_line, safe_column)
+        try:
+            hover = pylsp_client.hover(prepared_code, adj_line, safe_column)
+        except TimeoutError as ex:
+            logger.warning("LSP hover: %s", ex)
+            hover = None
         if hover and hover.get("range"):
             hover["range"] = pylsp_client._shift_range(hover.get("range"), line_offset)
         if not hover or not hover.get("contents"):
@@ -1277,7 +1352,11 @@ def run_lsp_action(
         return {"action": "hover", "hover": hover}
 
     if normalized_action == "diagnostics":
-        diags = pylsp_client.diagnostics(prepared_code, timeout=timeout)
+        try:
+            diags = pylsp_client.diagnostics(prepared_code, timeout=timeout)
+        except TimeoutError as ex:
+            logger.warning("LSP diagnostics: %s", ex)
+            diags = []
         diags = pylsp_client._drop_prelude_diags(diags, line_offset)
         shifted = []
         for diag in diags:
@@ -1293,7 +1372,11 @@ def run_lsp_action(
         return {"action": "diagnostics", "diagnostics": filtered}
 
     if normalized_action == "signature":
-        sig = pylsp_client.signature_help(prepared_code, adj_line, safe_column)
+        try:
+            sig = pylsp_client.signature_help(prepared_code, adj_line, safe_column)
+        except TimeoutError as ex:
+            logger.warning("LSP signature: %s", ex)
+            sig = None
         return {"action": "signature", "signature": sig}
 
     raise ValueError(f"Unsupported LSP action: {action}")

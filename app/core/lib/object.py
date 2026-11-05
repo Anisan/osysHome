@@ -11,124 +11,28 @@ from app.core.models.Clasess import Class, Object, Property, Value, Method, Hist
 from app.core.main.ObjectManager import ObjectManager, PropertyManager, ObjectLoggerAdapter
 from app.core.lib.constants import PropertyType
 from app.core.lib.object_tree import invalidate_objects_tree_cache
+from app.core.lib.entity_params import (
+    is_params_protected as _is_params_protected,
+    merge_entity_params as _merge_entity_params,
+    fill_missing_entity_params as _fill_missing_entity_params,
+    getProtectedObjectNames,
+    getProtectedClassNames,
+    isObjectProtected,
+    markObjectProtected,
+    isClassProtected,
+    markClassProtected,
+    isObjectPropertyProtected,
+    markObjectPropertyProtected,
+    isClassPropertyProtected,
+    markClassPropertyProtected,
+    isObjectMethodProtected,
+    markObjectMethodProtected,
+    isClassMethodProtected,
+    markClassMethodProtected,
+)
 
 _logger = getLogger('object')
 _UNSET = object()
-
-
-def _parse_params_json(raw) -> dict:
-    """Разбирает params из JSON-строки или dict; при ошибке — пустой dict."""
-    if not raw:
-        return {}
-    if isinstance(raw, dict):
-        return raw
-    try:
-        parsed = json.loads(raw) if isinstance(raw, str) else raw
-        return parsed if isinstance(parsed, dict) else {}
-    except Exception:
-        return {}
-
-
-def _is_params_protected(raw) -> bool:
-    return bool(_parse_params_json(raw).get("protected"))
-
-
-def _merge_entity_params(raw, patch: dict) -> str:
-    """Merge patch into entity params JSON; returns JSON string."""
-    params = _parse_params_json(raw)
-    params.update(patch)
-    return json.dumps(params)
-
-
-def getProtectedObjectNames() -> frozenset:
-    """Имена объектов, которые нельзя удалить/переименовать.
-
-    объекты с ``params.protected``.
-    """
-    names = set()   
-    with session_scope() as session:
-        for name, raw in session.query(Object.name, Object.params).all():
-            if _is_params_protected(raw):
-                names.add(name)
-    return frozenset(names)
-
-
-def getProtectedClassNames() -> frozenset:
-    """Имена классов с ``params.protected``."""
-    with session_scope() as session:
-        return frozenset(
-            name
-            for name, raw in session.query(Class.name, Class.params).all()
-            if _is_params_protected(raw)
-        )
-
-
-def isObjectProtected(name: str) -> bool:
-    """True, если объект нельзя удалить/переименовать."""
-    name = name or ""
-    with session_scope() as session:
-        obj = session.query(Object).filter(Object.name == name).one_or_none()
-        if not obj:
-            return False
-        return _is_params_protected(obj.params)
-
-
-def markObjectProtected(name: str) -> bool:
-    """Выставляет ``params.protected`` у объекта.
-
-    Args:
-        name: Имя объекта.
-
-    Returns:
-        bool: True если объект найден и защита применена/уже была.
-    """
-    name = (name or "").strip()
-    if not name:
-        return False
-    with session_scope() as session:
-        obj = session.query(Object).filter(Object.name == name).one_or_none()
-        if not obj:
-            return False
-        if _is_params_protected(obj.params):
-            return True
-        obj.params = _merge_entity_params(obj.params, {"protected": True})
-        session.commit()
-        object_id = obj.id
-    objects_storage.reload_object(object_id)
-    invalidate_objects_tree_cache()
-    return True
-
-
-def isClassProtected(name: str = None, class_id: int = None) -> bool:
-    """True, если класс нельзя удалить/переименовать/сменить родителя."""
-    with session_scope() as session:
-        cls = None
-        if class_id is not None:
-            cls = session.query(Class).filter(Class.id == class_id).one_or_none()
-        elif name:
-            cls = session.query(Class).filter(Class.name == name).one_or_none()
-        if not cls:
-            return False
-        return _is_params_protected(cls.params)
-
-
-def markClassProtected(name: str) -> bool:
-    """Выставляет ``params.protected`` у класса."""
-    name = (name or "").strip()
-    if not name:
-        return False
-    with session_scope() as session:
-        cls = session.query(Class).filter(Class.name == name).one_or_none()
-        if not cls:
-            return False
-        if _is_params_protected(cls.params):
-            return True
-        cls.params = _merge_entity_params(cls.params, {"protected": True})
-        session.commit()
-        class_id = cls.id
-    objects_storage.reload_objects_by_class(class_id)
-    invalidate_objects_tree_cache()
-    return True
 
 
 def _get_object_logger(object_name: str):
@@ -157,6 +61,8 @@ def addClass(
             set on create. Defaults to sentinel (unchanged / not set).
         parentId (int, optional): Parent class ID. Defaults to sentinel.
         params (dict, optional): Class params JSON (e.g. ``protected``).
+            If the class exists and ``update`` is False, only missing keys
+            are added.
         update (bool, optional): If True, update an existing class with the
             same name. Defaults to False.
 
@@ -191,6 +97,13 @@ def addClass(
             session.commit()
             objects_storage.reload_objects_by_class(cls.id)
             invalidate_objects_tree_cache()
+        elif params is not _UNSET and params is not None:
+            filled = _fill_missing_entity_params(cls.params, params)
+            if filled is not None:
+                cls.params = filled
+                session.commit()
+                objects_storage.reload_objects_by_class(cls.id)
+                invalidate_objects_tree_cache()
         return row2dict(cls)
 
 def getClass(name:str) -> dict:
@@ -373,7 +286,8 @@ def addClassProperty(
         method_name (str, optional): Method to call when the value changes.
             Defaults to sentinel.
         params (dict, optional): Property params JSON (icon, color, validation,
-            UI metadata). Defaults to sentinel.
+            UI metadata). Defaults to sentinel. If the property exists and
+            ``update`` is False, only missing keys are added.
         update (bool, optional): If True, update an existing property.
             Defaults to False.
 
@@ -423,6 +337,12 @@ def addClassProperty(
                     prop.method_id = None
             session.commit()
             objects_storage.reload_objects_by_class(cls.id)
+        elif params is not _UNSET and params is not None:
+            filled = _fill_missing_entity_params(prop.params, params)
+            if filled is not None:
+                prop.params = filled
+                session.commit()
+                objects_storage.reload_objects_by_class(cls.id)
         return prop
 
 def addClassMethod(
@@ -444,7 +364,8 @@ def addClassMethod(
         call_parent (int, optional): Whether to invoke the parent method.
             Defaults to 0 when omitted on create.
         params (dict, optional): Display params JSON (icon, color, sort_order).
-            Defaults to sentinel.
+            Defaults to sentinel. If the method exists and ``update`` is False,
+            only missing keys are added.
         update (bool, optional): If True, update an existing method.
             Defaults to False.
 
@@ -482,6 +403,12 @@ def addClassMethod(
                 method.params = json.dumps(params)
             session.commit()
             objects_storage.reload_objects_by_class(cls.id)
+        elif params is not _UNSET and params is not None:
+            filled = _fill_missing_entity_params(method.params, params)
+            if filled is not None:
+                method.params = filled
+                session.commit()
+                objects_storage.reload_objects_by_class(cls.id)
         return method
 
 def addObject(
@@ -501,6 +428,8 @@ def addObject(
         class_name (str, optional): Class name. Defaults to sentinel.
         description (str, optional): Object description. Defaults to sentinel.
         params (dict, optional): Object params JSON (e.g. ``protected``).
+            If the object exists and ``update`` is False, only missing keys
+            are added.
         update (bool, optional): If True, update an existing object.
             Defaults to False.
 
@@ -538,6 +467,13 @@ def addObject(
             session.commit()
             objects_storage.reload_object(obj.id)
             invalidate_objects_tree_cache()
+        elif params is not _UNSET and params is not None:
+            filled = _fill_missing_entity_params(obj.params, params)
+            if filled is not None:
+                obj.params = filled
+                session.commit()
+                objects_storage.reload_object(obj.id)
+                invalidate_objects_tree_cache()
         return objects_storage.getObjectByName(name)
 
 def addObjectProperty(
@@ -563,6 +499,8 @@ def addObjectProperty(
         method_name (str, optional): Method to call on value change; resolves
             object method first, then class method. Defaults to sentinel.
         params (dict, optional): Property params JSON. Defaults to sentinel.
+            If the property exists and ``update`` is False, only missing keys
+            are added.
         update (bool, optional): If True, update an existing property.
             Defaults to False.
 
@@ -625,6 +563,12 @@ def addObjectProperty(
                     prop.method_id = None
             session.commit()
             objects_storage.reload_object(obj.id)
+        elif params is not _UNSET and params is not None:
+            filled = _fill_missing_entity_params(prop.params, params)
+            if filled is not None:
+                prop.params = filled
+                session.commit()
+                objects_storage.reload_object(obj.id)
         return True
 
 def deleteObjectProperty(object_property: str) -> bool:
@@ -732,6 +676,8 @@ def addObjectMethod(
         call_parent (int, optional): Whether to invoke the parent method.
             Defaults to sentinel (inherits from class method when overriding).
         params (dict, optional): Display params JSON. Defaults to sentinel.
+            If the object method exists and ``update`` is False, only missing
+            keys are added.
         update (bool, optional): If True, update or override an existing method.
             Defaults to False.
 
@@ -773,6 +719,12 @@ def addObjectMethod(
                 obj_method.params = json.dumps(params)
             session.commit()
             objects_storage.reload_object(obj.id)
+        elif obj_method and params is not _UNSET and params is not None:
+            filled = _fill_missing_entity_params(obj_method.params, params)
+            if filled is not None:
+                obj_method.params = filled
+                session.commit()
+                objects_storage.reload_object(obj.id)
         elif not obj_method and class_method and update:
             # Only class method exists, create object method (override)
             method = Method()
@@ -1312,6 +1264,38 @@ def getProperty(name:str, data:str = 'value'):
             return None
     except Exception as e:
         logger.exception('getProperty %s: %s',name,e)
+    return None
+
+
+def getParam(name: str, key: str):
+    """Читает ключ из ``params`` через ObjectStorage (без запроса к БД).
+
+    Args:
+        name (str): ``Object`` или ``Object.Property`` / ``Object.Method``.
+            Для свойства/метода класса используйте имя объекта-экземпляра:
+            наследование уже развёрнуто в ObjectManager.
+        key (str): Ключ в params (например ``protected``, ``icon``).
+
+    Returns:
+        Any: Значение ``params[key]``, либо None если сущность/ключ
+            отсутствуют или при ошибке.
+    """
+    if not isinstance(name, str) or not name or not isinstance(key, str) or not key:
+        return None
+    object_name = name.split(".", 1)[0]
+    logger = _get_object_logger(object_name)
+    try:
+        obj = objects_storage.getObjectByName(object_name)
+        if not obj:
+            return None
+        if "." not in name:
+            return obj.getParam(key)
+        member = name.split(".", 1)[1]
+        if not member:
+            return None
+        return obj.getParam(member, key)
+    except Exception as e:
+        logger.exception("getParam %s %s: %s", name, key, e)
     return None
 
 def setProperty(name:str, value, source:str='', save_history:bool=None, changed:datetime.datetime=None, track_stats:bool=True) -> bool:

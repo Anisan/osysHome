@@ -80,7 +80,7 @@
                             <div class="col-12">
                                 <label class="form-label small mb-1" for="{{ modal_id }}-iconify-set">{{ gettext('Icon set') }}</label>
                                 <select class="form-select form-select-sm" id="{{ modal_id }}-iconify-set">
-                                    <option value="mdi">{{ gettext('Loading...') }}</option>
+                                    <option value="">{{ gettext('Loading...') }}</option>
                                 </select>
                             </div>
                         </div>
@@ -163,6 +163,7 @@
         other: {{ gettext('Other') | tojson }}
     };
 
+    // Один стиль: fas/far/fab (в FA6 это то же, что fa-solid/fa-regular/fa-brands)
     const POPULAR_FA_ICONS = [
         'fas fa-home', 'fas fa-lightbulb', 'fas fa-thermometer-half', 'fas fa-tint',
         'fas fa-bolt', 'fas fa-fan', 'fas fa-door-open', 'fas fa-lock', 'fas fa-unlock',
@@ -171,14 +172,7 @@
         'fas fa-tv', 'fas fa-volume-up', 'fas fa-music', 'fas fa-camera', 'fas fa-video',
         'fas fa-wifi', 'fas fa-signal', 'fas fa-bell', 'fas fa-clock', 'fas fa-calendar',
         'fas fa-cog', 'fas fa-sliders-h', 'fas fa-toggle-on', 'fas fa-toggle-off',
-        'fa-solid fa-house', 'fa-solid fa-lightbulb', 'fa-solid fa-temperature-half',
-        'fa-solid fa-droplet', 'fa-solid fa-bolt', 'fa-solid fa-fan', 'fa-solid fa-door-open',
-        'fa-solid fa-lock', 'fa-solid fa-battery-full', 'fa-solid fa-plug', 'fa-solid fa-power-off',
-        'fa-solid fa-sun', 'fa-solid fa-moon', 'fa-solid fa-cloud', 'fa-solid fa-wind',
-        'fa-solid fa-fire', 'fa-solid fa-tv', 'fa-solid fa-volume-high', 'fa-solid fa-music',
-        'fa-solid fa-camera', 'fa-solid fa-wifi', 'fa-solid fa-bell', 'fa-solid fa-clock',
-        'fa-solid fa-gear', 'fa-solid fa-sliders', 'fa-solid fa-toggle-on', 'fa-solid fa-toggle-off',
-        'fa-brands fa-apple', 'fa-brands fa-google', 'fa-brands fa-amazon', 'fa-brands fa-bluetooth'
+        'fab fa-apple', 'fab fa-google', 'fab fa-amazon', 'fab fa-bluetooth'
     ];
 
     const POPULAR_ICONIFY_ICONS = [
@@ -192,21 +186,29 @@
         'lucide:home', 'lucide:lightbulb', 'lucide:thermometer', 'lucide:droplets'
     ];
 
-    const FA_ICONIFY_PREFIXES = ['fa6-solid', 'fa6-regular', 'fa6-brands', 'fa-solid', 'fa-regular', 'fa-brands', 'fas', 'far', 'fab'];
+    // Один набор префиксов Iconify — иначе поиск даёт одни и те же иконки несколько раз
+    const FA_ICONIFY_PREFIXES = ['fa-solid', 'fa-regular', 'fa-brands'];
     const FA_COLLECTION_PREFIXES = ['fa-solid', 'fa6-solid', 'fas'];
-    const FA_PREFIX_MAP = {
-        'fa6-solid': 'fa-solid',
-        'fa6-regular': 'fa-regular',
-        'fa6-brands': 'fa-brands',
-        'fas': 'fa-solid',
-        'far': 'fa-regular',
-        'fab': 'fa-brands'
+    const FA_STYLE_ALIASES = {
+        'fa6-solid': 'fas',
+        'fa6-regular': 'far',
+        'fa6-brands': 'fab',
+        'fa-solid': 'fas',
+        'fa-regular': 'far',
+        'fa-brands': 'fab',
+        'fas': 'fas',
+        'far': 'far',
+        'fab': 'fab'
     };
+    const FA_PREFIX_MAP = FA_STYLE_ALIASES;
+    // Порциями в DOM — все ~1400 FA не вешают UI
+    const GRID_PAGE_SIZE = 96;
 
     const fields = new Map();
     const modals = new Map();
     let iconifyCollectionsPromise = null;
     let faCollectionPromise = null;
+    const iconifyCollectionCache = new Map();
 
     const FALLBACK_ICONIFY_COLLECTIONS = [
         { prefix: 'mdi', name: 'Material Design Icons', category: 'Material', total: 0 },
@@ -311,11 +313,29 @@
         });
     }
 
-    function filterFaCategoryIconNames(collectionData, categoryName, query) {
+    function getAllFaIconNames(collectionData) {
+        if (!collectionData) return [];
+        if (collectionData._allNames) return collectionData._allNames;
+        const seen = new Set();
+        const names = [];
+        const push = function(name) {
+            if (!name || seen.has(name)) return;
+            seen.add(name);
+            names.push(name);
+        };
+        Object.keys(collectionData.categories || {}).forEach(function(category) {
+            (collectionData.categories[category] || []).forEach(push);
+        });
+        (collectionData.uncategorized || []).forEach(push);
+        collectionData._allNames = names;
+        return names;
+    }
+
+    function filterFaIconNames(collectionData, categoryName, query) {
         const q = normalizeIconValue(query).toLowerCase();
         let names = categoryName
             ? (collectionData.categories[categoryName] || []).slice()
-            : [];
+            : getAllFaIconNames(collectionData).slice();
         if (!q) return names;
         return names.filter(function(name) {
             const haystack = (name + ' fa-' + name).toLowerCase();
@@ -362,7 +382,10 @@
         const select = modalState.iconifySet;
         if (!select || !collections || !collections.length) return;
 
-        const preferred = selectedPrefix || select.value || 'mdi';
+        // '' = «Все наборы»; не подменять через || 'mdi'
+        const preferred = (selectedPrefix !== undefined && selectedPrefix !== null)
+            ? selectedPrefix
+            : (select.value || '');
         select.innerHTML = '';
 
         const allOption = document.createElement('option');
@@ -394,13 +417,7 @@
         const match = Array.from(select.options).find(function(option) {
             return option.value === preferred;
         });
-        if (match) {
-            select.value = preferred;
-        } else if (select.querySelector('option[value="mdi"]')) {
-            select.value = 'mdi';
-        } else {
-            select.value = '';
-        }
+        select.value = match ? preferred : '';
     }
 
     function detectIconifyPrefix(modalState) {
@@ -409,7 +426,7 @@
         if (isIconifyValue(value)) {
             return value.split(':')[0];
         }
-        return 'mdi';
+        return '';
     }
 
     async function ensureIconifyCollections(modalState) {
@@ -432,11 +449,20 @@
 
     function iconifyNameToFaClass(iconifyName) {
         const idx = iconifyName.indexOf(':');
-        if (idx === -1) return iconifyName;
+        if (idx === -1) return normalizeFaClass(iconifyName);
         const prefix = iconifyName.slice(0, idx);
         const name = iconifyName.slice(idx + 1);
         const faPrefix = FA_PREFIX_MAP[prefix] || prefix;
-        return faPrefix + ' fa-' + name;
+        return normalizeFaClass(faPrefix + ' fa-' + name);
+    }
+
+    // fas ≡ fa-solid, far ≡ fa-regular, fab ≡ fa-brands
+    function normalizeFaClass(value) {
+        const raw = normalizeIconValue(value);
+        if (!raw || isIconifyValue(raw)) return raw;
+        return raw.split(/\s+/).filter(Boolean).map(function(part) {
+            return FA_STYLE_ALIASES[part] || part;
+        }).join(' ');
     }
 
     function renderIconPreviewElement(value) {
@@ -514,7 +540,9 @@
         const seen = new Set();
         const result = [];
         items.forEach(function(item) {
-            const value = normalizeIconValue(item);
+            const value = isIconifyValue(item)
+                ? normalizeIconValue(item)
+                : normalizeFaClass(item);
             if (!value || seen.has(value)) return;
             seen.add(value);
             result.push(value);
@@ -554,54 +582,75 @@
         return Array.isArray(data.icons) ? data.icons : [];
     }
 
-    async function fetchIconifyCollectionIcons(prefix, limit, categoryName) {
-        const max = limit || 96;
-        try {
+    function getAllIconifyIconNames(collectionData) {
+        if (!collectionData) return [];
+        if (collectionData._allNames) return collectionData._allNames;
+        const seen = new Set();
+        const names = [];
+        const push = function(name) {
+            if (!name || seen.has(name)) return;
+            seen.add(name);
+            names.push(name);
+        };
+        Object.keys(collectionData.categories || {}).forEach(function(category) {
+            (collectionData.categories[category] || []).forEach(push);
+        });
+        (collectionData.uncategorized || []).forEach(push);
+        collectionData._allNames = names;
+        return names;
+    }
+
+    async function fetchIconifyCollectionData(prefix) {
+        if (!prefix) return null;
+        if (iconifyCollectionCache.has(prefix)) {
+            return iconifyCollectionCache.get(prefix);
+        }
+        const promise = (async function() {
             const response = await fetch(
                 'https://api.iconify.design/collection?prefix=' + encodeURIComponent(prefix)
             );
             if (!response.ok) throw new Error('Iconify collection failed');
             const data = await response.json();
-            const collectionPrefix = data.prefix || prefix;
-            const icons = [];
-            const pushName = function(name) {
-                if (!name || icons.length >= max) return;
-                icons.push(collectionPrefix + ':' + name);
+            return {
+                prefix: data.prefix || prefix,
+                categories: data.categories || {},
+                uncategorized: Array.isArray(data.uncategorized) ? data.uncategorized : []
             };
-            if (categoryName && data.categories && data.categories[categoryName]) {
-                data.categories[categoryName].forEach(pushName);
-            } else if (Array.isArray(data.uncategorized)) {
-                data.uncategorized.forEach(pushName);
-            }
-            if (!categoryName && data.categories && icons.length < max) {
-                Object.keys(data.categories).forEach(function(category) {
-                    (data.categories[category] || []).forEach(pushName);
-                });
-            }
-            if (icons.length) return icons.slice(0, max);
+        })();
+        iconifyCollectionCache.set(prefix, promise);
+        try {
+            return await promise;
         } catch (e) {
+            iconifyCollectionCache.delete(prefix);
             throw e;
         }
-        throw new Error('Iconify collection failed');
+    }
+
+    function filterIconifyCollectionIcons(collectionData, query) {
+        const prefix = collectionData.prefix;
+        const q = normalizeIconValue(query).toLowerCase();
+        let names = getAllIconifyIconNames(collectionData);
+        if (q) {
+            names = names.filter(function(name) {
+                return (prefix + ':' + name).toLowerCase().indexOf(q) !== -1
+                    || name.toLowerCase().indexOf(q) !== -1;
+            });
+        }
+        return names.map(function(name) {
+            return prefix + ':' + name;
+        });
     }
 
     async function searchFaIcons(query, categoryName, collectionData) {
         const q = normalizeIconValue(query);
-        if (!q) {
-            if (categoryName && collectionData) {
-                return faIconNamesToClasses(
-                    collectionData,
-                    collectionData.categories[categoryName] || []
-                );
-            }
-            return filterPopularFaIcons('');
-        }
-        if (categoryName && collectionData) {
+        // Полный локальный каталог (все / категория) — без лишних запросов
+        if (collectionData) {
             return faIconNamesToClasses(
                 collectionData,
-                filterFaCategoryIconNames(collectionData, categoryName, q)
+                filterFaIconNames(collectionData, categoryName, q)
             );
         }
+        if (!q) return filterPopularFaIcons('');
         const requests = FA_ICONIFY_PREFIXES.map(function(prefix) {
             return searchIconifyIcons(q, prefix, 24).catch(function() { return []; });
         });
@@ -612,7 +661,9 @@
                 converted.push(iconifyNameToFaClass(iconifyName));
             });
         });
-        return uniqueIcons(filterPopularFaIcons(q).concat(converted)).slice(0, 96);
+        return uniqueIcons(
+            filterPopularFaIcons(q).map(normalizeFaClass).concat(converted)
+        ).slice(0, 96);
     }
 
     function setPickerStatus(el, message) {
@@ -635,33 +686,124 @@
         return btn;
     }
 
-    function renderFaPickerGrid(modalState) {
-        if (!modalState.faGrid) return;
-        modalState.faGrid.innerHTML = '';
+    function updateFaPickerStatus(modalState) {
+        const total = modalState.faItems.length;
+        const shown = modalState.faRenderedCount || 0;
+        if (!total) {
+            setPickerStatus(modalState.faStatus, I18N.noIconsFound);
+            return;
+        }
+        if (shown < total) {
+            setPickerStatus(modalState.faStatus, shown + ' / ' + total);
+            return;
+        }
+        setPickerStatus(modalState.faStatus, String(total));
+    }
+
+    function appendFaPickerItems(modalState, from, to) {
         const field = modalState.activeInputId ? getField(modalState.activeInputId) : null;
-        const current = field && field.input ? normalizeIconValue(field.input.value) : '';
-        modalState.faItems.forEach(function(item) {
+        const current = field && field.input
+            ? normalizeFaClass(field.input.value)
+            : '';
+        const frag = document.createDocumentFragment();
+        for (let i = from; i < to; i++) {
+            const item = modalState.faItems[i];
             const icon = document.createElement('i');
             icon.className = item;
             const btn = createPickerButton(modalState, item, icon, item);
-            if (current === item) btn.classList.add('active');
-            modalState.faGrid.appendChild(btn);
-        });
+            if (current && current === normalizeFaClass(item)) btn.classList.add('active');
+            frag.appendChild(btn);
+        }
+        modalState.faGrid.appendChild(frag);
+        modalState.faRenderedCount = to;
     }
 
-    function renderIconifyPickerGrid(modalState) {
-        if (!modalState.iconifyGrid) return;
-        modalState.iconifyGrid.innerHTML = '';
+    // reset=true — новый список; false — догрузить следующую порцию
+    function renderFaPickerGrid(modalState, reset) {
+        if (!modalState.faGrid) return;
+        if (reset !== false) {
+            modalState.faGrid.innerHTML = '';
+            modalState.faRenderedCount = 0;
+            modalState.faGrid.scrollTop = 0;
+        }
+        const from = modalState.faRenderedCount || 0;
+        const total = modalState.faItems.length;
+        if (!total) {
+            updateFaPickerStatus(modalState);
+            return;
+        }
+        if (from >= total) {
+            updateFaPickerStatus(modalState);
+            return;
+        }
+        const to = Math.min(from + GRID_PAGE_SIZE, total);
+        appendFaPickerItems(modalState, from, to);
+        updateFaPickerStatus(modalState);
+    }
+
+    function maybeLoadMoreFaIcons(modalState) {
+        const grid = modalState.faGrid;
+        if (!grid) return;
+        if ((modalState.faRenderedCount || 0) >= modalState.faItems.length) return;
+        if (grid.scrollTop + grid.clientHeight < grid.scrollHeight - 80) return;
+        renderFaPickerGrid(modalState, false);
+    }
+
+    function updateIconifyPickerStatus(modalState) {
+        const total = modalState.iconifyItems.length;
+        const shown = modalState.iconifyRenderedCount || 0;
+        if (!total) {
+            setPickerStatus(modalState.iconifyStatus, I18N.noIconsFound);
+            return;
+        }
+        if (shown < total) {
+            setPickerStatus(modalState.iconifyStatus, shown + ' / ' + total);
+            return;
+        }
+        setPickerStatus(modalState.iconifyStatus, String(total));
+    }
+
+    function appendIconifyPickerItems(modalState, from, to) {
         const field = modalState.activeInputId ? getField(modalState.activeInputId) : null;
         const current = field && field.input ? normalizeIconValue(field.input.value) : '';
-        modalState.iconifyItems.forEach(function(item) {
+        const frag = document.createDocumentFragment();
+        for (let i = from; i < to; i++) {
+            const item = modalState.iconifyItems[i];
             const iconify = document.createElement('iconify-icon');
             iconify.setAttribute('icon', item);
             const btn = createPickerButton(modalState, item, iconify, item);
             if (current === item) btn.classList.add('active');
-            modalState.iconifyGrid.appendChild(btn);
-        });
+            frag.appendChild(btn);
+        }
+        modalState.iconifyGrid.appendChild(frag);
+        modalState.iconifyRenderedCount = to;
         scanIconify(modalState.iconifyGrid);
+    }
+
+    function renderIconifyPickerGrid(modalState, reset) {
+        if (!modalState.iconifyGrid) return;
+        if (reset !== false) {
+            modalState.iconifyGrid.innerHTML = '';
+            modalState.iconifyRenderedCount = 0;
+            modalState.iconifyGrid.scrollTop = 0;
+        }
+        const from = modalState.iconifyRenderedCount || 0;
+        const total = modalState.iconifyItems.length;
+        if (!total || from >= total) {
+            updateIconifyPickerStatus(modalState);
+            return;
+        }
+        const to = Math.min(from + GRID_PAGE_SIZE, total);
+        appendIconifyPickerItems(modalState, from, to);
+        updateIconifyPickerStatus(modalState);
+    }
+
+    function maybeLoadMoreIconifyIcons(modalState) {
+        const grid = modalState.iconifyGrid;
+        if (!grid) return;
+        if ((modalState.iconifyRenderedCount || 0) >= modalState.iconifyItems.length) return;
+        if (grid.scrollTop + grid.clientHeight < grid.scrollHeight - 80) return;
+        renderIconifyPickerGrid(modalState, false);
     }
 
     async function loadFaPickerIcons(modalState, query) {
@@ -674,17 +816,15 @@
             const icons = await searchFaIcons(q, categoryName, collectionData);
             if (requestId !== modalState.faRequestId) return;
             modalState.faItems = icons;
-            if (!icons.length) {
-                renderFaPickerGrid(modalState);
-                setPickerStatus(modalState.faStatus, I18N.noIconsFound);
-                return;
+            renderFaPickerGrid(modalState, true);
+            if (!icons.length) return;
+            if (!collectionData) {
+                setPickerStatus(modalState.faStatus, I18N.popularIcons);
             }
-            renderFaPickerGrid(modalState);
-            setPickerStatus(modalState.faStatus, String(icons.length));
         } catch (e) {
             if (requestId !== modalState.faRequestId) return;
             modalState.faItems = filterPopularFaIcons(q);
-            renderFaPickerGrid(modalState);
+            renderFaPickerGrid(modalState, true);
             setPickerStatus(modalState.faStatus, I18N.popularIcons);
         }
     }
@@ -696,29 +836,47 @@
         setPickerStatus(modalState.iconifyStatus, I18N.loading);
         try {
             let icons;
-            if (!q) {
-                if (prefix) {
-                    icons = await fetchIconifyCollectionIcons(prefix, 96);
-                } else {
-                    icons = filterPopularIconifyIcons('', '');
+            let fromCollection = false;
+            if (prefix && !q) {
+                // Выбранный набор без поиска — полный каталог
+                const collectionData = await fetchIconifyCollectionData(prefix);
+                if (requestId !== modalState.iconifyRequestId) return;
+                icons = filterIconifyCollectionIcons(collectionData, '');
+                fromCollection = true;
+            } else if (prefix && q) {
+                // Поиск внутри набора: полный каталог + API на случай сбоя/пустого ответа
+                try {
+                    const collectionData = await fetchIconifyCollectionData(prefix);
+                    if (requestId !== modalState.iconifyRequestId) return;
+                    icons = filterIconifyCollectionIcons(collectionData, q);
+                    fromCollection = true;
+                } catch (collectionError) {
+                    icons = [];
                 }
+                if (!icons.length) {
+                    icons = await searchIconifyIcons(q, prefix, 128);
+                }
+            } else if (!q) {
+                icons = filterPopularIconifyIcons('', '');
             } else {
-                icons = await searchIconifyIcons(q, prefix || '', 96);
+                // «Все наборы» + поиск — один запрос к Iconify API
+                const found = await searchIconifyIcons(q, '', 96);
+                icons = uniqueIcons(
+                    filterPopularIconifyIcons(q, '').concat(found)
+                );
             }
             icons = uniqueIcons(icons);
             if (requestId !== modalState.iconifyRequestId) return;
             modalState.iconifyItems = icons;
-            if (!icons.length) {
-                renderIconifyPickerGrid(modalState);
-                setPickerStatus(modalState.iconifyStatus, I18N.noIconsFound);
-                return;
+            renderIconifyPickerGrid(modalState, true);
+            if (!icons.length) return;
+            if (!fromCollection && !q) {
+                setPickerStatus(modalState.iconifyStatus, I18N.popularIcons);
             }
-            renderIconifyPickerGrid(modalState);
-            setPickerStatus(modalState.iconifyStatus, String(icons.length));
         } catch (e) {
             if (requestId !== modalState.iconifyRequestId) return;
             modalState.iconifyItems = filterPopularIconifyIcons(q, prefix);
-            renderIconifyPickerGrid(modalState);
+            renderIconifyPickerGrid(modalState, true);
             setPickerStatus(modalState.iconifyStatus, I18N.popularIcons);
         }
     }
@@ -755,7 +913,9 @@
             clearBtn: document.getElementById(modalId + '-clear-btn'),
             activeInputId: null,
             faItems: [],
+            faRenderedCount: 0,
             iconifyItems: [],
+            iconifyRenderedCount: 0,
             faRequestId: 0,
             iconifyRequestId: 0,
             searchTimer: null,
@@ -767,6 +927,16 @@
         if (modalState.search) {
             modalState.search.addEventListener('input', function() {
                 scheduleModalSearch(modalState);
+            });
+        }
+        if (modalState.faGrid) {
+            modalState.faGrid.addEventListener('scroll', function() {
+                maybeLoadMoreFaIcons(modalState);
+            });
+        }
+        if (modalState.iconifyGrid) {
+            modalState.iconifyGrid.addEventListener('scroll', function() {
+                maybeLoadMoreIconifyIcons(modalState);
             });
         }
         if (modalState.faCategory) {

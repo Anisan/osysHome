@@ -100,6 +100,8 @@ def _import_class_record(class_data, rewrite, add_classes):
     if update_class:
         cls.description = class_data["description"]
         cls.template = class_data["template"]
+        if "params" in class_data:
+            cls.params = class_data["params"]
         if class_data.get("parent"):
             parent = Class.query.filter(Class.name == class_data["parent"]).one_or_none()
             if parent:
@@ -121,6 +123,8 @@ def _import_object_record(object_data, rewrite, add_objects):
     if update_object:
         obj.description = object_data["description"]
         obj.template = object_data["template"]
+        if "params" in object_data:
+            obj.params = object_data["params"]
         if object_data.get("class"):
             cls = Class.query.filter(Class.name == object_data["class"]).one_or_none()
             if cls:
@@ -156,25 +160,38 @@ def _import_class_property(property_data, rewrite):
         property.params = property_data["params"]
 
     if property_data.get("method"):
-        method = None
-        if property_data.get("class_method"):
-            c = Class.query.filter(Class.name == property_data["class_method"]).one_or_none()
-            if c:
-                method = Method.query.filter(
-                    Method.name == property_data["method"],
-                    Method.class_id == c.id,
-                ).one_or_none()
-        if property_data.get("object_method"):
-            o = Object.query.filter(Object.name == property_data["object_method"]).one_or_none()
-            if o:
-                method = Method.query.filter(
-                    Method.name == property_data["method"],
-                    Method.object_id == o.id,
-                ).one_or_none()
+        method = _resolve_property_method(property_data)
         if method:
             property.method_id = method.id
 
     return True
+
+
+def _resolve_property_method(property_data):
+    """Найти Method по ключам экспорта (class_method / object_method и старые method_*)."""
+    method_name = property_data.get("method")
+    if not method_name:
+        return None
+
+    class_name = property_data.get("class_method") or property_data.get("method_class")
+    if class_name:
+        c = Class.query.filter(Class.name == class_name).one_or_none()
+        if c:
+            return Method.query.filter(
+                Method.name == method_name,
+                Method.class_id == c.id,
+            ).one_or_none()
+
+    object_name = property_data.get("object_method") or property_data.get("method_object")
+    if object_name:
+        o = Object.query.filter(Object.name == object_name).one_or_none()
+        if o:
+            return Method.query.filter(
+                Method.name == method_name,
+                Method.object_id == o.id,
+            ).one_or_none()
+
+    return None
 
 
 def _import_object_property(property_data, rewrite):
@@ -204,21 +221,7 @@ def _import_object_property(property_data, rewrite):
         property.params = property_data["params"]
 
     if property_data.get("method"):
-        method = None
-        if property_data.get("class_method"):
-            c = Class.query.filter(Class.name == property_data["class_method"]).one_or_none()
-            if c:
-                method = Method.query.filter(
-                    Method.name == property_data["method"],
-                    Method.class_id == c.id,
-                ).one_or_none()
-        if property_data.get("object_method"):
-            o = Object.query.filter(Object.name == property_data["object_method"]).one_or_none()
-            if o:
-                method = Method.query.filter(
-                    Method.name == property_data["method"],
-                    Method.object_id == o.id,
-                ).one_or_none()
+        method = _resolve_property_method(property_data)
         if method:
             property.method_id = method.id
 
@@ -251,6 +254,8 @@ def _import_class_method(method_data, rewrite, add_classes):
     method.description = method_data["description"]
     method.code = method_data["code"]
     method.call_parent = method_data["call_parent"]
+    if "params" in method_data:
+        method.params = method_data["params"]
     return True
 
 
@@ -280,6 +285,8 @@ def _import_object_method(method_data, rewrite, add_objects):
     method.description = method_data["description"]
     method.code = method_data["code"]
     method.call_parent = method_data["call_parent"]
+    if "params" in method_data:
+        method.params = method_data["params"]
     return True
 
 
