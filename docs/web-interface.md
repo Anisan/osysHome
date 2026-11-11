@@ -18,6 +18,8 @@ After logging in you will see a navigation menu with the following sections:
 | **Backup** | `/admin/Backup` | Database backup |
 | **Logs** | `/admin/Logs` | System log viewer |
 | **Docs** | `/docs` | Documentation (this site) |
+| **Object widget** | `/widget/object/<name>` | Standalone object widget page |
+| **Plugin widget** | `/widget/plugin/<name>` | Standalone plugin widget page |
 
 Each plugin adds its own menu item under the appropriate category.
 
@@ -40,6 +42,27 @@ Widgets are provided by plugins that declare the `widget` action. Default widget
 ### Customising the Dashboard
 
 The order and set of widgets can be configured in **Admin → Dashboard**. Widgets can be dragged and hidden.
+
+### Standalone widget page
+
+A widget can be opened via a direct URL without the Dashboard chrome:
+
+| URL | Content |
+|-----|---------|
+| `/widget/object/<name>` | HTML from the object template (`obj.render()`) |
+| `/widget/plugin/<name>` | Plugin widget HTML (`plugin.widget()`) |
+| `/widget/plugin/<name>/<widget_name>` | A specific plugin widget when several exist |
+
+Access: any logged-in user (`user` / `editor` / `admin`). For objects, read permission on the object is also checked; denied access returns 403.
+
+The page is bare (no admin menu): the widget is wrapped in a full-viewport container (`.widget-page-root`). `say` / `notify` / `playsound` alerts are suppressed.
+
+Fullscreen behaviour belongs in the widget itself (CSS/JS):
+
+- CSS: parent `.widget-page-root` / `body.widget-page`;
+- JS: `window.osysWidgetFullscreen === true`.
+
+Live updates use WebSocket: `changeProperty` for properties and `changeObject` for a full object-template re-render.
 
 ---
 

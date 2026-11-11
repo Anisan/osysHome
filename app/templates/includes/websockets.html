@@ -54,6 +54,29 @@
 <script>
   var socket = io.connect(window.location.protocol + '//' + document.domain + ':' + location.port);
   var hasConnectedOnce = false;
+  var disconnectedAt = null;
+  // Короткий разрыв (навигация / hiccup) — без reload; длинный (рестарт сервиса) — reload
+  var RELOAD_AFTER_MS = 3000;
+  var isPageUnloading = false;
+
+  function markPageUnloading() {
+    if (isPageUnloading) return;
+    isPageUnloading = true;
+    try {
+      if (socket && typeof socket.disconnect === 'function') {
+        socket.disconnect();
+      }
+    } catch (e) {
+      console.warn('Failed to disconnect websocket on unload', e);
+    }
+  }
+
+  // Не мигать overlay и не долбить reconnect при уходе со страницы
+  window.addEventListener('beforeunload', markPageUnloading);
+  window.addEventListener('pagehide', markPageUnloading);
+  window.addEventListener('pageshow', function () {
+    isPageUnloading = false;
+  });
 
   function sendCurrentPage() {
     try {
@@ -64,23 +87,41 @@
     }
   }
 
+  function resumeAfterReconnect() {
+    subscribe();
+    sendCurrentPage();
+  }
+
   socket.on('connect', function () {
     console.log('Connected to server');
+    if (isPageUnloading) return;
+
     document.getElementById('overlay').style.display = 'none';
 
-    // Если это повторное подключение после разрыва — перезагружаем страницу
     if (hasConnectedOnce) {
-      window.location.reload();
+      var downFor = disconnectedAt != null ? (Date.now() - disconnectedAt) : 0;
+      disconnectedAt = null;
+
+      // Длительное отсутствие сокета ≈ рестарт сервиса → полная перезагрузка страницы
+      if (downFor >= RELOAD_AFTER_MS) {
+        window.location.reload();
+        return;
+      }
+
+      // Короткий разрыв — только восстанавливаем подписки
+      resumeAfterReconnect();
       return;
     }
 
     hasConnectedOnce = true;
-    subscribe();
-    sendCurrentPage();
+    resumeAfterReconnect();
   });
 
   socket.on('disconnect', function () {
     console.log('Disconnected from server');
+    if (isPageUnloading) return;
+
+    disconnectedAt = Date.now();
     document.getElementById('overlay').style.display = 'flex';
     __actionsSubscribed = false;
   });
@@ -603,6 +644,9 @@
 
   // Обработка события при получении уведомления от сервера 
   socket.on('say', function (data) {
+    if (window.osysSuppressWsAlerts) {
+      return;
+    }
     console.log("SAY", data);
 
     var ext = data.args || {}
@@ -632,6 +676,9 @@
   });
 
   socket.on('playsound', function (data) {
+    if (window.osysSuppressWsAlerts) {
+      return;
+    }
     console.log("playsound", data);
     if (typeof playSound === 'function') {  
       playSound(data.file_url);  
@@ -705,6 +752,9 @@
 
   // Обработка событий уведомлений
   socket.on('notify', function (data) {
+    if (window.osysSuppressWsAlerts) {
+      return;
+    }
     console.log("notify recv", data)
     if (!data || !data.operation || !data.data) return;
     
