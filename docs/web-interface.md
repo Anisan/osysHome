@@ -53,7 +53,7 @@ A widget can be opened via a direct URL without the Dashboard chrome:
 | `/widget/plugin/<name>` | Plugin widget HTML (`plugin.widget()`) |
 | `/widget/plugin/<name>/<widget_name>` | A specific plugin widget when several exist |
 
-Access: any logged-in user (`user` / `editor` / `admin`). For objects, read permission on the object is also checked; denied access returns 403.
+Access: any logged-in user (`user` / `editor` / `admin`), or that user's API key via `?apikey=...` or the `X-API-Key` header. For objects, read permission on the object is also checked; denied access returns 403.
 
 The page is bare (no admin menu): the widget is wrapped in a full-viewport container (`.widget-page-root`). `say` / `notify` / `playsound` alerts are suppressed.
 

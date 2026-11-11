@@ -52,7 +52,18 @@
 <script src="{{ config.ASSETS_ROOT }}/plugins/socket.io/socket.io.js"></script>
 <script src="{{ config.ASSETS_ROOT }}/plugins/morphdom/morphdom.js"></script>
 <script>
-  var socket = io.connect(window.location.protocol + '//' + document.domain + ':' + location.port);
+  var socketAuth = {};
+  try {
+    var _apikey = new URLSearchParams(window.location.search).get('apikey')
+      || new URLSearchParams(window.location.search).get('apiKey');
+    if (_apikey) {
+      socketAuth.apikey = _apikey;
+    }
+  } catch (e) {}
+  var socket = io.connect(
+    window.location.protocol + '//' + document.domain + ':' + location.port,
+    Object.keys(socketAuth).length ? { auth: socketAuth } : undefined
+  );
   var hasConnectedOnce = false;
   var disconnectedAt = null;
   // Короткий разрыв (навигация / hiccup) — без reload; длинный (рестарт сервиса) — reload
