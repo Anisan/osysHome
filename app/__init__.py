@@ -380,8 +380,11 @@ def check_page_access(request):
     else:
         blueprint_name = "Core"  # Маршрут не принадлежит ни к одному blueprint
 
-    # check api key for api (query param или заголовок)
-    if not current_user.is_authenticated and blueprint_name == 'api':
+    # check api key for api и страниц /widget/... (query param или заголовок)
+    path = request.path or ''
+    if not current_user.is_authenticated and (
+        blueprint_name == 'api' or path.startswith('/widget/')
+    ):
         api_key = request.args.get('apikey') or request.headers.get('X-API-Key')
         if api_key:
             from app.utils import get_user_by_api_key

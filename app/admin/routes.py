@@ -1,6 +1,6 @@
 import json
 
-from flask import render_template, current_app, session, request, jsonify
+from flask import render_template, current_app, session, request, jsonify, abort
 from flask_login import current_user
 
 from . import blueprint
@@ -9,6 +9,7 @@ from app.authentication.handlers import handle_user_required, handle_editor_requ
 from app.core.lib.common import getModulesByAction, getModule
 from app.core.lib.object import getObject, getProperty, setProperty, addObjectProperty
 from app.core.lib.constants import PropertyType
+from app.core.main.ObjectManager import TypeOperation
 from app.core.main.ObjectsStorage import objects_storage
 
 _logger = getLogger("main")
@@ -106,6 +107,67 @@ def set_lang(lang):
     if lang in current_app.translations:
         session['lang'] = lang
     return 'Ok'
+
+@blueprint.route("/widget/object/<name>")
+@handle_user_required
+def widget_object_page(name):
+    """Отдельная страница виджета объекта по его template."""
+    obj = getObject(name)
+    if not obj:
+        abort(404)
+    try:
+        obj._check_permissions(TypeOperation.Get)
+    except PermissionError:
+        abort(403)
+    if not obj.has_render_template():
+        abort(404)
+    try:
+        widget_html = obj.render()
+    except Exception as ex:
+        _logger.exception("Ошибка рендера виджета объекта %s: %s", name, ex)
+        abort(500)
+    if not widget_html:
+        abort(404)
+    return render_template(
+        "widget_page.html",
+        page_title=name,
+        widget_html=widget_html,
+        widget_kind="object",
+        widget_name=name,
+    )
+
+@blueprint.route("/widget/plugin/<name>")
+@blueprint.route("/widget/plugin/<name>/<widget_name>")
+@handle_user_required
+def widget_plugin_page(name, widget_name=None):
+    """Отдельная страница виджета плагина."""
+    import inspect
+
+    plugin = getModule(name)
+    if not plugin or "widget" not in getattr(plugin, "actions", []):
+        abort(404)
+    if not hasattr(plugin, "widget") or not callable(plugin.widget):
+        abort(404)
+    try:
+        # У плагинов разные сигнатуры: widget() или widget(name=...)
+        params = inspect.signature(plugin.widget).parameters
+        if "name" in params:
+            widget_html = plugin.widget(name=widget_name)
+        else:
+            widget_html = plugin.widget()
+    except Exception as ex:
+        _logger.exception("Ошибка рендера виджета плагина %s/%s: %s", name, widget_name, ex)
+        abort(500)
+    if not widget_html:
+        abort(404)
+    title = f"{name}/{widget_name}" if widget_name else name
+    return render_template(
+        "widget_page.html",
+        page_title=title,
+        widget_html=widget_html,
+        widget_kind="plugin",
+        widget_name=name,
+    )
 
 @blueprint.route("/admin/widgets-layout", methods=["GET"])
 @handle_editor_required

@@ -1,4 +1,4 @@
-{% macro render_linked_select(field_object, field_property, field_method) %}
+{% macro render_linked_select(field_object, field_property, field_method, horizontal=False, help_object=None, help_property=None, help_method=None) %}
 <link rel="stylesheet" href="{{ config.ASSETS_ROOT }}/plugins/select2/select2.min.css" />
 <link rel="stylesheet" href="{{ config.ASSETS_ROOT }}/plugins/select2/select2-bootstrap-5-theme.min.css" />
 <style>
@@ -208,35 +208,40 @@ body
 }
 </style>
 
-<div>
-    <label for="{{ field_object.name }}">{{ gettext("Linked object") }}</label><br>
+{% if horizontal %}<div class="row g-2">{% endif %}
+<div class="{% if horizontal %}col-md{% else %}mb-3{% endif %}">
+    <label class="form-label{% if horizontal %} mb-1{% endif %}" for="{{ field_object.name }}">{{ gettext("Linked object") }}</label>
     <div class="input-group">
-    <select id="{{ field_object.name }}" name="{{ field_object.name }}" class="select2" aria-label="{{label}}" data-placeholder="{{ gettext('Select object')}}">
+    <select id="{{ field_object.name }}" name="{{ field_object.name }}" class="select2" aria-label="{{ gettext('Linked object') }}" data-placeholder="{{ gettext('Select object')}}">
         <option value=""></option>
     </select>
-    <button class="btn btn-outline-secondary" type="button" id="reset-{{ field_object.name }}"><i class="fa-solid fa-broom"></i></button>
+    <button class="btn btn-outline-secondary" type="button" id="reset-{{ field_object.name }}" title="{{ gettext('Clear') }}"><i class="fa-solid fa-broom"></i></button>
     </div>
+    {% if help_object %}<div class="form-text">{{ help_object }}</div>{% endif %}
 </div>
 {% if field_property %}
-<div>
-    <label for="{{ field_property.name }}">{{ gettext("Linked property") }}</label><br>
+<div class="{% if horizontal %}col-md{% else %}mb-3{% endif %}">
+    <label class="form-label{% if horizontal %} mb-1{% endif %}" for="{{ field_property.name }}">{{ gettext("Linked property") }}</label>
     <div class="input-group">
-        <select id="{{ field_property.name }}" name="{{ field_property.name }}" class="select2" aria-label="{{label}}"  data-placeholder="{{ gettext('Select property')}}">
+        <select id="{{ field_property.name }}" name="{{ field_property.name }}" class="select2" aria-label="{{ gettext('Linked property') }}"  data-placeholder="{{ gettext('Select property')}}">
         </select>
-        <button class="btn btn-outline-secondary" type="button" id="reset-{{ field_property.name }}"><i class="fa-solid fa-broom"></i></button>
+        <button class="btn btn-outline-secondary" type="button" id="reset-{{ field_property.name }}" title="{{ gettext('Clear') }}"><i class="fa-solid fa-broom"></i></button>
     </div>
+    {% if help_property %}<div class="form-text">{{ help_property }}</div>{% endif %}
 </div>
 {% endif %}
 {% if field_method %}
-<div>
-    <label for="{{ field_method.name }}">{{ gettext("Linked method") }}</label><br>
+<div class="{% if horizontal %}col-md{% else %}mb-0{% endif %}">
+    <label class="form-label{% if horizontal %} mb-1{% endif %}" for="{{ field_method.name }}">{{ gettext("Linked method") }}</label>
     <div class="input-group">
-        <select id="{{ field_method.name }}" name="{{ field_method.name }}" class="select2" aria-label="{{label}}"  data-placeholder="{{ gettext('Select method')}}">
+        <select id="{{ field_method.name }}" name="{{ field_method.name }}" class="select2" aria-label="{{ gettext('Linked method') }}"  data-placeholder="{{ gettext('Select method')}}">
         </select>
-        <button class="btn btn-outline-secondary" type="button" id="reset-{{ field_method.name }}"><i class="fa-solid fa-broom"></i></button>
+        <button class="btn btn-outline-secondary" type="button" id="reset-{{ field_method.name }}" title="{{ gettext('Clear') }}"><i class="fa-solid fa-broom"></i></button>
     </div>
+    {% if help_method %}<div class="form-text">{{ help_method }}</div>{% endif %}
 </div>
 {% endif %}
+{% if horizontal %}</div>{% endif %}
 <script>
 $(document).ready(function() {
     $('.select2').select2({
