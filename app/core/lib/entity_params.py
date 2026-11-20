@@ -40,6 +40,13 @@ def is_entity_visible(params, *, include_advanced: bool = False, include_hidden:
     return True
 
 
+def parse_bool_flag(val, default: bool = False) -> bool:
+    """Разбирает bool query-параметр (1/true/yes/on)."""
+    if val is None:
+        return default
+    return str(val).lower() in ("1", "true", "yes", "on")
+
+
 def merge_entity_params(raw, patch: dict) -> str:
     """Объединяет patch в params (существующие ключи перезаписываются)."""
     params = parse_params_json(raw)

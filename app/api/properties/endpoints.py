@@ -6,6 +6,7 @@ from app.api.decorators import api_key_required
 from app.api.property_helpers import read_property_details, read_property_value
 from app.authentication.handlers import handle_user_required
 from app.api.models import model_result, model_404
+from app.core.lib.entity_params import is_entity_visible, parse_bool_flag
 from app.core.main.ObjectsStorage import objects_storage
 
 props_ns = Namespace(name="property", description="Property namespace", validate=True)
@@ -18,18 +19,28 @@ class PropertiesList(Resource):
     @api_key_required
     @handle_user_required
     @props_ns.doc(security="apikey")
+    @props_ns.param("advanced", "Include advanced properties (params.advanced). Default: false", _in="query")
+    @props_ns.param("hidden", "Include hidden properties (params.hidden). Default: false", _in="query")
     @props_ns.response(200, "Retrieved list properties of object.", response_result)
     @props_ns.response(404, 'Not Found', response_404)
     def get(self, object_name):
         '''
         Get properties of object.
         '''
+        include_advanced = parse_bool_flag(request.args.get("advanced"))
+        include_hidden = parse_bool_flag(request.args.get("hidden"))
         result = {}
         obj = objects_storage.getObjectByName(object_name)
         if obj is None:
             return {"success": False,
                     "msg": "Object not found."}, 404
-        for key,prop in obj.properties.items():
+        for key, prop in obj.properties.items():
+            if not is_entity_visible(
+                getattr(prop, "params", None),
+                include_advanced=include_advanced,
+                include_hidden=include_hidden,
+            ):
+                continue
             result[key] = prop.description
         return {"success": True,
                 "result": result}, 200

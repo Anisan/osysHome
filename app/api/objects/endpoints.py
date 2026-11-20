@@ -4,7 +4,7 @@ from app.api.models import model_result, model_404
 from app.api.decorators import api_key_required
 from app.api.property_helpers import collect_object_property_values
 from app.authentication.handlers import handle_user_required
-from app.core.lib.entity_params import is_entity_visible
+from app.core.lib.entity_params import is_entity_visible, parse_bool_flag
 from app.core.main.ObjectsStorage import objects_storage
 
 objects_ns = Namespace(name="objects",description="Objects namespace",validate=True)
@@ -13,33 +13,49 @@ response_result = objects_ns.model('Result', model_result)
 response_404 = objects_ns.model('Error', model_404)
 
 
-def _query_flag(name: str, default: bool = False) -> bool:
-    """Читает bool query-параметр (1/true/yes/on)."""
-    val = request.args.get(name)
-    if val is None:
-        return default
-    return str(val).lower() in ("1", "true", "yes", "on")
+def _visibility_flags():
+    """Флаги advanced/hidden из query."""
+    return (
+        parse_bool_flag(request.args.get("advanced")),
+        parse_bool_flag(request.args.get("hidden")),
+    )
+
 
 @objects_ns.route("/<object_name>", endpoint="object")
 class GetObject(Resource):
     @api_key_required
     @handle_user_required
     @objects_ns.doc(security="apikey")
+    @objects_ns.param("advanced", "Include advanced properties/methods (params.advanced). Default: false", _in="query")
+    @objects_ns.param("hidden", "Include hidden properties/methods (params.hidden). Default: false", _in="query")
     @objects_ns.response(200, "Retrieved object.", response_result)
     @objects_ns.response(404, 'Not Found', response_404)
     def get(self, object_name):
         '''
         Get object.
         '''
+        include_advanced, include_hidden = _visibility_flags()
         item = objects_storage.getObjectByName(object_name)
         if item:
             obj = {}
             obj['description'] = item.description
             obj['properties'] = {}
-            for key,prop in item.properties.items():
+            for key, prop in item.properties.items():
+                if not is_entity_visible(
+                    getattr(prop, "params", None),
+                    include_advanced=include_advanced,
+                    include_hidden=include_hidden,
+                ):
+                    continue
                 obj['properties'][key] = prop.description
             obj['methods'] = {}
-            for key,m in item.methods.items():
+            for key, m in item.methods.items():
+                if not is_entity_visible(
+                    getattr(m, "params", None),
+                    include_advanced=include_advanced,
+                    include_hidden=include_hidden,
+                ):
+                    continue
                 obj['methods'][key] = m.description
             return {
                 'success': True,
@@ -53,18 +69,25 @@ class GetObjectData(Resource):
     @api_key_required
     @handle_user_required
     @objects_ns.doc(security="apikey")
+    @objects_ns.param("advanced", "Include advanced properties (params.advanced). Default: false", _in="query")
+    @objects_ns.param("hidden", "Include hidden properties (params.hidden). Default: false", _in="query")
     @objects_ns.response(200, "Retrieved object data.", response_result)
     @objects_ns.response(404, 'Not Found', response_404)
     def get(self, object_name):
         '''
         Get object.
         '''
+        include_advanced, include_hidden = _visibility_flags()
         item = objects_storage.getObjectByName(object_name)
         if item:
             obj = {}
             obj['name'] = object_name
             obj['description'] = item.description
-            obj.update(collect_object_property_values(item))
+            obj.update(collect_object_property_values(
+                item,
+                include_advanced=include_advanced,
+                include_hidden=include_hidden,
+            ))
             return {
                 'success': True,
                 'result': obj}, 200
@@ -91,13 +114,22 @@ class ObjectList(Resource):
     @api_key_required
     @handle_user_required
     @objects_ns.doc(security="apikey")
+    @objects_ns.param("advanced", "Include advanced objects (params.advanced). Default: false", _in="query")
+    @objects_ns.param("hidden", "Include hidden objects (params.hidden). Default: false", _in="query")
     @objects_ns.response(200, "Retrieved objects dict.", response_result)
     def get(self):
         """
         Get dictionary of objects description.
         """
+        include_advanced, include_hidden = _visibility_flags()
         result = {}
-        for key,obj in objects_storage.items():
+        for key, obj in objects_storage.items():
+            if not is_entity_visible(
+                getattr(obj, "params", None),
+                include_advanced=include_advanced,
+                include_hidden=include_hidden,
+            ):
+                continue
             result[key] = obj.description
         return {'success': True,
                 'result': result}, 200
@@ -118,8 +150,7 @@ class ObjectListDetails(Resource):
         By default excludes entities with ``params.advanced`` or ``params.hidden``.
         Pass ``advanced=1`` / ``hidden=1`` to include them.
         """
-        include_advanced = _query_flag("advanced")
-        include_hidden = _query_flag("hidden")
+        include_advanced, include_hidden = _visibility_flags()
         result = {}
         for name, item in objects_storage.items():
             if not is_entity_visible(
@@ -158,20 +189,33 @@ class ObjectByClass(Resource):
     @api_key_required
     @handle_user_required
     @objects_ns.doc(security="apikey")
+    @objects_ns.param("advanced", "Include advanced objects/properties (params.advanced). Default: false", _in="query")
+    @objects_ns.param("hidden", "Include hidden objects/properties (params.hidden). Default: false", _in="query")
     @objects_ns.response(200, "Retrieved objects dict.", response_result)
     def get(self, class_name):
         """
         Get dictionary objects with properties
         """
+        include_advanced, include_hidden = _visibility_flags()
         result = {}
         from app.core.lib.object import getObjectsByClass
         objs = getObjectsByClass(class_name)
         
         for item in objs:
+            if not is_entity_visible(
+                getattr(item, "params", None),
+                include_advanced=include_advanced,
+                include_hidden=include_hidden,
+            ):
+                continue
             obj = {}
             obj['name'] = item.name
             obj['description'] = item.description
-            obj['properties'] = collect_object_property_values(item)
+            obj['properties'] = collect_object_property_values(
+                item,
+                include_advanced=include_advanced,
+                include_hidden=include_hidden,
+            )
             result[item.name] = obj
         return {'success': True,
                 'result': result}, 200

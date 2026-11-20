@@ -1,5 +1,7 @@
 """Safe property reads for API endpoints (respect ObjectManager permissions)."""
 
+from app.core.lib.entity_params import is_entity_visible
+
 
 def read_property_value(obj, property_name):
     """Return a property value through permission checks."""
@@ -26,10 +28,16 @@ def read_property_details(obj, property_name):
     }
 
 
-def collect_object_property_values(obj):
+def collect_object_property_values(obj, *, include_advanced: bool = False, include_hidden: bool = False):
     """Collect property values, skipping properties the caller cannot read."""
     data = {}
-    for key in obj.properties:
+    for key, prop in obj.properties.items():
+        if not is_entity_visible(
+            getattr(prop, "params", None),
+            include_advanced=include_advanced,
+            include_hidden=include_hidden,
+        ):
+            continue
         try:
             data[key] = obj.getProperty(key)
         except PermissionError:
