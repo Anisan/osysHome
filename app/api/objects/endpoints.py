@@ -4,12 +4,21 @@ from app.api.models import model_result, model_404
 from app.api.decorators import api_key_required
 from app.api.property_helpers import collect_object_property_values
 from app.authentication.handlers import handle_user_required
+from app.core.lib.entity_params import is_entity_visible
 from app.core.main.ObjectsStorage import objects_storage
 
 objects_ns = Namespace(name="objects",description="Objects namespace",validate=True)
 
 response_result = objects_ns.model('Result', model_result)
 response_404 = objects_ns.model('Error', model_404)
+
+
+def _query_flag(name: str, default: bool = False) -> bool:
+    """Читает bool query-параметр (1/true/yes/on)."""
+    val = request.args.get(name)
+    if val is None:
+        return default
+    return str(val).lower() in ("1", "true", "yes", "on")
 
 @objects_ns.route("/<object_name>", endpoint="object")
 class GetObject(Resource):
@@ -99,20 +108,45 @@ class ObjectListDetails(Resource):
     @api_key_required
     @handle_user_required
     @objects_ns.doc(security="apikey")
+    @objects_ns.param("advanced", "Include advanced objects/properties/methods (params.advanced). Default: false", _in="query")
+    @objects_ns.param("hidden", "Include hidden objects/properties/methods (params.hidden). Default: false", _in="query")
     @objects_ns.response(200, "Retrieved objects dict.", response_result)
     def get(self):
         """
-        Get dictionary objects with properties and methods descriptions
+        Get dictionary objects with properties and methods descriptions.
+
+        By default excludes entities with ``params.advanced`` or ``params.hidden``.
+        Pass ``advanced=1`` / ``hidden=1`` to include them.
         """
+        include_advanced = _query_flag("advanced")
+        include_hidden = _query_flag("hidden")
         result = {}
-        for name,item in objects_storage.items():
+        for name, item in objects_storage.items():
+            if not is_entity_visible(
+                getattr(item, "params", None),
+                include_advanced=include_advanced,
+                include_hidden=include_hidden,
+            ):
+                continue
             obj = {}
             obj['description'] = item.description
             obj['properties'] = {"description": "Description object"}
-            for key,prop in item.properties.items():
+            for key, prop in item.properties.items():
+                if not is_entity_visible(
+                    getattr(prop, "params", None),
+                    include_advanced=include_advanced,
+                    include_hidden=include_hidden,
+                ):
+                    continue
                 obj['properties'][key] = prop.description
             obj['methods'] = {}
-            for key,m in item.methods.items():
+            for key, m in item.methods.items():
+                if not is_entity_visible(
+                    getattr(m, "params", None),
+                    include_advanced=include_advanced,
+                    include_hidden=include_hidden,
+                ):
+                    continue
                 obj['methods'][key] = m.description
             result[name] = obj
         return {'success': True,

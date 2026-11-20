@@ -27,6 +27,19 @@ def is_params_protected(raw) -> bool:
     return bool(parse_params_json(raw).get("protected"))
 
 
+def is_entity_visible(params, *, include_advanced: bool = False, include_hidden: bool = False) -> bool:
+    """Видимость сущности по ``params.advanced`` / ``params.hidden``.
+
+    По умолчанию расширенные и скрытые не показываются.
+    """
+    p = params if isinstance(params, dict) else parse_params_json(params)
+    if p.get("hidden") and not include_hidden:
+        return False
+    if p.get("advanced") and not include_advanced:
+        return False
+    return True
+
+
 def merge_entity_params(raw, patch: dict) -> str:
     """Объединяет patch в params (существующие ключи перезаписываются)."""
     params = parse_params_json(raw)
