@@ -3,25 +3,66 @@ from flask_restx import Namespace, Resource, fields
 from sqlalchemy import func, case
 from app.core.models.Plugins import Notify
 from app.api.decorators import api_key_required
+from app.api.models import (
+    model_analytics_get,
+    model_analytics_set,
+    model_cron_validate_response,
+    model_error_message,
+    model_error_msg,
+    model_error_rate_mute_list,
+    model_intelli_response,
+    model_lsp_response,
+    model_mute_created,
+    model_notification_stats_response,
+    model_notifications_response,
+    model_run_code_response,
+    model_search_response,
+    model_success,
+    model_validate_python_error,
+)
 from app.authentication.handlers import handle_admin_required, handle_user_required
 from app.logging_config import getLogger
 from app.extensions import cache
-from app.database import row2dict, session_scope
+from app.database import session_scope
 from app.core.lsp_client import run_lsp_action
 from app.core.lib.execute import compile_method_code
 
 _logger = getLogger("api")
 
-utils_ns = Namespace(name="utils", description="Utilites namespace", validate=True)
+utils_ns = Namespace(
+    name="utils",
+    description="Search, notifications, code tools, cron and analytics utilities",
+    validate=True,
+)
+
+response_success = utils_ns.model('Success', model_success)
+response_error_msg = utils_ns.model('ErrorMsg', model_error_msg)
+response_error_message = utils_ns.model('ErrorMessage', model_error_message)
+response_search = utils_ns.model('SearchResponse', model_search_response)
+response_mute_list = utils_ns.model('ErrorRateMuteList', model_error_rate_mute_list)
+response_mute_created = utils_ns.model('ErrorRateMuteCreated', model_mute_created)
+validate_python_error = utils_ns.model('ValidatePythonError', model_validate_python_error)
+response_intelli = utils_ns.model('IntelliResponse', model_intelli_response)
+response_lsp = utils_ns.model('LspResponse', model_lsp_response)
+response_run = utils_ns.model('RunCodeResponse', model_run_code_response)
+response_cron_validate = utils_ns.model('CronValidateResponse', model_cron_validate_response)
+response_notifications = utils_ns.model('NotificationsResponse', model_notifications_response)
+response_notification_stats = utils_ns.model(
+    'NotificationStatsResponse', model_notification_stats_response
+)
+response_analytics_get = utils_ns.model('AnalyticsGet', model_analytics_get)
+response_analytics_set = utils_ns.model('AnalyticsSet', model_analytics_set)
 
 
 @utils_ns.route("/search")
 class GlobalSearch(Resource):
     @api_key_required
     @handle_admin_required
-    @utils_ns.doc(security="apikey")
+    @utils_ns.doc(security="apikey", description="Global plugin search with cache and limits")
     @utils_ns.param("query", "A query string parameter")
     @utils_ns.param("limit", "Maximum number of results (default: 50)")
+    @utils_ns.response(200, "Search results.", response_search)
+    @utils_ns.response(400, "Query too short.", response_error_msg)
     def get(self):
         """
         Global search with caching and limits
@@ -116,7 +157,8 @@ class GlobalSearch(Resource):
 class ReadNotify(Resource):
     @api_key_required
     @handle_admin_required
-    @utils_ns.doc(security="apikey")
+    @utils_ns.doc(security="apikey", description="Mark a notification as read")
+    @utils_ns.response(200, "Marked as read.", response_success)
     def get(self, id):
         """
         Mark read notify
@@ -131,7 +173,9 @@ class ReadNotify(Resource):
 class DeleteNotify(Resource):
     @api_key_required
     @handle_admin_required
-    @utils_ns.doc(security="apikey")
+    @utils_ns.doc(security="apikey", description="Delete a notification by id")
+    @utils_ns.response(200, "Deleted.", response_success)
+    @utils_ns.response(404, "Not Found", response_error_message)
     def delete(self, id):
         """
         Delete notify by id
@@ -148,12 +192,13 @@ class DeleteNotify(Resource):
 class ReadNotifyAll(Resource):
     @api_key_required
     @handle_admin_required
-    @utils_ns.doc(security="apikey")
+    @utils_ns.doc(security="apikey", description="Mark all matching notifications as read")
     @utils_ns.param("source", "Source notify (optional, if not provided marks all notifications as read)")
     @utils_ns.param(
         "control_panel",
         "If true, mark as read all notifications whose source is not a system module",
     )
+    @utils_ns.response(200, "Marked as read.", response_success)
     def get(self):
         """
         Mark read all notify for source. If source is not provided, marks all notifications as read.
@@ -170,7 +215,8 @@ class ReadNotifyAll(Resource):
 class ErrorRateMuteList(Resource):
     @api_key_required
     @handle_admin_required
-    @utils_ns.doc(security="apikey")
+    @utils_ns.doc(security="apikey", description="List muted error-rate fingerprints")
+    @utils_ns.response(200, "Mute list.", response_mute_list)
     def get(self):
         """Список заглушенных error-rate fingerprint (mute_id)."""
         from app.logging_config import list_error_rate_mutes
@@ -180,8 +226,11 @@ class ErrorRateMuteList(Resource):
 
     @api_key_required
     @handle_admin_required
-    @utils_ns.doc(security="apikey")
+    @utils_ns.doc(security="apikey", description="Remove error-rate mute by mute_id")
     @utils_ns.param("mute_id", "Mute id (sha256 of fingerprint)")
+    @utils_ns.response(200, "Unmuted.", response_success)
+    @utils_ns.response(400, "Bad Request", response_error_message)
+    @utils_ns.response(404, "Not Found", response_error_message)
     def delete(self):
         """Снять mute по mute_id (query или JSON body)."""
         from app.logging_config import unmute_error_rate
@@ -201,7 +250,10 @@ class ErrorRateMuteList(Resource):
 class ErrorRateMuteFromNotify(Resource):
     @api_key_required
     @handle_admin_required
-    @utils_ns.doc(security="apikey")
+    @utils_ns.doc(security="apikey", description="Mute error-rate from notify card and mark read")
+    @utils_ns.response(200, "Muted.", response_mute_created)
+    @utils_ns.response(400, "Bad Request", response_error_message)
+    @utils_ns.response(404, "Not Found", response_error_message)
     def post(self, notify_id):
         """Mute по карточке notify (kind=error_rate) и отметить прочитанным."""
         import json
@@ -249,7 +301,11 @@ class ErrorRateMuteFromNotify(Resource):
 class ValidateCode(Resource):
     @api_key_required
     @handle_admin_required
-    @utils_ns.doc(security="apikey")
+    @utils_ns.doc(security="apikey", description="Validate Python method/task code syntax")
+    @utils_ns.expect(utils_ns.model('ValidatePythonBody', {
+        'code': fields.String(required=True, description='Python code to validate'),
+    }))
+    @utils_ns.response(200, "List of syntax errors (empty if ok).", [validate_python_error])
     def post(self):
         code = request.json.get('code', '')
         errors = []
@@ -279,7 +335,8 @@ class ValidateCode(Resource):
 class IntelliPython(Resource):
     @api_key_required
     @handle_user_required
-    @utils_ns.doc(security="apikey")
+    @utils_ns.doc(security="apikey", description="IntelliSense symbol cache for Python editor")
+    @utils_ns.response(200, "Symbol list.", response_intelli)
     def get(self):
         cache = list(current_app.extensions.get('intelli_cache', []))
         try:
@@ -312,7 +369,9 @@ class LspPython(Resource):
     @api_key_required
     @handle_user_required
     @utils_ns.expect(lsp_request_model, validate=False)
-    @utils_ns.doc(security="apikey")
+    @utils_ns.doc(security="apikey", description="Python LSP bridge")
+    @utils_ns.response(200, "LSP action result.", response_lsp)
+    @utils_ns.response(400, "Bad Request", response_lsp)
     def post(self):
         """
         Python LSP bridge (completion / hover / diagnostics / signature)
@@ -355,7 +414,8 @@ class RunCode(Resource):
     @api_key_required
     @handle_admin_required
     @utils_ns.expect(run_model, validate=True)
-    @utils_ns.doc(security="apikey")
+    @utils_ns.doc(security="apikey", description="Execute Python code on the server")
+    @utils_ns.response(200, "Execution result.", response_run)
     def post(self):
         """
         Run code
@@ -388,7 +448,8 @@ class setCronTask(Resource):
     @api_key_required
     @handle_admin_required
     @utils_ns.expect(cron_task_model, validate=True)
-    @utils_ns.doc(security="apikey")
+    @utils_ns.doc(security="apikey", description="Create or clear periodic cron job for object.method")
+    @utils_ns.response(200, "Cron task updated.", response_success)
     def post(self):
         """
         Set cron task for method
@@ -425,7 +486,8 @@ class ValidateCron(Resource):
     @api_key_required
     @handle_admin_required
     @utils_ns.expect(cron_validate_model, validate=True)
-    @utils_ns.doc(security="apikey")
+    @utils_ns.doc(security="apikey", description="Validate cron expression and preview next runs")
+    @utils_ns.response(200, "Validation result.", response_cron_validate)
     def post(self):
         """Validate cron expression and return upcoming run times (server timezone)."""
         payload = request.get_json() or {}
@@ -445,7 +507,7 @@ class ValidateCron(Resource):
 class GetNotifications(Resource):
     @api_key_required
     @handle_admin_required
-    @utils_ns.doc(security="apikey")
+    @utils_ns.doc(security="apikey", description="List notifications with filters")
     @utils_ns.param("source", "Filter by source (optional)")
     @utils_ns.param("unread_only", "Show only unread notifications (default: true)")
     @utils_ns.param(
@@ -453,6 +515,7 @@ class GetNotifications(Resource):
         "If true, return notifications whose source is not a system module "
         "(admin page: admin/osysHome/orphans). Ignores source filter.",
     )
+    @utils_ns.response(200, "Notifications list.", response_notifications)
     def get(self):
         """
         Get notifications with filtering options
@@ -505,7 +568,8 @@ class GetNotifications(Resource):
 class NotificationStats(Resource):
     @api_key_required
     @handle_admin_required
-    @utils_ns.doc(security="apikey")
+    @utils_ns.doc(security="apikey", description="Notification counts by source")
+    @utils_ns.response(200, "Notification statistics.", response_notification_stats)
     def get(self):
         """
         Get notification statistics
@@ -541,7 +605,8 @@ class NotificationStats(Resource):
 class AnalyticsSettings(Resource):
     @api_key_required
     @handle_admin_required
-    @utils_ns.doc(security="apikey")
+    @utils_ns.doc(security="apikey", description="Get analytics opt-in status")
+    @utils_ns.response(200, "Analytics settings.", response_analytics_get)
     def get(self):
         """
         Get analytics opt-in status. Enum: disabled, basic, extended. null/empty = not asked.
@@ -562,8 +627,10 @@ class AnalyticsSettings(Resource):
 
     @api_key_required
     @handle_admin_required
-    @utils_ns.doc(security="apikey")
+    @utils_ns.doc(security="apikey", description="Set analytics level (explicit consent)")
     @utils_ns.param("enabled", "disabled | basic | extended", _in="query", required=True)
+    @utils_ns.response(200, "Analytics updated.", response_analytics_set)
+    @utils_ns.response(400, "Bad Request", response_error_msg)
     def post(self):
         """
         Set analytics level (explicit consent). disabled, basic, extended.
