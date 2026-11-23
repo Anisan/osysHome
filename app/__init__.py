@@ -89,7 +89,11 @@ def createApp(config_object):
     app.json_provider_class = CustomJSONProvider
     app.json = CustomJSONProvider(app)  # Инициализация провайдера
 
-    app.config.update(RESTX_JSON={"cls": CustomJSONEncoder})
+    app.config.update(
+        RESTX_JSON={"cls": CustomJSONEncoder},
+        # Без «did you mean» в 404 от flask-restx
+        RESTX_ERROR_404_HELP=False,
+    )
 
     # from werkzeug.middleware.profiler import ProfilerMiddleware
     # app.wsgi_app = ProfilerMiddleware(app.wsgi_app, restrictions=[5], profile_dir='.')
@@ -519,6 +523,12 @@ def registerErrorHandlers(app):
     @app.errorhandler(404)
     def page_not_found(error):
         _log_http_error('info', "404 Not Found", error)
+        path = request.path or ''
+        if request.blueprint == 'api' or path.startswith('/api'):
+            return jsonify({
+                'success': False,
+                'msg': 'Not Found',
+            }), 404
         return render_template('errors/page-404.html'), 404
 
     @app.errorhandler(403)

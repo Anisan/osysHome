@@ -119,11 +119,15 @@ class MonitoredThreadPool:
             while not self._stop_health_checker.is_set():
                 try:
                     if not self.is_healthy():
-                        _logger.critical(f"Pool {self._thread_name_prefix} is completely stuck — replacing executor")
+                        _logger.critical(
+                            f"Pool {self._thread_name_prefix} is completely stuck — replacing executor"
+                        )
+                        # Сначала поднимаем generation под lock, shutdown — без lock,
+                        # чтобы не блокировать читателей статистики/тесты на время join.
                         with self._lock:
                             old_executor = self._executor
-                            old_executor.shutdown(wait=False)  # не ждём зависшие задачи
                             self._create_executor()
+                        old_executor.shutdown(wait=False)
                 except Exception as e:
                     _logger.error(f"Error in health checker: {e}")
                 finally:

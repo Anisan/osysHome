@@ -1,35 +1,103 @@
 import datetime
 from flask import request, abort
 from flask_restx import Namespace, Resource, fields
-from app.database import session_scope, convert_local_to_utc
+from app.database import session_scope
 from app.api.decorators import api_key_required
 from app.api.property_helpers import read_property_details, read_property_value
 from app.authentication.handlers import handle_user_required
-from app.api.models import model_result, model_404
+from app.api.models import (
+    model_404,
+    model_error_error,
+    model_error_message,
+    model_forbidden,
+    model_history_delete,
+    model_property_details,
+    model_property_info,
+    model_property_set_body,
+    model_success,
+    wrap_result,
+)
+from app.core.lib.entity_params import is_entity_visible, parse_bool_flag
 from app.core.main.ObjectsStorage import objects_storage
 
-props_ns = Namespace(name="property", description="Property namespace", validate=True)
+props_ns = Namespace(
+    name="property",
+    description="Object property values, info and history",
+    validate=True,
+)
 
-response_result = props_ns.model('Result', model_result)
+property_details = props_ns.model('PropertyDetails', model_property_details)
+property_info = props_ns.model('PropertyInfo', model_property_info)
+property_set_body = props_ns.model('PropertySetBody', model_property_set_body)
+
+response_name_map = props_ns.model(
+    'ResultPropertyNameMap',
+    wrap_result(fields.Raw(description='Map of property name to description')),
+)
+response_value = props_ns.model(
+    'ResultPropertyValue',
+    wrap_result(fields.Raw(description='Property value')),
+)
+response_details = props_ns.model(
+    'ResultPropertyDetails',
+    wrap_result(fields.Nested(property_details, description='Value with source and changed')),
+)
+response_details_map = props_ns.model(
+    'ResultPropertyDetailsMap',
+    wrap_result(fields.Raw(
+        description='Map of "object.property" to PropertyDetails',
+    )),
+)
+response_info = props_ns.model(
+    'ResultPropertyInfo',
+    wrap_result(fields.Nested(property_info, description='Property metadata')),
+)
+response_set = props_ns.model(
+    'ResultPropertySet',
+    wrap_result(fields.Boolean(description='Whether setProperty succeeded')),
+)
+response_history = props_ns.model(
+    'ResultPropertyHistory',
+    wrap_result(fields.Raw(description='History entries list')),
+)
+response_history_agg = props_ns.model(
+    'ResultPropertyHistoryAggregate',
+    wrap_result(fields.Raw(description='Aggregated history statistics')),
+)
+response_history_delete = props_ns.model('HistoryDelete', model_history_delete)
+response_success = props_ns.model('Success', model_success)
 response_404 = props_ns.model('Error', model_404)
+response_forbidden = props_ns.model('Forbidden', model_forbidden)
+response_error = props_ns.model('ErrorDetail', model_error_error)
+response_not_found = props_ns.model('ErrorMessage', model_error_message)
 
 @props_ns.route("/list/<object_name>", endpoint="properties_list")
 class PropertiesList(Resource):
     @api_key_required
     @handle_user_required
-    @props_ns.doc(security="apikey")
-    @props_ns.response(200, "Retrieved list properties of object.", response_result)
+    @props_ns.doc(security="apikey", description="List property name→description for an object")
+    @props_ns.param("advanced", "Include advanced properties (params.advanced). Default: false", _in="query")
+    @props_ns.param("hidden", "Include hidden properties (params.hidden). Default: false", _in="query")
+    @props_ns.response(200, "Retrieved list properties of object.", response_name_map)
     @props_ns.response(404, 'Not Found', response_404)
     def get(self, object_name):
         '''
-        Get properties of object.
+        Get properties of object (name → description map).
         '''
+        include_advanced = parse_bool_flag(request.args.get("advanced"))
+        include_hidden = parse_bool_flag(request.args.get("hidden"))
         result = {}
         obj = objects_storage.getObjectByName(object_name)
         if obj is None:
             return {"success": False,
                     "msg": "Object not found."}, 404
-        for key,prop in obj.properties.items():
+        for key, prop in obj.properties.items():
+            if not is_entity_visible(
+                getattr(prop, "params", None),
+                include_advanced=include_advanced,
+                include_hidden=include_hidden,
+            ):
+                continue
             result[key] = prop.description
         return {"success": True,
                 "result": result}, 200
@@ -38,14 +106,15 @@ class PropertiesList(Resource):
 class GetProperty(Resource):
     @api_key_required
     @handle_user_required
-    @props_ns.doc(security="apikey")
+    @props_ns.doc(security="apikey", description="Get a single property value via query params")
     @props_ns.param('object', 'Object name')
     @props_ns.param('property', 'Property name')
-    @props_ns.response(200, "Result", response_result)
+    @props_ns.response(200, "Property value.", response_value)
+    @props_ns.response(403, 'Forbidden', response_forbidden)
     @props_ns.response(404, 'Not Found', response_404)
     def get(self, object_property=None):
         '''
-        Get value of object property.
+        Get value of object property (query: object, property).
         '''
         result = ''
         # Если object_property передан в path, разбираем его
@@ -78,15 +147,19 @@ class GetProperty(Resource):
 
     @api_key_required
     @handle_user_required
-    @props_ns.doc(security="apikey")
+    @props_ns.doc(security="apikey", description="Get multiple properties as object.property → PropertyDetails")
     @props_ns.expect(props_ns.model('PropertiesList', {
-        'properties': fields.List(fields.String, required=True, description='List of properties to get')
+        'properties': fields.List(
+            fields.String,
+            required=True,
+            description='List of "object.property" strings',
+        )
     }))
-    @props_ns.response(200, "Result", response_result)
+    @props_ns.response(200, "Property details map.", response_details_map)
     @props_ns.response(404, 'Not Found', response_404)
     def post(self):
         '''
-        Get values of multiple object properties.
+        Get values of multiple object properties (with source/changed).
         '''
         data = request.json
         properties = data.get('properties', [])
@@ -110,13 +183,14 @@ class GetProperty(Resource):
 class PropertyWithPath(Resource):
     @api_key_required
     @handle_user_required
-    @props_ns.doc(security="apikey")
+    @props_ns.doc(security="apikey", description="Get property value with source/changed via path")
     @props_ns.param('object_property', 'Object and property name in format "object.property"', _in='path')
-    @props_ns.response(200, "Result", response_result)
+    @props_ns.response(200, "Property details.", response_details)
+    @props_ns.response(403, 'Forbidden', response_forbidden)
     @props_ns.response(404, 'Not Found', response_404)
     def get(self, object_property=None):
         '''
-        Get value of object property.
+        Get property details (value, source, changed) via path object.property.
         '''
         result = ''
         # Если object_property передан в path, разбираем его
@@ -144,10 +218,15 @@ class PropertyWithPath(Resource):
 
     @api_key_required
     @handle_user_required
-    @props_ns.doc(security="apikey")
+    @props_ns.doc(security="apikey", description="Set property via path; JSON {data, source} or text/plain body")
+    @props_ns.expect(property_set_body, validate=False)
+    @props_ns.response(200, "Property set.", response_success)
+    @props_ns.response(400, 'Bad Request', response_error)
+    @props_ns.response(403, 'Forbidden', response_error)
+    @props_ns.response(404, 'Not Found', response_not_found)
     def post(self, object_property):
         '''
-        Set value of object property.
+        Set value of object property (application/json or text/plain).
         '''
         if object_property:
             if '.' not in object_property:
@@ -197,13 +276,13 @@ class PropertyWithPath(Resource):
 class PropertyInfo(Resource):
     @api_key_required
     @handle_user_required
-    @props_ns.doc(security="apikey")
+    @props_ns.doc(security="apikey", description="Get property metadata (type, history, links, params)")
     @props_ns.param('object_property', 'Object and property name in format "object.property"', _in='path')
-    @props_ns.response(200, "Result", response_result)
+    @props_ns.response(200, "Property info.", response_info)
     @props_ns.response(404, 'Not Found', response_404)
     def get(self, object_property=None):
         '''
-        Get info of object property.
+        Get metadata of object property.
         '''
         result = ''
         # Если object_property передан в path, разбираем его
@@ -244,21 +323,22 @@ class PropertyInfo(Resource):
 class SetProperty(Resource):
     @api_key_required
     @handle_user_required
-    @props_ns.doc(security="apikey")
+    @props_ns.doc(security="apikey", description="Set property value via query parameters")
     @props_ns.param('object', 'Object name')
     @props_ns.param('property', 'Property name')
     @props_ns.param('value', 'Value')
-    @props_ns.response(200, "Result", response_result)
+    @props_ns.response(200, "Set result.", response_set)
     @props_ns.response(404, 'Not Found', response_404)
     def get(self):
         '''
-        Set value of object property.
+        Set value of object property (query: object, property, value).
         '''
         object_name = request.args.get("object",None)
         property_name = request.args.get("property",None)
         value = request.args.get("value",None)
         if not object_name or not property_name or not value:
-            abort(404, 'Missing required parameters')
+            return {"success": False,
+                    "msg": "Missing required parameters"}, 404
         obj = objects_storage.getObjectByName(object_name)
         if obj is None:
             return {"success": False,
@@ -280,17 +360,18 @@ class GetHistory(Resource):
         'limit': {'description': 'The limit on the number of results', 'type': 'integer', 'required': False},
         'order_desc': {'description': 'Whether to order results in descending order', 'type': 'boolean', 'required': False},
     })
-    @props_ns.response(200, "Result", response_result)
+    @props_ns.response(200, "History entries.", response_history)
     @props_ns.response(404, 'Not Found', response_404)
     def get(self):
         '''
-        Get history value of object property.
+        Get history values of object property.
         '''
         result = None
         object_name = request.args.get("object",None)
         property_name = request.args.get("property",None)
         if not object_name or not property_name:
-            abort(404, 'Missing required parameters')
+            return {"success": False,
+                    "msg": "Missing required parameters"}, 404
         obj = objects_storage.getObjectByName(object_name)
         if obj is None:
             return {"success": False,
@@ -313,9 +394,12 @@ class GetHistory(Resource):
 
     @api_key_required
     @handle_user_required
+    @props_ns.doc(security="apikey", description="Delete a history entry by id")
     @props_ns.doc(params={
         'id': {'description': 'The unique identifier of the history entry', 'type': 'integer', 'required': True},
     })
+    @props_ns.response(200, "Entry deleted.", response_history_delete)
+    @props_ns.response(404, 'Not Found', response_history_delete)
     def delete(self):
         '''
         Delete a history entry.
@@ -338,17 +422,18 @@ class GetAggregateHistory(Resource):
         'dt_begin': {'description': 'The start date and time for filtering (format: YYYY-MM-DDTHH:MM:SS)', 'type': 'string', 'required': False},
         'dt_end': {'description': 'The end date and time for filtering (format: YYYY-MM-DDTHH:MM:SS)', 'type': 'string', 'required': False},
     })
-    @props_ns.response(200, "Result", response_result)
+    @props_ns.response(200, "Aggregate history.", response_history_agg)
     @props_ns.response(404, 'Not Found', response_404)
     def get(self):
         '''
-        Get history aggregate value of object property.
+        Get aggregated history for object property.
         '''
         result = None
         object_name = request.args.get("object",None)
         property_name = request.args.get("property",None)
         if not object_name or not property_name:
-            abort(404, 'Missing required parameters')
+            return {"success": False,
+                    "msg": "Missing required parameters"}, 404
         obj = objects_storage.getObjectByName(object_name)
         if obj is None:
             return {"success": False,

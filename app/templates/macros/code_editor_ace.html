@@ -803,7 +803,7 @@
     var librarySymbols = [];
     var objectsDetailsMap = {};
 
-    fetch('/api/object/list/details')
+    fetch('/api/object/list/details?advanced=1&hidden=1')
         .then(response => response.json())
         .then(data => {
             if (data.success) {

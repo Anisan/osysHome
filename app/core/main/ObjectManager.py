@@ -596,6 +596,21 @@ def shutdown_batch_writer():
     _batch_writer.shutdown(wait=True)
 
 
+def get_batch_writer_stats():
+    """Публичная статистика глобального BatchWriter (для диагностики/мониторинга)."""
+    return _batch_writer.get_stats()
+
+
+def flush_batch_writer_sync():
+    """Синхронный flush глобального BatchWriter (для диагностики на БД пользователя)."""
+    _batch_writer.flush_sync()
+
+
+def get_linked_property_pool_stats():
+    """Публичная статистика роутера пулов linkedProperty."""
+    return _poolLinkedProperty.get_stats()
+
+
 class TypeOperation(Enum):
     """ Type operation """
     Get = "get"

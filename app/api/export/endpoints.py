@@ -3,6 +3,13 @@ from flask import Response, request
 from flask_restx import Namespace, Resource
 import json
 from app.api.decorators import api_key_required
+from app.api.models import (
+    model_export_class_item,
+    model_export_method_item,
+    model_export_object_item,
+    model_export_payload,
+    model_export_property_item,
+)
 from app.authentication.handlers import handle_admin_required
 from app.core.models.Clasess import Class, Object, Property, Method, Value
 from app.logging_config import getLogger
@@ -153,18 +160,34 @@ def getObjectInfo(object_id):
     return data
 
 
-export_ns = Namespace(name="export",description="Export namespace",validate=True)
+export_ns = Namespace(
+    name="export",
+    description="Export classes/objects as JSON file download",
+    validate=True,
+)
+
+export_class_item = export_ns.model('ExportClassItem', model_export_class_item)
+export_object_item = export_ns.model('ExportObjectItem', model_export_object_item)
+export_property_item = export_ns.model('ExportPropertyItem', model_export_property_item)
+export_method_item = export_ns.model('ExportMethodItem', model_export_method_item)
+export_payload = export_ns.model('ExportPayload', model_export_payload)
+
 
 @export_ns.route("/class/<class_id>", endpoint="export_class")
 class ExportClass(Resource):
     @api_key_required
     @handle_admin_required
-    @export_ns.doc(security="apikey")
+    @export_ns.doc(
+        security="apikey",
+        description="Download class export JSON (application/octet-stream attachment)",
+        produces=['application/octet-stream'],
+    )
     @export_ns.param('children', 'Include children')
     @export_ns.param('objects', 'Include objects')
+    @export_ns.response(200, "JSON export file body (ExportPayload structure).", export_payload)
     def get(self, class_id):
         '''
-        Export class
+        Export class as JSON attachment (classes/objects/properties/methods/values).
         '''
         add_children = request.args.get("children", None)
         add_objects = request.args.get("objects",None)
@@ -216,10 +239,15 @@ class ExportClass(Resource):
 class ExportObject(Resource):
     @api_key_required
     @handle_admin_required
-    @export_ns.doc(security="apikey")
+    @export_ns.doc(
+        security="apikey",
+        description="Download object export JSON (application/octet-stream attachment)",
+        produces=['application/octet-stream'],
+    )
+    @export_ns.response(200, "JSON export file body (ExportPayload structure).", export_payload)
     def get(self, object_id):
         '''
-        Export object
+        Export object as JSON attachment (with parent classes).
         '''
         data = {}
         data['classes'] = []
@@ -255,10 +283,15 @@ class ExportObject(Resource):
 class ExportAll(Resource):
     @api_key_required
     @handle_admin_required
-    @export_ns.doc(security="apikey")
+    @export_ns.doc(
+        security="apikey",
+        description="Download full system export JSON (application/octet-stream attachment)",
+        produces=['application/octet-stream'],
+    )
+    @export_ns.response(200, "JSON export file body (ExportPayload structure).", export_payload)
     def get(self):
         '''
-        Export all
+        Export all classes and objects as JSON attachment.
         '''
         data = {}
         classes = Class.query.where(Class.parent_id == None).all()

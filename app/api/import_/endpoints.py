@@ -7,6 +7,7 @@ import json
 from app.database import db
 from app.core.main.ObjectsStorage import objects_storage
 from app.api.decorators import api_key_required
+from app.api.models import model_import_response, model_import_stream_event
 from app.authentication.handlers import handle_admin_required
 from app.core.models.Clasess import Class, Object, Property, Method, Value
 from app.core.lib.object_tree import invalidate_objects_tree_cache
@@ -14,7 +15,14 @@ from app.logging_config import getLogger
 
 _logger = getLogger("api")
 
-import_ns = Namespace(name="import", description="Import namespace", validate=True)
+import_ns = Namespace(
+    name="import",
+    description="Import classes/objects from JSON file (optional NDJSON progress stream)",
+    validate=True,
+)
+
+response_import = import_ns.model('ImportResponse', model_import_response)
+response_stream_event = import_ns.model('ImportStreamEvent', model_import_stream_event)
 
 
 def _emit(event):
@@ -459,15 +467,26 @@ def _import_events(data, rewrite, add_classes, add_objects):
 class ImportObjects(Resource):
     @api_key_required
     @handle_admin_required
-    @import_ns.doc(security="apikey")
+    @import_ns.doc(
+        security="apikey",
+        description=(
+            "Import classes/objects from multipart JSON file. "
+            "With stream=1 returns application/x-ndjson events (ImportStreamEvent)."
+        ),
+        consumes=['multipart/form-data'],
+    )
     @import_ns.doc(params={"file": "The file to import"},)
     @import_ns.param("rewrite", "Rewrite existing classes/objects")
     @import_ns.param("classes", "Add classes")
     @import_ns.param("objects", "Add objects")
     @import_ns.param("stream", "Stream progress as NDJSON")
+    @import_ns.response(200, "Import finished (JSON) or NDJSON stream of ImportStreamEvent.", response_import)
     def post(self):
         '''
-        Import classes/objects from JSON file
+        Import classes/objects from JSON file.
+
+        Non-stream: JSON ImportResponse.
+        stream=1: NDJSON lines with ImportStreamEvent (progress/done/error).
         '''
         import_file = request.files["file"]
         if import_file.filename == "":

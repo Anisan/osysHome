@@ -1,4 +1,4 @@
-{% macro render_linked_select(field_object, field_property, field_method, horizontal=False, help_object=None, help_property=None, help_method=None) %}
+{% macro render_linked_select(field_object, field_property, field_method, horizontal=False, help_object=None, help_property=None, help_method=None, show_advanced=False, show_hidden=False, show_toggles=False) %}
 <link rel="stylesheet" href="{{ config.ASSETS_ROOT }}/plugins/select2/select2.min.css" />
 <link rel="stylesheet" href="{{ config.ASSETS_ROOT }}/plugins/select2/select2-bootstrap-5-theme.min.css" />
 <style>
@@ -242,9 +242,22 @@ body
 </div>
 {% endif %}
 {% if horizontal %}</div>{% endif %}
+{% if show_toggles %}
+<div class="d-flex flex-wrap gap-3 {% if horizontal %}mt-2{% else %}mb-3{% endif %}">
+    <div class="form-check mb-0">
+        <input class="form-check-input" type="checkbox" id="toggle-advanced-{{ field_object.name }}"{% if show_advanced %} checked{% endif %}>
+        <label class="form-check-label" for="toggle-advanced-{{ field_object.name }}">{{ gettext("Advanced") }}</label>
+    </div>
+    <div class="form-check mb-0">
+        <input class="form-check-input" type="checkbox" id="toggle-hidden-{{ field_object.name }}"{% if show_hidden %} checked{% endif %}>
+        <label class="form-check-label" for="toggle-hidden-{{ field_object.name }}">{{ gettext("Hidden") }}</label>
+    </div>
+</div>
+{% endif %}
 <script>
 $(document).ready(function() {
-    $('.select2').select2({
+    var linkedSelectScope = $('#{{ field_object.name }}').closest('form, .modal, body').first();
+    linkedSelectScope.find('#{{ field_object.name }}{% if field_property %}, #{{ field_property.name }}{% endif %}{% if field_method %}, #{{ field_method.name }}{% endif %}').select2({
         theme: "bootstrap-5",
         allowClear: false,
         width: $( this ).data( 'width' ) ? $( this ).data( 'width' ) : $( this ).hasClass( 'w-100' ) ? '100%' : 'style',
@@ -256,121 +269,140 @@ $(document).ready(function() {
 			}
 		}
     });
+
+    var includeAdvanced = {% if show_advanced %}true{% else %}false{% endif %};
+    var includeHidden = {% if show_hidden %}true{% else %}false{% endif %};
+    var detailsMap = {};
+    var initialObjectValue = '{{ field_object.data if field_object.data else "" }}';
+    var initialPropertyValue = '{{ field_property.data if field_property and field_property.data else "" }}';
+    var initialMethodValue = '{{ field_method.data if field_method and field_method.data else "" }}';
+    var suppressObjectChange = false;
+
+    function flagsQuery() {
+        var parts = [];
+        if (includeAdvanced) parts.push('advanced=1');
+        if (includeHidden) parts.push('hidden=1');
+        return parts.length ? ('?' + parts.join('&')) : '';
+    }
+
+    function ensureOption($select, value, label) {
+        if (!value || value === 'None') return;
+        if ($select.find('option').filter(function() { return this.value === value; }).length === 0) {
+            $select.append(new Option(label || value, value));
+        }
+    }
+
+    function syncNative($select, value) {
+        $select.val(value || '');
+        if ($select[0]) {
+            $select[0].value = value || '';
+        }
+    }
+
     function updateProps(object_name, select){
         {% if field_property %}
+        var property_select = $('#{{field_property.name}}');
+        property_select.empty();
+        property_select.append(new Option('', ''));
         if (!object_name || object_name === '') {
-            var property_select = $('#{{field_property.name}}');
-            property_select.empty();
-            property_select.append(new Option('', ''));
-            property_select.val('').trigger('change');
-            if (property_select[0]) {
-                property_select[0].value = '';
-            }
+            syncNative(property_select, '');
+            property_select.trigger('change');
             return;
         }
-        $.ajax({
-            url: '/api/property/list/' + object_name,
-            method: 'GET',
-            success: function(data) {
-                var property_select = $('#{{field_property.name}}');
-                property_select.empty();
-                // Добавляем пустую опцию для возможности установки пустого значения
-                property_select.append(new Option('', ''));
-                Object.keys(data.result).forEach(function(key) {
-                    property_select.append(new Option(key +" - "+ data.result[key], key));
-                })
-                property_select.val(select || '').trigger('change');
-                // Синхронизируем с нативным select
-                if (property_select[0]) {
-                    property_select[0].value = select || '';
-                }
-            },
-            error: function() {
-                var property_select = $('#{{field_property.name}}');
-                property_select.empty();
-                property_select.append(new Option('', ''));
-                property_select.val('').trigger('change');
-                if (property_select[0]) {
-                    property_select[0].value = '';
-                }
-            }
+        var props = (detailsMap[object_name] && detailsMap[object_name].properties) || {};
+        Object.keys(props).forEach(function(key) {
+            property_select.append(new Option(key + " - " + props[key], key));
         });
+        ensureOption(property_select, select, select);
+        syncNative(property_select, select || '');
+        property_select.trigger('change');
         {% endif %}
     }
     function updateMethods(object_name, select){
         {% if field_method %}
+        var method_select = $('#{{field_method.name}}');
+        method_select.empty();
+        method_select.append(new Option('', ''));
         if (!object_name || object_name === '') {
-            var method_select = $('#{{field_method.name}}');
-            method_select.empty();
-            method_select.append(new Option('', ''));
-            method_select.val('').trigger('change');
-            if (method_select[0]) {
-                method_select[0].value = '';
-            }
+            syncNative(method_select, '');
+            method_select.trigger('change');
             return;
         }
-        $.ajax({
-            url: '/api/method/list/' + object_name,
-            method: 'GET',
-            success: function(data) {
-                var method_select = $('#{{field_method.name}}');
-                method_select.empty();
-                // Добавляем пустую опцию для возможности установки пустого значения
-                method_select.append(new Option('', ''));
-                Object.keys(data.result).forEach(function(key) {
-                    method_select.append(new Option(key +" - "+ data.result[key], key));
-                })
-                method_select.val(select || '').trigger('change');
-                // Синхронизируем с нативным select
-                if (method_select[0]) {
-                    method_select[0].value = select || '';
-                }
-            },
-            error: function() {
-                var method_select = $('#{{field_method.name}}');
-                method_select.empty();
-                method_select.append(new Option('', ''));
-                method_select.val('').trigger('change');
-                if (method_select[0]) {
-                    method_select[0].value = '';
-                }
-            }
+        var methods = (detailsMap[object_name] && detailsMap[object_name].methods) || {};
+        Object.keys(methods).forEach(function(key) {
+            method_select.append(new Option(key + " - " + methods[key], key));
         });
+        ensureOption(method_select, select, select);
+        syncNative(method_select, select || '');
+        method_select.trigger('change');
         {% endif %}
     }
-    // Load objects via API
-    $.ajax({
-        url: '/api/object/list',
-        method: 'GET',
-        success: function(data) {
-            var object_select = $('#{{field_object.name}}');
-            object_select.empty();
-            // Добавляем пустую опцию для возможности установки пустого значения
-            object_select.append(new Option('', ''));
-            console.log(data, object_select, '{{field_object.data}}')
-            Object.keys(data.result).forEach(function(key) {
-                object_select.append(new Option(key +" - "+ data.result[key], key));
-            })
-            
-            var currentValue = '{{field_object.data if field_object.data else ""}}';
-            var propertyValue = '{{field_property.data if field_property and field_property.data else ""}}';
-            var methodValue = '{{field_method.data if field_method and field_method.data else ""}}';
-            
-            if (currentValue && currentValue !== 'None') {
-                object_select.val(currentValue);
-            } else {
-                object_select.val('');
-                currentValue = '';
-            }
-            // Синхронизируем с нативным select
-            if (object_select[0]) {
-                object_select[0].value = currentValue && currentValue !== 'None' ? currentValue : '';
-            }
-            // Загружаем properties и methods с правильными значениями
-            updateProps(currentValue, propertyValue);
-            updateMethods(currentValue, methodValue);
+
+    function applyDetails(preserveSelection) {
+        var object_select = $('#{{field_object.name}}');
+        var currentValue = preserveSelection ? (object_select.val() || '') : initialObjectValue;
+        var propertyValue = preserveSelection
+            ? ({% if field_property %}$('#{{field_property.name}}').val() || ''{% else %}''{% endif %})
+            : initialPropertyValue;
+        var methodValue = preserveSelection
+            ? ({% if field_method %}$('#{{field_method.name}}').val() || ''{% else %}''{% endif %})
+            : initialMethodValue;
+
+        if (!currentValue || currentValue === 'None') {
+            currentValue = '';
         }
+        if (!propertyValue || propertyValue === 'None') {
+            propertyValue = '';
+        }
+        if (!methodValue || methodValue === 'None') {
+            methodValue = '';
+        }
+
+        object_select.empty();
+        object_select.append(new Option('', ''));
+        Object.keys(detailsMap).forEach(function(key) {
+            var desc = detailsMap[key].description || '';
+            object_select.append(new Option(key + " - " + desc, key));
+        });
+        ensureOption(object_select, currentValue, currentValue);
+
+        suppressObjectChange = true;
+        syncNative(object_select, currentValue);
+        object_select.trigger('change.select2');
+        suppressObjectChange = false;
+
+        updateProps(currentValue, propertyValue);
+        updateMethods(currentValue, methodValue);
+    }
+
+    function loadDetails(preserveSelection) {
+        $.ajax({
+            url: '/api/object/list/details' + flagsQuery(),
+            method: 'GET',
+            success: function(data) {
+                detailsMap = (data && data.result) || {};
+                applyDetails(!!preserveSelection);
+            },
+            error: function() {
+                detailsMap = {};
+                applyDetails(!!preserveSelection);
+            }
+        });
+    }
+
+    loadDetails(false);
+
+    {% if show_toggles %}
+    $('#toggle-advanced-{{ field_object.name }}').on('change', function() {
+        includeAdvanced = $(this).is(':checked');
+        loadDetails(true);
     });
+    $('#toggle-hidden-{{ field_object.name }}').on('change', function() {
+        includeHidden = $(this).is(':checked');
+        loadDetails(true);
+    });
+    {% endif %}
+
     // Добавляем обработчик для кнопки сброса
     $(document).on('click', '#reset-{{ field_object.name }}', function() {
         var object_select = $('#{{ field_object.name }}');
@@ -413,27 +445,14 @@ $(document).ready(function() {
     });
     {% endif %}
 
-    // Load properties based on selected country
+    // При смене объекта — свойства и методы из кэша details
     $('#{{field_object.name}}').change(function() {
+        if (suppressObjectChange) {
+            return;
+        }
         var object_name = $(this).val();
-        console.log("Selected object:", object_name);
-        // Обновление свойств и методов
         updateProps(object_name, "");
         updateMethods(object_name, "");
-
-        // Очистка значений в объекте формы
-        {% if field_property %}
-        $('#{{ field_property.name }}').val('').trigger('change');
-        if ($('#{{ field_property.name }}')[0]) {
-            $('#{{ field_property.name }}')[0].value = '';
-        }
-        {% endif %}
-        {% if field_method %}
-        $('#{{ field_method.name }}').val('').trigger('change');
-        if ($('#{{ field_method.name }}')[0]) {
-            $('#{{ field_method.name }}')[0].value = '';
-        }
-        {% endif %}
     });
     
     // Гарантируем отправку пустого значения при отправке формы

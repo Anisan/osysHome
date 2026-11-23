@@ -1,0 +1,318 @@
+/* Брендинг и тема страницы Swagger /api/ (data-bs-theme / data-ui-theme из localStorage) */
+
+body {
+    margin: 0;
+    background: var(--bs-body-bg, #fafafa);
+    color: var(--bs-body-color, #212529);
+    color-scheme: light;
+}
+
+html[data-bs-theme="dark"],
+html[data-bs-theme="dark"] body,
+body[data-bs-theme="dark"] {
+    color-scheme: dark;
+}
+
+.osys-swagger-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+    padding: 0.75rem 1.25rem;
+    background: var(--bs-secondary-bg, #fff);
+    border-bottom: 1px solid var(--bs-border-color, #e8e8e8);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.osys-swagger-brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.75rem;
+    text-decoration: none;
+    color: var(--bs-emphasis-color, #1b1b1b);
+}
+
+.osys-swagger-logo {
+    height: 36px;
+    width: auto;
+    display: block;
+}
+
+.osys-swagger-logo-dark {
+    display: none;
+}
+
+html[data-bs-theme="dark"] .osys-swagger-logo-light,
+body[data-bs-theme="dark"] .osys-swagger-logo-light {
+    display: none;
+}
+
+html[data-bs-theme="dark"] .osys-swagger-logo-dark,
+body[data-bs-theme="dark"] .osys-swagger-logo-dark {
+    display: block;
+}
+
+.osys-swagger-title {
+    font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+    font-size: 1.125rem;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+}
+
+.osys-swagger-links {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 0.75rem 1rem;
+    font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+    font-size: 0.875rem;
+}
+
+.osys-swagger-links a {
+    color: var(--bs-secondary-color, #3b4151);
+    text-decoration: none;
+}
+
+.osys-swagger-links a:hover {
+    color: var(--bs-link-hover-color, #89bf04);
+    text-decoration: underline;
+}
+
+#swagger-ui .swagger-ui .topbar {
+    display: none;
+}
+
+#swagger-ui .swagger-ui .info {
+    margin: 20px 0;
+}
+
+#swagger-ui .swagger-ui .info .title small {
+    background: var(--bs-secondary, #555);
+}
+
+/* Подгонка Swagger UI под системные CSS-переменные */
+#swagger-ui .swagger-ui {
+    color: var(--bs-body-color, #3b4151);
+    font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+}
+
+#swagger-ui .swagger-ui .scheme-container,
+#swagger-ui .swagger-ui section.models,
+#swagger-ui .swagger-ui .dialog-ux .modal-ux {
+    background: var(--bs-body-bg, #fff);
+    border-color: var(--bs-border-color, #ebebeb);
+}
+
+#swagger-ui .swagger-ui .dialog-ux .modal-ux-header,
+#swagger-ui .swagger-ui .dialog-ux .modal-ux-content {
+    background: var(--bs-secondary-bg, #fff);
+    color: var(--bs-body-color, #3b4151);
+    border-color: var(--bs-border-color, #ebebeb);
+}
+
+#swagger-ui .swagger-ui input[type=text],
+#swagger-ui .swagger-ui input[type=password],
+#swagger-ui .swagger-ui input[type=search],
+#swagger-ui .swagger-ui input[type=email],
+#swagger-ui .swagger-ui textarea,
+#swagger-ui .swagger-ui select {
+    background: var(--bs-body-bg, #fff);
+    color: var(--bs-body-color, #3b4151);
+    border-color: var(--bs-border-color, #d9d9d9);
+}
+
+#swagger-ui .swagger-ui .btn {
+    color: var(--bs-body-color, #3b4151);
+    border-color: var(--bs-border-color, #888);
+    background: transparent;
+}
+
+#swagger-ui .swagger-ui .btn.authorize {
+    color: var(--bs-success, #49cc90);
+    border-color: var(--bs-success, #49cc90);
+}
+
+#swagger-ui .swagger-ui .opblock {
+    background: var(--bs-tertiary-bg, transparent);
+    border-color: var(--bs-border-color, rgba(59, 65, 81, 0.2));
+}
+
+#swagger-ui .swagger-ui .opblock .opblock-section-header {
+    background: var(--bs-secondary-bg, rgba(255, 255, 255, 0.8));
+    border-color: var(--bs-border-color, transparent);
+}
+
+#swagger-ui .swagger-ui .opblock-body pre.microlight,
+#swagger-ui .swagger-ui .highlight-code,
+#swagger-ui .swagger-ui .microlight {
+    background: var(--bs-tertiary-bg, #41444e) !important;
+    color: var(--bs-body-color, #fff) !important;
+}
+
+#swagger-ui .swagger-ui a.nostyle,
+#swagger-ui .swagger-ui a.nostyle:visited,
+#swagger-ui .swagger-ui .info a,
+#swagger-ui .swagger-ui .info a:hover {
+    color: var(--bs-link-color, #3b4151);
+}
+
+/*
+ * Swagger UI жёстко красит текст в #3b4151 (в т.ч. h4 Parameters/Responses).
+ * Широкий оверрайд типографики + известные классы.
+ */
+html[data-bs-theme="dark"] #swagger-ui .swagger-ui :is(
+    h1, h2, h3, h4, h5, h6, p, small, label, li, td, th, strong, em,
+    .opblock-tag, .opblock-tag small, .opblock-title, .opblock-title_normal,
+    .opblock-description-wrapper, .opblock-external-docs-wrapper,
+    .opblock .opblock-section-header, .opblock .opblock-section-header h4,
+    .opblock .opblock-section-header > label,
+    .opblock .opblock-summary-operation-id, .opblock .opblock-summary-path,
+    .opblock .opblock-summary-path__deprecated, .opblock .opblock-summary-description,
+    .responses-inner h4, .responses-inner h5,
+    .response-col_status, .response-col_description, .response-col_links,
+    .parameters-col_description, .parameter__name, .parameter__type,
+    .parameter__deprecated, .parameter__in,
+    .tab li, .model-title, .model, .prop-type, .prop-format,
+    .scheme-container, .scheme-container .schemes > label,
+    .servers > label, .checkbox p, table.headers td,
+    table thead tr td, table thead tr th,
+    section h3, section.models h4,
+    .info, .info .title, .info .base-url,
+    .info li, .info p, .info table, .info h1, .info h2, .info h3, .info h4, .info h5,
+    .markdown, .renderedMarkdown, .btn,
+    .dialog-ux .modal-ux-content p, .dialog-ux .modal-ux-content h4, .dialog-ux .modal-ux-header h3,
+    .scopes h2, .auth-container .errors, .errors-wrapper hgroup h4, .errors-wrapper .errors h4,
+    .loading-container .loading::after
+) {
+    color: var(--bs-body-color, #dee2e6) !important;
+}
+
+html[data-bs-theme="dark"] #swagger-ui .swagger-ui .markdown code,
+html[data-bs-theme="dark"] #swagger-ui .swagger-ui .renderedMarkdown code,
+html[data-bs-theme="dark"] #swagger-ui .swagger-ui .info code {
+    color: var(--bs-code-color, #e685b5) !important;
+    background: var(--bs-tertiary-bg, rgba(255, 255, 255, 0.08)) !important;
+}
+
+html[data-bs-theme="dark"] #swagger-ui .swagger-ui .markdown pre,
+html[data-bs-theme="dark"] #swagger-ui .swagger-ui .info .base-url,
+html[data-bs-theme="dark"] #swagger-ui .swagger-ui pre.base-url {
+    color: var(--bs-body-color, #dee2e6) !important;
+    background: var(--bs-tertiary-bg, rgba(255, 255, 255, 0.06)) !important;
+}
+
+html[data-bs-theme="dark"] #swagger-ui .swagger-ui .info a,
+html[data-bs-theme="dark"] #swagger-ui .swagger-ui .info a:visited,
+html[data-bs-theme="dark"] #swagger-ui .swagger-ui .markdown a,
+html[data-bs-theme="dark"] #swagger-ui .swagger-ui a.nostyle,
+html[data-bs-theme="dark"] #swagger-ui .swagger-ui a.nostyle:visited {
+    color: var(--bs-link-color, #6ea8fe) !important;
+}
+
+html[data-bs-theme="dark"] #swagger-ui .swagger-ui .opblock.opblock-get {
+    background: rgba(97, 175, 254, 0.12);
+    border-color: rgba(97, 175, 254, 0.35);
+}
+
+html[data-bs-theme="dark"] #swagger-ui .swagger-ui .opblock.opblock-post {
+    background: rgba(73, 204, 144, 0.12);
+    border-color: rgba(73, 204, 144, 0.35);
+}
+
+html[data-bs-theme="dark"] #swagger-ui .swagger-ui .opblock.opblock-put {
+    background: rgba(252, 161, 48, 0.12);
+    border-color: rgba(252, 161, 48, 0.35);
+}
+
+html[data-bs-theme="dark"] #swagger-ui .swagger-ui .opblock.opblock-delete {
+    background: rgba(249, 62, 62, 0.12);
+    border-color: rgba(249, 62, 62, 0.35);
+}
+
+html[data-bs-theme="dark"] #swagger-ui .swagger-ui .opblock .opblock-summary-method {
+    color: #fff !important;
+}
+
+html[data-bs-theme="dark"] #swagger-ui .swagger-ui svg {
+    fill: var(--bs-body-color, #dee2e6);
+}
+
+/* Models: строки схемы (.property и т.п. — более специфичные правила swagger-ui) */
+html[data-bs-theme="dark"] #swagger-ui .swagger-ui section.models,
+html[data-bs-theme="dark"] #swagger-ui .swagger-ui section.models .model-container,
+html[data-bs-theme="dark"] #swagger-ui .swagger-ui .model-box,
+html[data-bs-theme="dark"] #swagger-ui .swagger-ui .model-box-control {
+    background: var(--bs-secondary-bg, #2b3035) !important;
+    border-color: var(--bs-border-color, #495057) !important;
+}
+
+html[data-bs-theme="dark"] #swagger-ui .swagger-ui section.models h4,
+html[data-bs-theme="dark"] #swagger-ui .swagger-ui section.models h5,
+html[data-bs-theme="dark"] #swagger-ui .swagger-ui .model-title,
+html[data-bs-theme="dark"] #swagger-ui .swagger-ui .model-title__text,
+html[data-bs-theme="dark"] #swagger-ui .swagger-ui .model,
+html[data-bs-theme="dark"] #swagger-ui .swagger-ui .model .property,
+html[data-bs-theme="dark"] #swagger-ui .swagger-ui .model .property.primitive,
+html[data-bs-theme="dark"] #swagger-ui .swagger-ui .model .external-docs,
+html[data-bs-theme="dark"] #swagger-ui .swagger-ui table.model,
+html[data-bs-theme="dark"] #swagger-ui .swagger-ui table.model td,
+html[data-bs-theme="dark"] #swagger-ui .swagger-ui table.model th,
+html[data-bs-theme="dark"] #swagger-ui .swagger-ui table.model tr.description,
+html[data-bs-theme="dark"] #swagger-ui .swagger-ui table.model tr.property-row td,
+html[data-bs-theme="dark"] #swagger-ui .swagger-ui .prop-type,
+html[data-bs-theme="dark"] #swagger-ui .swagger-ui .prop-format,
+html[data-bs-theme="dark"] #swagger-ui .swagger-ui .brace-open,
+html[data-bs-theme="dark"] #swagger-ui .swagger-ui .brace-close,
+html[data-bs-theme="dark"] #swagger-ui .swagger-ui .inner-object,
+html[data-bs-theme="dark"] #swagger-ui .swagger-ui .model-toggle,
+html[data-bs-theme="dark"] #swagger-ui .swagger-ui .model-hint {
+    color: var(--bs-body-color, #dee2e6) !important;
+}
+
+html[data-bs-theme="dark"] #swagger-ui .swagger-ui .model .property.primitive {
+    color: var(--bs-secondary-color, #adb5bd) !important;
+}
+
+html[data-bs-theme="dark"] #swagger-ui .swagger-ui .prop-type {
+    color: var(--bs-info, #6edff6) !important;
+}
+
+/* Стрелки раскрытия моделей: в swagger-ui SVG без fill = чёрный */
+html[data-bs-theme="dark"] #swagger-ui .swagger-ui .model-toggle:after {
+    background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24'%3E%3Cpath fill='%23dee2e6' d='M10 6 8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z'/%3E%3C/svg%3E") !important;
+    background-size: 100% !important;
+    opacity: 1 !important;
+}
+
+html[data-bs-theme="dark"] #swagger-ui .swagger-ui section.models svg,
+html[data-bs-theme="dark"] #swagger-ui .swagger-ui .model-box-control svg,
+html[data-bs-theme="dark"] #swagger-ui .swagger-ui .models-control svg,
+html[data-bs-theme="dark"] #swagger-ui .swagger-ui .expand-methods svg,
+html[data-bs-theme="dark"] #swagger-ui .swagger-ui .expand-operation svg {
+    fill: var(--bs-body-color, #dee2e6) !important;
+}
+
+html[data-bs-theme="dark"] #swagger-ui .swagger-ui .expand-methods:hover svg,
+html[data-bs-theme="dark"] #swagger-ui .swagger-ui .expand-operation:hover svg {
+    fill: var(--bs-emphasis-color, #fff) !important;
+}
+
+/* Кнопка темы (как на about) — без языка */
+.fullscreen-controls {
+    position: fixed;
+    top: 0.65rem;
+    right: 1rem;
+    z-index: 1050;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.fullscreen-controls .ui-theme-menu {
+    max-height: 70vh;
+    overflow-y: auto;
+}
+
+.osys-swagger-header {
+    padding-right: 8rem;
+}
