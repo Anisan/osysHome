@@ -50,7 +50,7 @@ def delete_object_from_db(object_id: int, *, clear_schedules: bool = True) -> st
     Returns:
         str | None: Deleted object name, or None if not found
     """
-    obj = Object.query.get(object_id)
+    obj = db.session.get(Object, object_id)
     if not obj:
         return None
 

@@ -67,7 +67,7 @@ class SurrogatePK(object):
         """Get record by ID."""
         record_id = parse_int_id(record_id)
         if record_id is not None:
-            return cls.query.get(record_id)
+            return db.session.get(cls, record_id)
 
 
 def reference_col(tablename, nullable=False, pk_name='id', **kwargs):
