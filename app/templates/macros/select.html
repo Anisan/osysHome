@@ -1,4 +1,4 @@
-{% macro render_linked_select(field_object, field_property, field_method, horizontal=False, help_object=None, help_property=None, help_method=None, show_advanced=False, show_hidden=False, show_toggles=False) %}
+{% macro render_linked_select(field_object, field_property, field_method, horizontal=False, help_object=None, help_property=None, help_method=None, show_advanced=False, show_hidden=False, show_toggles=False, label_object=None, object_class=None) %}
 <link rel="stylesheet" href="{{ config.ASSETS_ROOT }}/plugins/select2/select2.min.css" />
 <link rel="stylesheet" href="{{ config.ASSETS_ROOT }}/plugins/select2/select2-bootstrap-5-theme.min.css" />
 <style>
@@ -210,9 +210,9 @@ body
 
 {% if horizontal %}<div class="row g-2">{% endif %}
 <div class="{% if horizontal %}col-md{% else %}mb-3{% endif %}">
-    <label class="form-label{% if horizontal %} mb-1{% endif %}" for="{{ field_object.name }}">{{ gettext("Linked object") }}</label>
+    <label class="form-label{% if horizontal %} mb-1{% endif %}" for="{{ field_object.name }}">{% if label_object %}{{ label_object }}{% else %}{{ gettext("Linked object") }}{% endif %}</label>
     <div class="input-group">
-    <select id="{{ field_object.name }}" name="{{ field_object.name }}" class="select2" aria-label="{{ gettext('Linked object') }}" data-placeholder="{{ gettext('Select object')}}">
+    <select id="{{ field_object.name }}" name="{{ field_object.name }}" class="select2" aria-label="{% if label_object %}{{ label_object|striptags }}{% else %}{{ gettext('Linked object') }}{% endif %}" data-placeholder="{{ gettext('Select object')}}">
         <option value=""></option>
     </select>
     <button class="btn btn-outline-secondary" type="button" id="reset-{{ field_object.name }}" title="{{ gettext('Clear') }}"><i class="fa-solid fa-broom"></i></button>
@@ -376,11 +376,30 @@ $(document).ready(function() {
     }
 
     function loadDetails(preserveSelection) {
+        {% if object_class %}
+        var url = '/api/object/class/{{ object_class }}' + flagsQuery();
+        {% else %}
+        var url = '/api/object/list/details' + flagsQuery();
+        {% endif %}
         $.ajax({
-            url: '/api/object/list/details' + flagsQuery(),
+            url: url,
             method: 'GET',
             success: function(data) {
+                {% if object_class %}
+                var raw = (data && data.result) || {};
+                detailsMap = {};
+                Object.keys(raw).forEach(function(key) {
+                    var item = raw[key] || {};
+                    var name = item.name || key;
+                    detailsMap[name] = {
+                        description: item.description || '',
+                        properties: {},
+                        methods: {}
+                    };
+                });
+                {% else %}
                 detailsMap = (data && data.result) || {};
+                {% endif %}
                 applyDetails(!!preserveSelection);
             },
             error: function() {
